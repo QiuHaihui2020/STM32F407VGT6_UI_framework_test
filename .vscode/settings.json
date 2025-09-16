@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "freertosconfig.h": "c",
+        "key_driver.h": "c",
+        "ff_gen_drv.h": "c",
+        "typedef.h": "c"
+    }
+}
