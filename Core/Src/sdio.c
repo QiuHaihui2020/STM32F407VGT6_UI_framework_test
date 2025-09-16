@@ -16,6 +16,7 @@
   *
   ******************************************************************************
   */
+ #include "log_debug.h"
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "sdio.h"
@@ -50,7 +51,16 @@ void MX_SDIO_SD_Init(void)
   /* USER CODE BEGIN SDIO_Init 2 */
   /*默认代码生成4B，从默认的4位手动修改为1位，sd卡才可以初始化成功（STM32CubeMX软件BUG？），BSP_SD_Init函数里面会重新设置4B */
   hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
-
+  if (HAL_SD_Init(&hsd) != HAL_OK) {
+      log_debug("HAL_SD_Init failed\n");
+      Error_Handler();
+  }
+  
+  // 初始化成功后切换到4位模式
+  if (HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_4B) != HAL_OK) {
+      log_debug("HAL_SD_ConfigWideBusOperation failed\n");
+      Error_Handler();
+  }
   /* USER CODE END SDIO_Init 2 */
 
 }

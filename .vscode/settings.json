@@ -3,6 +3,8 @@
         "freertosconfig.h": "c",
         "key_driver.h": "c",
         "ff_gen_drv.h": "c",
-        "typedef.h": "c"
+        "typedef.h": "c",
+        "log_debug.h": "c",
+        "stm32f4xx_hal.h": "c"
     }
 }

@@ -143,8 +143,8 @@ int main(void)
 
 
     //SD_Driver.disk_initialize(0);
-    fs_test();
-    iis_tx_test();
+    //fs_test();
+    //iis_tx_test();
     
 
     // BaseType_t xReturn = task_create(app_core_function, NULL, "app_core");

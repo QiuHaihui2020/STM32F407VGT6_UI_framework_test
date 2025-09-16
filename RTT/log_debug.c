@@ -34,11 +34,11 @@ void log_timer_calculation(void)
     }
 }
 
-//int _write(int file, char *ptr, int len)
-//{
-//    (void)file;  // ???????
-//    for (int i = 0; i < len; i++) {
-//        SEGGER_RTT_PutChar(0, ptr[i]);
-//    }
-//    return len;
-//}
+int _write(int file, char *ptr, int len)
+{
+    (void)file;  // ???????
+    for (int i = 0; i < len; i++) {
+        SEGGER_RTT_PutChar(0, ptr[i]);
+    }
+    return len;
+}

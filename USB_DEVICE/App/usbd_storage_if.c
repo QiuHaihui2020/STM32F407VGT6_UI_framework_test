@@ -24,6 +24,7 @@
 /* USER CODE BEGIN INCLUDE */
 #include "sdio.h"
 #include "sd_diskio.h"
+#include "log_debug.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,8 +65,6 @@
   */
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  0x10000
-#define STORAGE_BLK_SIZ                  0x200
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -178,9 +177,14 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
-  UNUSED(lun);
-  SD_Driver.disk_initialize(0);
-  return (USBD_OK);
+    //需要提取初始化sd卡，这里初始化sd卡会卡死
+    if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
+    {
+        log_debug("STORAGE_Init_FS\n");
+        return USBD_OK;
+    }
+    log_debug("STORAGE_Init_FS fail\n");
+    return USBD_FAIL;
   /* USER CODE END 2 */
 }
 
@@ -194,27 +198,18 @@ int8_t STORAGE_Init_FS(uint8_t lun)
 int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
   /* USER CODE BEGIN 3 */
-  UNUSED(lun);
-
-
-  *block_num  = hsd.SdCard.BlockNbr ;
-  *block_size = hsd.SdCard.BlockSize ;
-  return (USBD_OK);
-
-  *block_num  = STORAGE_BLK_NBR;
-  *block_size = STORAGE_BLK_SIZ;
 	HAL_SD_CardInfoTypeDef info;
 	if(HAL_SD_GetCardState(&hsd) ==  HAL_SD_CARD_TRANSFER)
 	{
 		HAL_SD_GetCardInfo(&hsd, &info);
 		*block_num = info.LogBlockNbr;
 		*block_size = info.LogBlockSize;
- 
+        //log_debug("SD_GetCardInfo: %d, %d\r\n", *block_num, *block_size);
 		return  USBD_OK;
 	}
+    log_debug("STORAGE_GetCapacity_FS Fail !!!\n");
 	return  USBD_FAIL;
-
-  return (USBD_OK);
+    
   /* USER CODE END 3 */
 }
 
@@ -226,12 +221,13 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
+    if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
+    {
+        return USBD_OK;
+    }
+    log_debug("STORAGE_IsReady_FS Fail !!!\n");
+    return USBD_FAIL;
 
-  return (SD_Driver.disk_status(lun));
-
-  UNUSED(lun);
-
-  return (USBD_OK);
   /* USER CODE END 4 */
 }
 
@@ -243,8 +239,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 5 */
-  UNUSED(lun);
-
+    //log_debug("STORAGE_IsWriteProtected_FS: %d\r\n", lun);
   return (USBD_OK);
   /* USER CODE END 5 */
 }
@@ -260,25 +255,18 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 6 */
-
-  return (SD_Driver.disk_read(lun, buf, blk_addr, blk_len));
-
-  int8_t ret = USBD_FAIL;  
-  if( HAL_SD_ReadBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
-  //if( HAL_SD_ReadBlocks(&hsd, buf, blk_addr,  blk_len, HAL_MAX_DELAY) == HAL_OK )
-  {
-		ret = USBD_OK;
-		while(HAL_SD_GetState(&hsd) == HAL_SD_STATE_BUSY){};
-		while( HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER ){};
-  }    
-  return ret;
-
-  UNUSED(lun);
-  UNUSED(buf);
-  UNUSED(blk_addr);
-  UNUSED(blk_len);
-
-  return (USBD_OK);
+    int8_t ret = USBD_FAIL;  
+    if( HAL_SD_ReadBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
+    // if( HAL_SD_ReadBlocks(&hsd, buf, blk_addr,  blk_len, HAL_MAX_DELAY) == HAL_OK )
+    {
+        ret = USBD_OK;
+        //while(HAL_SD_GetState(&hsd) == HAL_SD_STATE_BUSY){};
+        while( HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER ){};
+    } else {
+        ret = USBD_FAIL;
+        log_debug("STORAGE_Read_FS Fail !!!\n");
+    } 
+    return ret;
   /* USER CODE END 6 */
 }
 
@@ -294,24 +282,18 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 {
   /* USER CODE BEGIN 7 */
 
-  return (SD_Driver.disk_write(lun, buf, blk_addr, blk_len));
-
-  int8_t ret = USBD_FAIL; 
-  if( HAL_SD_WriteBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
-  //if( HAL_SD_WriteBlocks(&hsd, buf, blk_addr, blk_len, HAL_MAX_DELAY) == HAL_OK )
-  {
-		ret = USBD_OK;
-		while(HAL_SD_GetState(&hsd) == HAL_SD_STATE_BUSY){};
-		while( HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER ){};
-  }    
-  return ret;
- 
-  UNUSED(lun);
-  UNUSED(buf);
-  UNUSED(blk_addr);
-  UNUSED(blk_len);
-
-  return (USBD_OK);
+    int8_t ret = USBD_FAIL; 
+    if( HAL_SD_WriteBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
+    // if( HAL_SD_WriteBlocks(&hsd, buf, blk_addr, blk_len, HAL_MAX_DELAY) == HAL_OK )
+    {
+        ret = USBD_OK;
+        //while(HAL_SD_GetState(&hsd) == HAL_SD_STATE_BUSY){};
+        while( HAL_SD_GetCardState(&hsd) != HAL_SD_CARD_TRANSFER ){};
+    }  else {
+        ret = USBD_FAIL;
+        log_debug("STORAGE_Write_FS Fail !!!\n");
+    }
+    return ret;
   /* USER CODE END 7 */
 }
 
@@ -323,7 +305,8 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 int8_t STORAGE_GetMaxLun_FS(void)
 {
   /* USER CODE BEGIN 8 */
-  return (STORAGE_LUN_NBR - 1);
+//   log_debug("STORAGE_GetMaxLun_FS: %d\r\n", STORAGE_LUN_NBR);
+    return (STORAGE_LUN_NBR - 1);
   /* USER CODE END 8 */
 }
 
