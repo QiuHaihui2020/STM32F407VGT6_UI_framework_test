@@ -24,10 +24,11 @@
 #include "usbd_def.h"
 #include "usbd_core.h"
 
-#include "usbd_msc.h"
+#include "usbd_audio.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "usbd_msc.h"
+#include "usbd_audio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -624,7 +625,8 @@ USBD_StatusTypeDef USBD_LL_SetTestMode(USBD_HandleTypeDef *pdev, uint8_t testmod
   */
 void *USBD_static_malloc(uint32_t size)
 {
-  static uint32_t mem[(sizeof(USBD_MSC_BOT_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  static uint32_t mem[(sizeof(USBD_AUDIO_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  
   return mem;
 }
 

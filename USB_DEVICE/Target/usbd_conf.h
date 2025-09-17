@@ -35,7 +35,8 @@
 #include "stm32f4xx_hal.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+/*---------- -----------*/
+#define MSC_MEDIA_PACKET     512U
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
@@ -75,7 +76,7 @@
 /*---------- -----------*/
 #define USBD_SELF_POWERED     1U
 /*---------- -----------*/
-#define MSC_MEDIA_PACKET     512U
+#define USBD_AUDIO_FREQ     22100U
 
 /****************************************/
 /* #define for FS and HS identification */

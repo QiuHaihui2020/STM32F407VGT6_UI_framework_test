@@ -5,6 +5,7 @@
         "ff_gen_drv.h": "c",
         "typedef.h": "c",
         "log_debug.h": "c",
-        "stm32f4xx_hal.h": "c"
+        "stm32f4xx_hal.h": "c",
+        "usbd_msc.h": "c"
     }
 }
