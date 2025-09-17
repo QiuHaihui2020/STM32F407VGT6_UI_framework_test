@@ -37,6 +37,8 @@
 /* USER CODE BEGIN INCLUDE */
 /*---------- -----------*/
 #define MSC_MEDIA_PACKET     512U
+#define USBD_COMPOSITE_USE_IAD 1
+#define USBD_MAX_SUPPORTED_CLASS 2
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
@@ -64,13 +66,13 @@
   */
 
 /*---------- -----------*/
-#define USBD_MAX_NUM_INTERFACES     1U
+#define USBD_MAX_NUM_INTERFACES     3
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1U
 /*---------- -----------*/
 #define USBD_MAX_STR_DESC_SIZ     512U
 /*---------- -----------*/
-#define USBD_DEBUG_LEVEL     0U
+#define USBD_DEBUG_LEVEL     2U
 /*---------- -----------*/
 #define USBD_LPM_ENABLED     0U
 /*---------- -----------*/

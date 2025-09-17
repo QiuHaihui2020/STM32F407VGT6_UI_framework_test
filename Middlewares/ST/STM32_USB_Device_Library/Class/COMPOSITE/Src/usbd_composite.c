@@ -1,1168 +1,547 @@
-/**
-  ******************************************************************************
-  * @file    usbd_composite.c
-  * @author  MCD Application Team
-  * @brief   This file provides the HID core functions.
-  *
-  * @verbatim
-  *
-  *          ===================================================================
-  *                                COMPOSITE Class  Description
-  *          ===================================================================
-  *
-  *
-  *
-  *
-  *
-  *
-  * @note     In HS mode and when the DMA is used, all variables and data structures
-  *           dealing with the DMA during the transaction process should be 32-bit aligned.
-  *
-  *
-  *  @endverbatim
-  *
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2015 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                      www.st.com/SLA0044
-  *
-  ******************************************************************************
-  */
-
-/* Includes ------------------------------------------------------------------*/
 #include "usbd_composite.h"
-#include "usbd_ctlreq.h"
+#include "usbd_def.h"
+#include "usbd_cdc.h"
+#include "usbd_msc.h"
 
-/** @addtogroup STM32_USB_DEVICE_LIBRARY
-  * @{
-  */
+#include "usbd_core.h"
+#include "usbd_desc.h"
+#include "usbd_conf.h"
+#include <stdio.h>
 
-/** @defgroup USBD_COMPOSITE
-  * @brief usbd core module
-  * @{
-  */
+#define USBD_PRODUCT_XSTR(s) USBD_PRODUCT_STR(s)
+#define USBD_PRODUCT_STR(s) #s
 
-/** @defgroup USBD_COMPOSITE_Private_TypesDefinitions
-  * @{
-  */
-/**
-  * @}
-  */
+#if 1
+#define USBD_CMPSIT_VID     1155
+#define USBD_CMPSIT_LANGID_STRING     1033
+#define USBD_CMPSIT_MANUFACTURER_STRING     "wenyz@wolfGroup"
+#define USBD_CMPSIT_PID_FS     22336
+#define USBD_CMPSIT_PRODUCT_STRING_FS     "STM32 composite product"
+#define USBD_CMPSIT_CONFIGURATION_STRING_FS     "Composite Config"
+#define USBD_CMPSIT_INTERFACE_STRING_FS     "Composite Interface"
+#else
+#define USBD_CMPSIT_VID     1155
+#define USBD_CMPSIT_LANGID_STRING     1033
+#define USBD_CMPSIT_MANUFACTURER_STRING     "STMicroelectronics"
+#define USBD_CMPSIT_PID_FS     22336
+#define USBD_CMPSIT_PRODUCT_STRING_FS     "STM32 Virtual ComPort"
+#define USBD_CMPSIT_CONFIGURATION_STRING_FS     "CDC Config"
+#define USBD_CMPSIT_INTERFACE_STRING_FS     "CDC Interface"
+#endif
 
-/** @defgroup USBD_COMPOSITE_Private_Defines
-  * @{
-  */
+#define USBD_CDC_INTERFACE_STRING_FS     "CDC Interface"
+#define USBD_MSC_INTERFACE_STRING_FS     "MSC Interface"
 
-/**
-  * @}
-  */
 
-/** @defgroup USBD_COMPOSITE_Private_Macros
-  * @{
-  */
+uint8_t * USBD_CMPSIT_FS_DeviceDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_LangIDStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_ManufacturerStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_ProductStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_ConfigStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+uint8_t * USBD_CMPSIT_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+#if (USBD_LPM_ENABLED == 1)
+uint8_t * USBD_CMPSIT_FS_USR_BOSDescriptor(USBD_SpeedTypeDef speed, uint16_t *length);
+#endif /* (USBD_LPM_ENABLED == 1) */
 
-/**
-  * @}
-  */
 
-/** @defgroup USBD_COMPOSITE_Private_FunctionPrototypes
-  * @{
-  */
-
-static uint8_t USBD_COMPOSITE_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
-static uint8_t USBD_COMPOSITE_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
-static uint8_t USBD_COMPOSITE_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
-static uint8_t USBD_COMPOSITE_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
-static uint8_t USBD_COMPOSITE_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum);
-static uint8_t USBD_COMPOSITE_EP0_RxReady(USBD_HandleTypeDef *pdev);
-static uint8_t USBD_COMPOSITE_EP0_TxReady(USBD_HandleTypeDef *pdev);
-static uint8_t USBD_COMPOSITE_SOF(USBD_HandleTypeDef *pdev);
-static uint8_t USBD_COMPOSITE_IsoINIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnum);
-static uint8_t USBD_COMPOSITE_IsoOutIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnum);
-
-static uint8_t *USBD_COMPOSITE_GetHSCfgDesc(uint16_t *length);
-static uint8_t *USBD_COMPOSITE_GetFSCfgDesc(uint16_t *length);
-static uint8_t *USBD_COMPOSITE_GetOtherSpeedCfgDesc(uint16_t *length);
-static uint8_t *USBD_COMPOSITE_GetDeviceQualifierDesc(uint16_t *length);
-static uint8_t *USBD_COMPOSITE_GetUsrStringDesc(USBD_HandleTypeDef *pdev, uint8_t index, uint16_t *length);
-
-/**
-  * @}
-  */
-
-/** @defgroup USBD_COMPOSITE_Private_Variables
-  * @{
-  */
-
-USBD_ClassTypeDef USBD_COMPOSITE =
-    {
-        USBD_COMPOSITE_Init,
-        USBD_COMPOSITE_DeInit,
-        USBD_COMPOSITE_Setup,
-        USBD_COMPOSITE_EP0_TxReady,
-        USBD_COMPOSITE_EP0_RxReady,
-        USBD_COMPOSITE_DataIn,
-        USBD_COMPOSITE_DataOut,
-        USBD_COMPOSITE_SOF,
-        USBD_COMPOSITE_IsoINIncomplete,
-        USBD_COMPOSITE_IsoOutIncomplete,
-        USBD_COMPOSITE_GetHSCfgDesc,
-        USBD_COMPOSITE_GetFSCfgDesc,
-        USBD_COMPOSITE_GetOtherSpeedCfgDesc,
-        USBD_COMPOSITE_GetDeviceQualifierDesc,
-        USBD_COMPOSITE_GetUsrStringDesc};
-
-typedef struct USBD_COMPOSITE_CFG_DESC_t
+USBD_DescriptorsTypeDef usbCmpsitFS_Desc =
 {
-  uint8_t CONFIG_DESC[USB_CONF_DESC_SIZE];
-#if (USBD_USE_CDC_RNDIS == 1)
-  uint8_t USBD_CDC_RNDIS_DESC[CDC_RNDIS_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  uint8_t USBD_CDC_ECM_DESC[CDC_ECM_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-  uint8_t USBD_HID_MOUSE_DESC[USB_HID_CONFIG_DESC_SIZ - 0x09];
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-  uint8_t USBD_HID_KEYBOARD_DESC[HID_KEYBOARD_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  uint8_t USBD_HID_CUSTOM_DESC[USB_CUSTOM_HID_CONFIG_DESC_SIZ - 0x09];
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  uint8_t USBD_UAC_MIC_DESC[USBD_AUDIO_MIC_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  uint8_t USBD_AUDIO_SPKR_DESC[USBD_AUDIO_SPKR_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_UVC == 1)
-  uint8_t USBD_UVC_DESC[UVC_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_MSC == 1)
-  uint8_t USBD_MSC_DESC[USB_MSC_CONFIG_DESC_SIZ - 0x09];
-#endif
-#if (USBD_USE_DFU == 1)
-  uint8_t USBD_DFU_DESC[USB_DFU_CONFIG_DESC_SIZ - 0x09];
-#endif
-#if (USBD_USE_PRNTR == 1)
-  uint8_t USBD_PRNTR_DESC[USB_PRNT_CONFIG_DESC_SIZE - 0x09];
-#endif
-#if (USBD_USE_CDC_ACM == 1)
-  uint8_t USBD_CDC_ACM_DESC[USB_CDC_CONFIG_DESC_SIZ - 0x09];
-#endif
-
-} __PACKED USBD_COMPOSITE_CFG_DESC_t;
-
-#if defined(__ICCARM__) /*!< IAR Compiler */
-#pragma data_alignment = 4
-#endif
-__ALIGN_BEGIN USBD_COMPOSITE_CFG_DESC_t USBD_COMPOSITE_FSCfgDesc, USBD_COMPOSITE_HSCfgDesc __ALIGN_END;
-uint8_t USBD_Track_String_Index = (USBD_IDX_INTERFACE_STR + 1);
-
-#if defined(__ICCARM__) /*!< IAR Compiler */
-#pragma data_alignment = 4
-#endif
-/* USB Standard Device Descriptor */
-__ALIGN_BEGIN static uint8_t USBD_COMPOSITE_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END =
-    {
-        USB_LEN_DEV_QUALIFIER_DESC,
-        USB_DESC_TYPE_DEVICE_QUALIFIER,
-        0x00,
-        0x02,
-        0xEF,
-        0x02,
-        0x01,
-        0x40,
-        0x01,
-        0x00,
+  USBD_CMPSIT_FS_DeviceDescriptor
+, USBD_CMPSIT_FS_LangIDStrDescriptor
+, USBD_CMPSIT_FS_ManufacturerStrDescriptor
+, USBD_CMPSIT_FS_ProductStrDescriptor
+, USBD_CMPSIT_FS_SerialStrDescriptor
+, USBD_CMPSIT_FS_ConfigStrDescriptor
+, USBD_CMPSIT_FS_InterfaceStrDescriptor
+#if (USBD_LPM_ENABLED == 1)
+, USBD_CMPSIT_FS_USR_BOSDescriptor
+#endif /* (USBD_LPM_ENABLED == 1) */
 };
 
-/**
-  * @}
-  */
-
-/** @defgroup USBD_COMPOSITE_Private_Functions
-  * @{
-  */
-
-/**
-  * @brief  USBD_COMPOSITE_Init
-  *         Initialize the COMPOSITE interface
-  * @param  pdev: device instance
-  * @param  cfgidx: Configuration index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
+__ALIGN_BEGIN uint8_t USBD_CMPSIT_FS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
 {
-#if (USBD_USE_CDC_ACM == 1)
-  USBD_CDC_ACM.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  USBD_CDC_ECM.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  USBD_CDC_RNDIS.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-  USBD_HID_MOUSE.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-  USBD_HID_KEYBOARD.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  USBD_HID_CUSTOM.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  USBD_AUDIO_MIC.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  USBD_AUDIO_SPKR.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_UVC == 1)
-  USBD_VIDEO.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_MSC == 1)
-  USBD_MSC.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_DFU == 1)
-  USBD_DFU.Init(pdev, cfgidx);
-#endif
-#if (USBD_USE_PRNTR == 1)
-  USBD_PRNT.Init(pdev, cfgidx);
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_Init
-  *         DeInitialize the COMPOSITE layer
-  * @param  pdev: device instance
-  * @param  cfgidx: Configuration index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
-{
-#if (USBD_USE_CDC_ACM == 1)
-  USBD_CDC_ACM.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  USBD_CDC_ECM.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  USBD_CDC_RNDIS.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-  USBD_HID_MOUSE.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-  USBD_HID_KEYBOARD.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  USBD_HID_CUSTOM.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  USBD_AUDIO_MIC.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  USBD_AUDIO_SPKR.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_UVC == 1)
-  USBD_VIDEO.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_MSC == 1)
-  USBD_MSC.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_DFU == 1)
-  USBD_DFU.DeInit(pdev, cfgidx);
-#endif
-#if (USBD_USE_PRNTR == 1)
-  USBD_PRNT.DeInit(pdev, cfgidx);
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_Setup
-  *         Handle the COMPOSITE specific requests
-  * @param  pdev: instance
-  * @param  req: usb requests
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_Setup(USBD_HandleTypeDef *pdev,
-                                    USBD_SetupReqTypedef *req)
-{
-#if (USBD_USE_CDC_ACM == 1)
-  for (uint8_t i = 0; i < USBD_CDC_ACM_COUNT; i++)
-  {
-    if (LOBYTE(req->wIndex) == CDC_CMD_ITF_NBR[i] || LOBYTE(req->wIndex) == CDC_COM_ITF_NBR[i])
-    {
-      return USBD_CDC_ACM.Setup(pdev, req);
-    }
-  }
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  if (LOBYTE(req->wIndex) == CDC_ECM_CMD_ITF_NBR || LOBYTE(req->wIndex) == CDC_ECM_COM_ITF_NBR)
-  {
-    return USBD_CDC_ECM.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  if (LOBYTE(req->wIndex) == CDC_RNDIS_CMD_ITF_NBR || LOBYTE(req->wIndex) == CDC_RNDIS_COM_ITF_NBR)
-  {
-    return USBD_CDC_RNDIS.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-  if (LOBYTE(req->wIndex) == HID_MOUSE_ITF_NBR)
-  {
-    return USBD_HID_MOUSE.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-  if (LOBYTE(req->wIndex) == HID_KEYBOARD_ITF_NBR)
-  {
-    return USBD_HID_KEYBOARD.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  if (LOBYTE(req->wIndex) == CUSTOM_HID_ITF_NBR)
-  {
-    return USBD_HID_CUSTOM.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  if (LOBYTE(req->wIndex) == AUDIO_MIC_AC_ITF_NBR || LOBYTE(req->wIndex) == AUDIO_MIC_AS_ITF_NBR)
-  {
-    return USBD_AUDIO_MIC.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  if (LOBYTE(req->wIndex) == AUDIO_SPKR_AC_ITF_NBR || LOBYTE(req->wIndex) == AUDIO_SPKR_AS_ITF_NBR)
-  {
-    return USBD_AUDIO_SPKR.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_UVC == 1)
-  if (LOBYTE(req->wIndex) == UVC_VC_IF_NUM || LOBYTE(req->wIndex) == UVC_VS_IF_NUM)
-  {
-    return USBD_VIDEO.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_MSC == 1)
-  if (LOBYTE(req->wIndex) == MSC_ITF_NBR)
-  {
-    return USBD_MSC.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_DFU == 1)
-  if (LOBYTE(req->wIndex) == DFU_ITF_NBR)
-  {
-    return USBD_DFU.Setup(pdev, req);
-  }
-#endif
-#if (USBD_USE_PRNTR == 1)
-  if (LOBYTE(req->wIndex) == PRNT_ITF_NBR)
-  {
-    USBD_PRNT.Setup(pdev, req);
-  }
-#endif
-
-  return USBD_FAIL;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_DataIn
-  *         handle data IN Stage
-  * @param  pdev: device instance
-  * @param  epnum: endpoint index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
-{
-#if (USBD_USE_CDC_ACM == 1)
-  for (uint8_t i = 0; i < USBD_CDC_ACM_COUNT; i++)
-  {
-    if (epnum == (CDC_IN_EP[i] & 0x7F) || epnum == (CDC_CMD_EP[i] & 0x7F))
-    {
-      return USBD_CDC_ACM.DataIn(pdev, epnum);
-    }
-  }
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  if (epnum == (CDC_ECM_IN_EP & 0x7F) || epnum == (CDC_ECM_CMD_EP & 0x7F))
-  {
-    return USBD_CDC_ECM.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  if (epnum == (CDC_RNDIS_IN_EP & 0x7F) || epnum == (CDC_RNDIS_CMD_EP & 0x7F))
-  {
-    return USBD_CDC_RNDIS.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-  if (epnum == (HID_MOUSE_IN_EP & 0x7F))
-  {
-    return USBD_HID_MOUSE.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-  if (epnum == (HID_KEYBOARD_IN_EP & 0x7F))
-  {
-    return USBD_HID_KEYBOARD.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  if (epnum == (CUSTOM_HID_IN_EP & 0x7F))
-  {
-    return USBD_HID_CUSTOM.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  if (epnum == (AUDIO_MIC_EP & 0x7F))
-  {
-    return USBD_AUDIO_MIC.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-#endif
-#if (USBD_USE_UVC == 1)
-  if (epnum == (UVC_IN_EP & 0x7F))
-  {
-    return USBD_VIDEO.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_MSC == 1)
-  if (epnum == (MSC_IN_EP & 0x7F))
-  {
-    return USBD_MSC.DataIn(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_DFU == 1)
-#endif
-#if (USBD_USE_PRNTR == 1)
-  if (epnum == (PRNT_IN_EP & 0x7F))
-  {
-    USBD_PRNT.DataIn(pdev, epnum);
-  }
-#endif
-
-  return USBD_FAIL;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_EP0_RxReady
-  *         handle EP0 Rx Ready event
-  * @param  pdev: device instance
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_EP0_RxReady(USBD_HandleTypeDef *pdev)
-{
-#if (USBD_USE_CDC_ACM == 1)
-  USBD_CDC_ACM.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  USBD_CDC_ECM.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  USBD_CDC_RNDIS.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  USBD_HID_CUSTOM.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  USBD_AUDIO_MIC.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  USBD_AUDIO_SPKR.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_UVC == 1)
-#endif
-#if (USBD_USE_MSC == 1)
-#endif
-#if (USBD_USE_DFU == 1)
-  USBD_DFU.EP0_RxReady(pdev);
-#endif
-#if (USBD_USE_PRNTR == 1)
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_EP0_TxReady
-  *         handle EP0 TRx Ready event
-  * @param  pdev: device instance
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_EP0_TxReady(USBD_HandleTypeDef *pdev)
-{
-#if (USBD_USE_CDC_ACM == 1)
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  USBD_AUDIO_MIC.EP0_TxSent(pdev);
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  USBD_AUDIO_SPKR.EP0_TxSent(pdev);
-#endif
-#if (USBD_USE_UVC == 1)
-#endif
-#if (USBD_USE_MSC == 1)
-#endif
-#if (USBD_USE_DFU == 1)
-  USBD_DFU.EP0_TxSent(pdev);
-#endif
-#if (USBD_USE_PRNTR == 1)
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_SOF
-  *         handle SOF event
-  * @param  pdev: device instance
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_SOF(USBD_HandleTypeDef *pdev)
-{
-#if (USBD_USE_CDC_ACM == 1)
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  USBD_AUDIO_MIC.SOF(pdev);
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  USBD_AUDIO_SPKR.SOF(pdev);
-#endif
-#if (USBD_USE_UVC == 1)
-  USBD_VIDEO.SOF(pdev);
-#endif
-#if (USBD_USE_MSC == 1)
-#endif
-#if (USBD_USE_DFU == 1)
-  USBD_DFU.SOF(pdev);
-#endif
-#if (USBD_USE_PRNTR == 1)
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_IsoINIncomplete
-  *         handle data ISO IN Incomplete event
-  * @param  pdev: device instance
-  * @param  epnum: endpoint index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_IsoINIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnum)
-{
-#if (USBD_USE_CDC_ACM == 1)
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-  if (epnum == (AUDIO_MIC_EP & 0x7F))
-  {
-    USBD_AUDIO_MIC.IsoINIncomplete(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-#endif
-#if (USBD_USE_UVC == 1)
-  if (epnum == (UVC_IN_EP & 0x7F))
-  {
-    USBD_VIDEO.IsoINIncomplete(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_MSC == 1)
-#endif
-#if (USBD_USE_DFU == 1)
-#endif
-#if (USBD_USE_PRNTR == 1)
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_IsoOutIncomplete
-  *         handle data ISO OUT Incomplete event
-  * @param  pdev: device instance
-  * @param  epnum: endpoint index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_IsoOutIncomplete(USBD_HandleTypeDef *pdev, uint8_t epnum)
-{
-#if (USBD_USE_CDC_ACM == 1)
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  if (epnum == AUDIO_SPKR_EP)
-  {
-    USBD_AUDIO_SPKR.IsoOUTIncomplete(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UVC == 1)
-#endif
-#if (USBD_USE_MSC == 1)
-#endif
-#if (USBD_USE_DFU == 1)
-#endif
-#if (USBD_USE_PRNTR == 1)
-#endif
-
-  return (uint8_t)USBD_OK;
-}
-/**
-  * @brief  USBD_COMPOSITE_DataOut
-  *         handle data OUT Stage
-  * @param  pdev: device instance
-  * @param  epnum: endpoint index
-  * @retval status
-  */
-static uint8_t USBD_COMPOSITE_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
-{
-#if (USBD_USE_CDC_ACM == 1)
-  for (uint8_t i = 0; i < USBD_CDC_ACM_COUNT; i++)
-  {
-    if (epnum == CDC_OUT_EP[i])
-    {
-      return USBD_CDC_ACM.DataOut(pdev, epnum);
-    }
-  }
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-  if (epnum == CDC_ECM_OUT_EP)
-  {
-    return USBD_CDC_ECM.DataOut(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-  if (epnum == CDC_RNDIS_OUT_EP)
-  {
-    return USBD_CDC_RNDIS.DataOut(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-  if (epnum == CUSTOM_HID_OUT_EP)
-  {
-    return USBD_HID_CUSTOM.DataOut(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-  if (epnum == AUDIO_SPKR_EP)
-  {
-    return USBD_AUDIO_SPKR.DataOut(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_UVC == 1)
-#endif
-#if (USBD_USE_MSC == 1)
-  if (epnum == MSC_OUT_EP)
-  {
-    return USBD_MSC.DataOut(pdev, epnum);
-  }
-#endif
-#if (USBD_USE_DFU == 1)
-#endif
-#if (USBD_USE_PRNTR == 1)
-  if (epnum == PRNT_OUT_EP)
-  {
-    USBD_PRNT.DataOut(pdev, epnum);
-  }
-#endif
-
-  return USBD_FAIL;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_GetHSCfgDesc
-  *         return configuration descriptor
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t *USBD_COMPOSITE_GetHSCfgDesc(uint16_t *length)
-{
-  *length = (uint16_t)sizeof(USBD_COMPOSITE_HSCfgDesc);
-  return (uint8_t *)&USBD_COMPOSITE_HSCfgDesc;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_GetFSCfgDesc
-  *         return configuration descriptor
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t *USBD_COMPOSITE_GetFSCfgDesc(uint16_t *length)
-{
-  *length = (uint16_t)sizeof(USBD_COMPOSITE_FSCfgDesc);
-  return (uint8_t *)&USBD_COMPOSITE_FSCfgDesc;
-}
-
-/**
-  * @brief  USBD_COMPOSITE_GetOtherSpeedCfgDesc
-  *         return configuration descriptor
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-static uint8_t *USBD_COMPOSITE_GetOtherSpeedCfgDesc(uint16_t *length)
-{
-#if (USBD_USE_HS == 1)
-  *length = (uint16_t)sizeof(USBD_COMPOSITE_FSCfgDesc);
-  return (uint8_t *)&USBD_COMPOSITE_FSCfgDesc;
+	0x12,						/*bLength */
+	USB_DESC_TYPE_DEVICE, 	  /*bDescriptorType*/
+#if (USBD_LPM_ENABLED == 1)
+	0x01, 					  /*bcdUSB */ /* changed to USB version 2.01
+											 in order to support LPM L1 suspend
+											 resume test of USBCV3.0*/
 #else
-  *length = (uint16_t)sizeof(USBD_COMPOSITE_HSCfgDesc);
-  return (uint8_t *)&USBD_COMPOSITE_HSCfgDesc;
-#endif
+	0x00, 					  /*bcdUSB */
+#endif /* (USBD_LPM_ENABLED == 1) */
+	0x02,
+	// Notify OS that this is a composite device
+	0xEF, 					  /*bDeviceClass*/
+	0x02, 					  /*bDeviceSubClass*/
+	0x01, 					  /*bDeviceProtocol*/
+	USB_MAX_EP0_SIZE, 		  /*bMaxPacketSize*/
+	LOBYTE(USBD_CMPSIT_VID), 		  /*idVendor*/
+	HIBYTE(USBD_CMPSIT_VID), 		  /*idVendor*/
+	LOBYTE(USBD_CMPSIT_PID_FS),		  /*idProduct*/
+	HIBYTE(USBD_CMPSIT_PID_FS),		  /*idProduct*/
+	0x00, 					  /*bcdDevice rel. 2.00*/
+	0x02, 					  /* bNumInterfaces */
+	USBD_IDX_MFC_STR, 		  /*Index of manufacturer  string*/
+	USBD_IDX_PRODUCT_STR, 	  /*Index of product string*/
+	USBD_IDX_SERIAL_STR,		  /*Index of serial number string*/
+	USBD_MAX_NUM_CONFIGURATION  /*bNumConfigurations*/
+
+};
+
+#if (USBD_LPM_ENABLED == 1)
+__ALIGN_BEGIN uint8_t USBD_CMPSIT_FS_BOSDesc[USB_SIZ_BOS_DESC] __ALIGN_END =
+{
+  0x5,
+  USB_DESC_TYPE_BOS,
+  0xC,
+  0x0,
+  0x1,  /* 1 device capability*/
+        /* device capability*/
+  0x7,
+  USB_DEVICE_CAPABITY_TYPE,
+  0x2,
+  0x2,  /* LPM capability bit set*/
+  0x0,
+  0x0,
+  0x0
+};
+#endif /* (USBD_LPM_ENABLED == 1) */
+
+/** USB lang identifier descriptor. */
+__ALIGN_BEGIN uint8_t USBD_CMPSIT_LangIDDesc[USB_LEN_LANGID_STR_DESC] __ALIGN_END =
+{
+     USB_LEN_LANGID_STR_DESC,
+     USB_DESC_TYPE_STRING,
+     LOBYTE(USBD_CMPSIT_LANGID_STRING),
+     HIBYTE(USBD_CMPSIT_LANGID_STRING)
+};
+
+
+/* Internal string descriptor. */
+__ALIGN_BEGIN uint8_t USBD_CMPSIT_StrDesc[USBD_MAX_STR_DESC_SIZ] __ALIGN_END;
+
+
+__ALIGN_BEGIN uint8_t USBD_CMPSIT_StringSerial[USB_SIZ_STRING_SERIAL] __ALIGN_END = {
+  USB_SIZ_STRING_SERIAL,
+  USB_DESC_TYPE_STRING,
+};
+ 
+
+uint8_t * USBD_CMPSIT_FS_DeviceDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  UNUSED(speed);
+  *length = sizeof(USBD_CMPSIT_FS_DeviceDesc);
+  return USBD_CMPSIT_FS_DeviceDesc;
 }
 
-/**
-  * @brief  DeviceQualifierDescriptor
-  *         return Device Qualifier descriptor
-  * @param  length : pointer data length
-  * @retval pointer to descriptor buffer
-  */
-uint8_t *USBD_COMPOSITE_GetDeviceQualifierDesc(uint16_t *length)
+uint8_t * USBD_CMPSIT_FS_LangIDStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
-  *length = (uint16_t)sizeof(USBD_COMPOSITE_DeviceQualifierDesc);
-  return USBD_COMPOSITE_DeviceQualifierDesc;
+  UNUSED(speed);
+  *length = sizeof(USBD_CMPSIT_LangIDDesc);
+  return USBD_CMPSIT_LangIDDesc;
+}
+uint8_t * USBD_CMPSIT_FS_ManufacturerStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  UNUSED(speed);
+  USBD_GetString((uint8_t *)USBD_CMPSIT_MANUFACTURER_STRING, USBD_CMPSIT_StrDesc, length);
+  return USBD_CMPSIT_StrDesc;
 }
 
-/**
-  * @brief  USBD_COMPOSITE_GetUsrStringDesc
-  *         Manages the transfer of memory interfaces string descriptors.
-  * @param  speed : current device speed
-  * @param  index: descriptor index
-  * @param  length : pointer data length
-  * @retval pointer to the descriptor table or NULL if the descriptor is not supported.
-  */
-#if (USBD_SUPPORT_USER_STRING_DESC == 1U)
-static uint8_t *USBD_COMPOSITE_GetUsrStringDesc(USBD_HandleTypeDef *pdev, uint8_t index, uint16_t *length)
+uint8_t * USBD_CMPSIT_FS_ProductStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
-  static uint8_t USBD_StrDesc[64];
-
-  /* Check if the requested string interface is supported */
-  if (index <= USBD_Track_String_Index)
+  if(speed == 0)
   {
-#if (USBD_USE_CDC_ACM == 1)
-    char str_buffer[16] = "";
-    for (uint8_t i = 0; i < USBD_CDC_ACM_COUNT; i++)
-    {
-      if (index == CDC_STR_DESC_IDX[i])
-      {
-        snprintf(str_buffer, sizeof(str_buffer), CDC_ACM_STR_DESC, i);
-        USBD_GetString((uint8_t *)str_buffer, USBD_StrDesc, length);
-      }
-    }
-#endif
-#if (USBD_USE_CDC_ECM == 1)
-    if (index == CDC_ECM_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)CDC_ECM_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_CDC_RNDIS == 1)
-    if (index == CDC_RNDIS_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)CDC_RNDIS_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_HID_MOUSE == 1)
-    if (index == HID_MOUSE_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)HID_MOUSE_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_HID_KEYBOARD == 1)
-    if (index == HID_KEYBOARD_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)HID_KEYBOARD_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_HID_CUSTOM == 1)
-    if (index == CUSTOM_HID_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)CUSTOM_HID_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_UAC_MIC == 1)
-    if (index == AUDIO_MIC_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)AUDIO_MIC_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_UAC_SPKR == 1)
-    if (index == AUDIO_SPKR_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)AUDIO_SPKR_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_UVC == 1)
-    if (index == UVC_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)UVC_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_MSC == 1)
-    if (index == MSC_BOT_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)MSC_BOT_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_DFU == 1)
-    if (index == DFU_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)DFU_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-#if (USBD_USE_PRNTR == 1)
-    if (index == PRINTER_STR_DESC_IDX)
-    {
-      USBD_GetString((uint8_t *)PRNT_STR_DESC, USBD_StrDesc, length);
-    }
-#endif
-    return USBD_StrDesc;
+    USBD_GetString((uint8_t *)USBD_CMPSIT_PRODUCT_STRING_FS, USBD_CMPSIT_StrDesc, length);
   }
   else
   {
-    /* Not supported Interface Descriptor index */
-    return NULL;
+    USBD_GetString((uint8_t *)USBD_CMPSIT_PRODUCT_STRING_FS, USBD_CMPSIT_StrDesc, length);
+  }
+  return USBD_CMPSIT_StrDesc;
+}
+
+static void IntToUnicode(uint32_t value, uint8_t * pbuf, uint8_t len)
+{
+  uint8_t idx = 0;
+
+  for (idx = 0; idx < len; idx++)
+  {
+    if (((value >> 28)) < 0xA)
+    {
+      pbuf[2 * idx] = (value >> 28) + '0';
+    }
+    else
+    {
+      pbuf[2 * idx] = (value >> 28) + 'A' - 10;
+    }
+
+    value = value << 4;
+
+    pbuf[2 * idx + 1] = 0;
   }
 }
-#endif
-
-void USBD_COMPOSITE_Mount_Class(void)
+static void Get_CMPSIT_SerialNum(void)
 {
-  uint16_t len = 0;
-  uint8_t *ptr = NULL;
+  uint32_t deviceserial0, deviceserial1, deviceserial2;
 
-  uint8_t in_ep_track = 0x81;
-  uint8_t out_ep_track = 0x01;
-  uint8_t interface_no_track = 0x00;
+  deviceserial0 = *(uint32_t *) DEVICE_ID1;
+  deviceserial1 = *(uint32_t *) DEVICE_ID2;
+  deviceserial2 = *(uint32_t *) DEVICE_ID3;
 
-#if (USBD_USE_CDC_RNDIS == 1)
-  ptr = USBD_CDC_RNDIS.GetFSConfigDescriptor(&len);
-  USBD_Update_CDC_RNDIS_DESC(ptr,
-                             interface_no_track,
-                             interface_no_track + 1,
-                             in_ep_track,
-                             in_ep_track + 1,
-                             out_ep_track,
-                             USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_CDC_RNDIS_DESC, ptr + 0x09, len - 0x09);
+  deviceserial0 += deviceserial2;
 
-  ptr = USBD_CDC_RNDIS.GetHSConfigDescriptor(&len);
-  USBD_Update_CDC_RNDIS_DESC(ptr,
-                             interface_no_track,
-                             interface_no_track + 1,
-                             in_ep_track,
-                             in_ep_track + 1,
-                             out_ep_track,
-                             USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_CDC_RNDIS_DESC, ptr + 0x09, len - 0x09);
+  if (deviceserial0 != 0)
+  {
+    IntToUnicode(deviceserial0, &USBD_CMPSIT_StringSerial[2], 8);
+    IntToUnicode(deviceserial1, &USBD_CMPSIT_StringSerial[18], 4);
+  }
+}
+uint8_t * USBD_CMPSIT_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  UNUSED(speed);
+  *length = USB_SIZ_STRING_SERIAL;
 
-  in_ep_track += 2;
-  out_ep_track += 1;
-  interface_no_track += 2;
-  USBD_Track_String_Index += 1;
-#endif
+  /* Update the serial number string descriptor with the data from the unique
+   * ID */
+  Get_CMPSIT_SerialNum();
+  /* USER CODE BEGIN USBD_FS_SerialStrDescriptor */
 
-#if (USBD_USE_CDC_ECM == 1)
-  ptr = USBD_CDC_ECM.GetFSConfigDescriptor(&len);
-  USBD_Update_CDC_ECM_DESC(ptr,
-                           interface_no_track,
-                           interface_no_track + 1,
-                           in_ep_track,
-                           in_ep_track + 1,
-                           out_ep_track,
-                           USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_CDC_ECM_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_CDC_ECM.GetHSConfigDescriptor(&len);
-  USBD_Update_CDC_ECM_DESC(ptr,
-                           interface_no_track,
-                           interface_no_track + 1,
-                           in_ep_track,
-                           in_ep_track + 1,
-                           out_ep_track,
-                           USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_CDC_ECM_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 2;
-  out_ep_track += 1;
-  interface_no_track += 2;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_HID_MOUSE == 1)
-  ptr = USBD_HID_MOUSE.GetFSConfigDescriptor(&len);
-  USBD_Update_HID_Mouse_DESC(ptr, interface_no_track, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_HID_MOUSE_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_HID_MOUSE.GetHSConfigDescriptor(&len);
-  USBD_Update_HID_Mouse_DESC(ptr, interface_no_track, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_HID_MOUSE_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 1;
-  interface_no_track += 1;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_HID_KEYBOARD == 1)
-  ptr = USBD_HID_KEYBOARD.GetFSConfigDescriptor(&len);
-  USBD_Update_HID_KBD_DESC(ptr, interface_no_track, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_HID_KEYBOARD_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_HID_KEYBOARD.GetHSConfigDescriptor(&len);
-  USBD_Update_HID_KBD_DESC(ptr, interface_no_track, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_HID_KEYBOARD_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 1;
-  interface_no_track += 1;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_HID_CUSTOM == 1)
-  ptr = USBD_HID_CUSTOM.GetFSConfigDescriptor(&len);
-  USBD_Update_HID_Custom_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_HID_CUSTOM_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_HID_CUSTOM.GetHSConfigDescriptor(&len);
-  USBD_Update_HID_Custom_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_HID_CUSTOM_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 1;
-  out_ep_track += 1;
-  interface_no_track += 1;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_UAC_MIC == 1)
-  ptr = USBD_AUDIO_MIC.GetFSConfigDescriptor(&len);
-  USBD_Update_Audio_MIC_DESC(ptr,
-                             interface_no_track,
-                             interface_no_track + 1,
-                             in_ep_track,
-                             USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_UAC_MIC_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_AUDIO_MIC.GetHSConfigDescriptor(&len);
-  USBD_Update_Audio_MIC_DESC(ptr,
-                             interface_no_track,
-                             interface_no_track + 1,
-                             in_ep_track,
-                             USBD_Track_String_Index);
-
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_UAC_MIC_DESC, ptr + 0x09, len - 0x09);
-  in_ep_track += 1;
-  interface_no_track += 2;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_UAC_SPKR == 1)
-  ptr = USBD_AUDIO_SPKR.GetFSConfigDescriptor(&len);
-  USBD_Update_Audio_SPKR_DESC(ptr, interface_no_track, interface_no_track + 1, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_AUDIO_SPKR_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_AUDIO_SPKR.GetHSConfigDescriptor(&len);
-  USBD_Update_Audio_SPKR_DESC(ptr, interface_no_track, interface_no_track + 1, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_AUDIO_SPKR_DESC, ptr + 0x09, len - 0x09);
-
-  out_ep_track += 1;
-  interface_no_track += 2;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_UVC == 1)
-  ptr = USBD_VIDEO.GetFSConfigDescriptor(&len);
-  USBD_Update_UVC_DESC(ptr, interface_no_track, interface_no_track + 1, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_UVC_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_VIDEO.GetHSConfigDescriptor(&len);
-  USBD_Update_UVC_DESC(ptr, interface_no_track, interface_no_track + 1, in_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_UVC_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 1;
-  interface_no_track += 2;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_MSC == 1)
-  ptr = USBD_MSC.GetFSConfigDescriptor(&len);
-  USBD_Update_MSC_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_MSC_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_MSC.GetHSConfigDescriptor(&len);
-  USBD_Update_MSC_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_MSC_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 1;
-  out_ep_track += 1;
-  interface_no_track += 1;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_DFU == 1)
-  ptr = USBD_DFU.GetFSConfigDescriptor(&len);
-  USBD_Update_DFU_DESC(ptr, interface_no_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_DFU_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_DFU.GetHSConfigDescriptor(&len);
-  USBD_Update_DFU_DESC(ptr, interface_no_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_DFU_DESC, ptr + 0x09, len - 0x09);
-
-  interface_no_track += USBD_DFU_MAX_ITF_NUM;
-  USBD_Track_String_Index += USBD_DFU_MAX_ITF_NUM;
-#endif
-
-#if (USBD_USE_PRNTR == 1)
-  ptr = USBD_PRNT.GetFSConfigDescriptor(&len);
-  USBD_Update_PRNT_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_PRNTR_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_PRNT.GetHSConfigDescriptor(&len);
-  USBD_Update_PRNT_DESC(ptr, interface_no_track, in_ep_track, out_ep_track, USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_PRNTR_DESC, ptr + 0x09, len - 0x09);
-  
-  in_ep_track += 1;
-  out_ep_track += 1;
-  interface_no_track += 1;
-  USBD_Track_String_Index += 1;
-#endif
-
-#if (USBD_USE_CDC_ACM == 1)
-  ptr = USBD_CDC_ACM.GetFSConfigDescriptor(&len);
-  USBD_Update_CDC_ACM_DESC(ptr,
-                           interface_no_track,
-                           interface_no_track + 1,
-                           in_ep_track,
-                           in_ep_track + 1,
-                           out_ep_track,
-                           USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_FSCfgDesc.USBD_CDC_ACM_DESC, ptr + 0x09, len - 0x09);
-
-  ptr = USBD_CDC_ACM.GetHSConfigDescriptor(&len);
-  USBD_Update_CDC_ACM_DESC(ptr,
-                           interface_no_track,
-                           interface_no_track + 1,
-                           in_ep_track,
-                           in_ep_track + 1,
-                           out_ep_track,
-                           USBD_Track_String_Index);
-  memcpy(USBD_COMPOSITE_HSCfgDesc.USBD_CDC_ACM_DESC, ptr + 0x09, len - 0x09);
-
-  in_ep_track += 2 * USBD_CDC_ACM_COUNT;
-  out_ep_track += 1 * USBD_CDC_ACM_COUNT;
-  interface_no_track += 2 * USBD_CDC_ACM_COUNT;
-  USBD_Track_String_Index += USBD_CDC_ACM_COUNT;
-#endif
-
-  uint16_t CFG_SIZE = sizeof(USBD_COMPOSITE_CFG_DESC_t);
-  ptr = USBD_COMPOSITE_HSCfgDesc.CONFIG_DESC;
-  /* Configuration Descriptor */
-  ptr[0] = 0x09;                        /* bLength: Configuration Descriptor size */
-  ptr[1] = USB_DESC_TYPE_CONFIGURATION; /* bDescriptorType: Configuration */
-  ptr[2] = LOBYTE(CFG_SIZE);            /* wTotalLength:no of returned bytes */
-  ptr[3] = HIBYTE(CFG_SIZE);
-  ptr[4] = interface_no_track; /* bNumInterfaces: 2 interface */
-  ptr[5] = 0x01;               /* bConfigurationValue: Configuration value */
-  ptr[6] = 0x00;               /* iConfiguration: Index of string descriptor describing the configuration */
-#if (USBD_SELF_POWERED == 1U)
-  ptr[7] = 0xC0; /* bmAttributes: Bus Powered according to user configuration */
-#else
-  ptr[7] = 0x80; /* bmAttributes: Bus Powered according to user configuration */
-#endif
-  ptr[8] = USBD_MAX_POWER; /* MaxPower 100 mA */
-
-  ptr = USBD_COMPOSITE_FSCfgDesc.CONFIG_DESC;
-  /* Configuration Descriptor */
-  ptr[0] = 0x09;                        /* bLength: Configuration Descriptor size */
-  ptr[1] = USB_DESC_TYPE_CONFIGURATION; /* bDescriptorType: Configuration */
-  ptr[2] = LOBYTE(CFG_SIZE);            /* wTotalLength:no of returned bytes */
-  ptr[3] = HIBYTE(CFG_SIZE);
-  ptr[4] = interface_no_track; /* bNumInterfaces: 2 interface */
-  ptr[5] = 0x01;               /* bConfigurationValue: Configuration value */
-  ptr[6] = 0x00;               /* iConfiguration: Index of string descriptor describing the configuration */
-#if (USBD_SELF_POWERED == 1U)
-  ptr[7] = 0xC0; /* bmAttributes: Bus Powered according to user configuration */
-#else
-  ptr[7] = 0x80; /* bmAttributes: Bus Powered according to user configuration */
-#endif
-  ptr[8] = USBD_MAX_POWER; /* MaxPower 100 mA */
-
-  (void)out_ep_track;
-  (void)in_ep_track;
+  /* USER CODE END USBD_FS_SerialStrDescriptor */
+  return (uint8_t *) USBD_CMPSIT_StringSerial;
 }
 
-/**
-  * @}
-  */
+uint8_t * USBD_CMPSIT_FS_InterfaceStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  if(speed == 0)
+  {
+    USBD_GetString((uint8_t *)USBD_CMPSIT_INTERFACE_STRING_FS, USBD_CMPSIT_StrDesc, length);
+  }
+  else
+  {
+    USBD_GetString((uint8_t *)USBD_CMPSIT_INTERFACE_STRING_FS, USBD_CMPSIT_StrDesc, length);
+  }
+  return USBD_CMPSIT_StrDesc;
+}
 
-/**
-  * @}
-  */
 
-/**
-  * @}
-  */
+uint8_t * USBD_CMPSIT_FS_ConfigStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  if(speed == USBD_SPEED_HIGH)
+  {
+    USBD_GetString((uint8_t *)USBD_CMPSIT_CONFIGURATION_STRING_FS, USBD_CMPSIT_StrDesc, length);
+  }
+  else
+  {
+    USBD_GetString((uint8_t *)USBD_CMPSIT_CONFIGURATION_STRING_FS, USBD_CMPSIT_StrDesc, length);
+  }
+  return USBD_CMPSIT_StrDesc;
+}
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+#if (USBD_LPM_ENABLED == 1)
+/**
+  * @brief  Return the BOS descriptor
+  * @param  speed : Current device speed
+  * @param  length : Pointer to data length variable
+  * @retval Pointer to descriptor buffer
+  */
+uint8_t * USBD_CMPSIT_FS_USR_BOSDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
+{
+  UNUSED(speed);
+  *length = sizeof(USBD_CMPSIT_FS_BOSDesc);
+  return (uint8_t*)USBD_CMPSIT_FS_BOSDesc;
+}
+#endif /* (USBD_LPM_ENABLED == 1) */
+
+
+__ALIGN_BEGIN static uint8_t USBD_CMPSIT_CfgDesc[USB_CMPSIT_CONFIG_DESC_SIZ] __ALIGN_END =
+{
+  /* Configuration Descriptor */
+  //0
+  0x09,                                       /* bLength: Configuration Descriptor size */
+  USB_DESC_TYPE_CONFIGURATION,                /* bDescriptorType: Configuration */
+  USB_CMPSIT_CONFIG_DESC_SIZ,                    /* wTotalLength */
+  0x00,
+  0x03,                                       /* bNumInterfaces: 2 interfaces */
+  0x01,                                       /* bConfigurationValue: Configuration value */
+  0x00,                                       /* iConfiguration: Index of string descriptor
+                                                 describing the configuration */
+#if (USBD_SELF_POWERED == 1U)
+  0xC0,                                       /* bmAttributes: Bus Powered according to user configuration */
+#else
+  0x80,                                       /* bmAttributes: Bus Powered according to user configuration */
+#endif /* USBD_SELF_POWERED */
+  USBD_MAX_POWER,                             /* MaxPower (mA) */
+
+  /*---------------------------------------------------------------------------*/
+  //9
+  /* Interface Association Descriptor: CDC device (virtual com port) */
+  0x08,   /* bLength: IAD size */
+  0x0B,   /* bDescriptorType: Interface Association Descriptor */
+  0x00,   /* bFirstInterface */
+  0x02,   /* bInterfaceCount */
+  0x02,   /* bFunctionClass: Communication Interface Class */
+  0x02,   /* bFunctionSubClass: Abstract Control Model */
+  0x01,   /* bFunctionProtocol: Common AT commands */
+  0x06,   /* iFunction */
+  //17
+  /* Interface Descriptor */
+  0x09,                                       /* bLength: Interface Descriptor size */
+  USB_DESC_TYPE_INTERFACE,                    /* bDescriptorType: Interface */
+  /* Interface descriptor type */
+  0x00,                                       /* bInterfaceNumber: Number of Interface */
+  0x00,                                       /* bAlternateSetting: Alternate setting */
+  0x01,                                       /* bNumEndpoints: One endpoint used */
+  0x02,                                       /* bInterfaceClass: Communication Interface Class */
+  0x02,                                       /* bInterfaceSubClass: Abstract Control Model */
+  0x01,                                       /* bInterfaceProtocol: Common AT commands */
+  0x06,                                       /* iInterface */
+  //26
+  /* Header Functional Descriptor */
+  0x05,                                       /* bLength: Endpoint Descriptor size */
+  0x24,                                       /* bDescriptorType: CS_INTERFACE */
+  0x00,                                       /* bDescriptorSubtype: Header Func Desc */
+  0x10,                                       /* bcdCDC: spec release number */
+  0x01,
+  //31
+  /* Call Management Functional Descriptor */
+  0x05,                                       /* bFunctionLength */
+  0x24,                                       /* bDescriptorType: CS_INTERFACE */
+  0x01,                                       /* bDescriptorSubtype: Call Management Func Desc */
+  0x00,                                       /* bmCapabilities: D0+D1 */
+  0x01,                                       /* bDataInterface */
+  //36
+  /* ACM Functional Descriptor */
+  0x04,                                       /* bFunctionLength */
+  0x24,                                       /* bDescriptorType: CS_INTERFACE */
+  0x02,                                       /* bDescriptorSubtype: Abstract Control Management desc */
+  0x02,                                       /* bmCapabilities */
+  //40
+  /* Union Functional Descriptor */
+  0x05,                                       /* bFunctionLength */
+  0x24,                                       /* bDescriptorType: CS_INTERFACE */
+  0x06,                                       /* bDescriptorSubtype: Union func desc */
+  0x00,                                       /* bMasterInterface: Communication class interface */
+  0x01,                                       /* bSlaveInterface0: Data Class Interface */
+  //45
+  /* Endpoint 2 Descriptor */
+  0x07,                                       /* bLength: Endpoint Descriptor size */
+  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
+  CDC_CMD_EP,                                 /* bEndpointAddress */
+  0x03,                                       /* bmAttributes: Interrupt */
+  LOBYTE(CDC_CMD_PACKET_SIZE),                /* wMaxPacketSize */
+  HIBYTE(CDC_CMD_PACKET_SIZE),
+  CDC_FS_BINTERVAL,                           /* bInterval */
+  /*---------------------------------------------------------------------------*/
+  //52
+  /* Data class interface descriptor */
+  0x09,                                       /* bLength: Endpoint Descriptor size */
+  USB_DESC_TYPE_INTERFACE,                    /* bDescriptorType: */
+  0x01,                                       /* bInterfaceNumber: Number of Interface */
+  0x00,                                       /* bAlternateSetting: Alternate setting */
+  0x02,                                       /* bNumEndpoints: Two endpoints used */
+  0x0A,                                       /* bInterfaceClass: CDC */
+  0x00,                                       /* bInterfaceSubClass */
+  0x00,                                       /* bInterfaceProtocol */
+  0x06,                                       /* iInterface */
+  //61
+  /* Endpoint OUT Descriptor */
+  0x07,                                       /* bLength: Endpoint Descriptor size */
+  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
+  CDC_OUT_EP,                                 /* bEndpointAddress */
+  0x02,                                       /* bmAttributes: Bulk */
+  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),        /* wMaxPacketSize */
+  HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
+  0x00,                                       /* bInterval */
+  //68
+  /* Endpoint IN Descriptor */
+  0x07,                                       /* bLength: Endpoint Descriptor size */
+  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
+  CDC_IN_EP,                                  /* bEndpointAddress */
+  0x02,                                       /* bmAttributes: Bulk */
+  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),        /* wMaxPacketSize */
+  HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
+  0x00,                                        /* bInterval */
+  //75
+  /* Interface Association Descriptor: Mass Storage device */
+  0x08,   /* bLength: IAD size */
+  0x0B,   /* bDescriptorType: Interface Association Descriptor */
+  0x02,   /* bFirstInterface */
+  0x01,   /* bInterfaceCount */
+  0x08,   /* bFunctionClass: */
+  0x06,   /* bFunctionSubClass: */
+  0x50,   /* bFunctionProtocol: */
+  0x07,   /* iFunction */
+  //83
+  /********************  Mass Storage interface ********************/
+  0x09,                                            /* bLength: Interface Descriptor size */
+  0x04,                                            /* bDescriptorType: */
+  0x02,                                            /* bInterfaceNumber: Number of Interface */
+  0x00,                                            /* bAlternateSetting: Alternate setting */
+  0x02,                                            /* bNumEndpoints */
+  0x08,                                            /* bInterfaceClass: MSC Class */
+  0x06,                                            /* bInterfaceSubClass : SCSI transparent*/
+  0x50,                                            /* nInterfaceProtocol */
+  0x07,                                            /* iInterface: */
+  /********************  Mass Storage Endpoints ********************/
+  //92
+  0x07,                                            /* Endpoint descriptor length = 7 */
+  0x05,                                            /* Endpoint descriptor type */
+  MSC_EPIN_ADDR,                                   /* Endpoint address (IN, address 1) */
+  0x02,                                            /* Bulk endpoint type */
+  LOBYTE(MSC_MAX_FS_PACKET),
+  HIBYTE(MSC_MAX_FS_PACKET),
+  0x00,                                            /* Polling interval in milliseconds */
+  //99
+  0x07,                                            /* Endpoint descriptor length = 7 */
+  0x05,                                            /* Endpoint descriptor type */
+  MSC_EPOUT_ADDR,                                  /* Endpoint address (OUT, address 1) */
+  0x02,                                            /* Bulk endpoint type */
+  LOBYTE(MSC_MAX_FS_PACKET),
+  HIBYTE(MSC_MAX_FS_PACKET),
+  0x00                                             /* Polling interval in milliseconds */
+  //106
+};
+__ALIGN_BEGIN static uint8_t USBD_CMPSIT_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC] __ALIGN_END =
+{
+  USB_LEN_DEV_QUALIFIER_DESC,
+  USB_DESC_TYPE_DEVICE_QUALIFIER,
+  0x00,
+  0x02,
+  0x00,
+  0x00,
+  0x00,
+  0x40,
+  0x01,
+  0x00,
+};
+
+static uint8_t *USBD_CMPSIT_GetFSCfgDesc(uint16_t *length);
+static uint8_t *USBD_CMPSIT_GetHSCfgDesc(uint16_t *length);
+static uint8_t *USBD_CMPSIT_GetOtherSpeedCfgDesc(uint16_t *length);
+uint8_t *USBD_CMPSIT_GetDeviceQualifierDescriptor(uint16_t *length);
+
+
+
+USBD_ClassTypeDef USBD_CMPSIT=
+{
+  NULL,
+  NULL,
+  NULL,
+  NULL,                 /* EP0_TxSent */
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  USBD_CMPSIT_GetHSCfgDesc,
+  USBD_CMPSIT_GetFSCfgDesc,  
+  USBD_CMPSIT_GetOtherSpeedCfgDesc,
+  USBD_CMPSIT_GetDeviceQualifierDescriptor  
+};
+
+#ifdef USE_USBD_COMPOSITE
+void USBD_CMPSIT_AddClass(USBD_HandleTypeDef *pdev, USBD_ClassTypeDef *pclass, USBD_CompositeClassTypeDef classtype, uint8_t *EpAddr)
+{
+	//printf("classId=%d  : %d\r\n",pdev->classId,classtype);
+	switch(classtype)
+	{
+		case CLASS_TYPE_CDC:{
+			pdev->tclasslist[pdev->classId].ClassType = CLASS_TYPE_CDC;
+			
+			pdev->tclasslist[pdev->classId].Active = 1U;
+			pdev->tclasslist[pdev->classId].NumEps = 3;
+			
+			pdev->tclasslist[pdev->classId].Eps[0].add = CDC_CMD_EP;
+			pdev->tclasslist[pdev->classId].Eps[0].type = USBD_EP_TYPE_INTR;
+			pdev->tclasslist[pdev->classId].Eps[0].size = CDC_CMD_PACKET_SIZE;
+			pdev->tclasslist[pdev->classId].Eps[0].is_used = 1U;
+			
+			pdev->tclasslist[pdev->classId].Eps[1].add = CDC_OUT_EP;
+			pdev->tclasslist[pdev->classId].Eps[1].type = USBD_EP_TYPE_BULK;
+			pdev->tclasslist[pdev->classId].Eps[1].size = CDC_DATA_FS_MAX_PACKET_SIZE;
+			pdev->tclasslist[pdev->classId].Eps[1].is_used = 1U;
+			
+			pdev->tclasslist[pdev->classId].Eps[2].add = CDC_IN_EP;
+			pdev->tclasslist[pdev->classId].Eps[2].type = USBD_EP_TYPE_BULK;
+			pdev->tclasslist[pdev->classId].Eps[2].size = CDC_DATA_FS_MAX_PACKET_SIZE;
+			pdev->tclasslist[pdev->classId].Eps[2].is_used = 1U;
+
+			pdev->tclasslist[pdev->classId].NumIf = 2;
+			pdev->tclasslist[pdev->classId].Ifs[0] = 0;
+			pdev->tclasslist[pdev->classId].Ifs[1] = 1;	
+			
+		}break;
+
+		case CLASS_TYPE_MSC:{
+			pdev->tclasslist[pdev->classId].ClassType = CLASS_TYPE_MSC;
+			
+			pdev->tclasslist[pdev->classId].Active = 1U;
+			pdev->tclasslist[pdev->classId].NumEps = 2;
+			
+			pdev->tclasslist[pdev->classId].Eps[0].add = MSC_EPIN_ADDR;
+			pdev->tclasslist[pdev->classId].Eps[0].type = USBD_EP_TYPE_BULK;
+			pdev->tclasslist[pdev->classId].Eps[0].size = MSC_MAX_FS_PACKET;
+			pdev->tclasslist[pdev->classId].Eps[0].is_used = 1U;
+			
+			pdev->tclasslist[pdev->classId].Eps[1].add = MSC_EPOUT_ADDR;
+			pdev->tclasslist[pdev->classId].Eps[1].type = USBD_EP_TYPE_BULK;
+			pdev->tclasslist[pdev->classId].Eps[1].size = MSC_MAX_FS_PACKET;
+			pdev->tclasslist[pdev->classId].Eps[1].is_used = 1U;
+			
+
+			pdev->tclasslist[pdev->classId].NumIf = 1;
+			pdev->tclasslist[pdev->classId].Ifs[0] = 2;						
+			
+		}break;
+		default:break;
+	}
+	pdev->tclasslist[pdev->classId].CurrPcktSze = 0U;
+		
+}
+
+#endif
+
+uint8_t * USBD_UsrStrDescriptor(struct _USBD_HandleTypeDef *pdev, uint8_t index,  uint16_t *length)
+{
+  *length = 0;
+  //printf("index=%d\r\n",index);
+ /*  if (USBD_IDX_MICROSOFT_DESC_STR == index) {
+    *length = sizeof (USBD_MS_OS_StringDescriptor);
+    return USBD_MS_OS_StringDescriptor;
+  } else if (USBD_IDX_ODRIVE_INTF_STR == index) {
+    USBD_GetString((uint8_t *)USBD_PRODUCT_XSTR(NATIVE_STRING), USBD_StrDesc, length);
+    return USBD_StrDesc;
+  }  */
+  if (USBD_IDX_CDC_INTF_STR == index) {
+    USBD_GetString((uint8_t *)USBD_CDC_INTERFACE_STRING_FS, USBD_CMPSIT_StrDesc, length);
+    return USBD_CMPSIT_StrDesc;
+  }  
+  else if (USBD_IDX_MSC_INTF_STR == index) {    
+    USBD_GetString((uint8_t *)USBD_MSC_INTERFACE_STRING_FS, USBD_CMPSIT_StrDesc, length);
+    return USBD_CMPSIT_StrDesc;
+  }  
+  return NULL;
+}
+
+static uint8_t *USBD_CMPSIT_GetFSCfgDesc(uint16_t *length)
+{
+	
+	*length = (uint16_t)sizeof(USBD_CMPSIT_CfgDesc);
+	return USBD_CMPSIT_CfgDesc;
+}
+static uint8_t *USBD_CMPSIT_GetHSCfgDesc(uint16_t *length)
+{
+}
+static uint8_t *USBD_CMPSIT_GetOtherSpeedCfgDesc(uint16_t *length)
+{
+  *length = (uint16_t)sizeof(USBD_CMPSIT_CfgDesc);
+  return USBD_CMPSIT_CfgDesc;
+}
+uint8_t *USBD_CMPSIT_GetDeviceQualifierDescriptor(uint16_t *length)
+{
+  *length = (uint16_t)sizeof(USBD_CMPSIT_DeviceQualifierDesc);
+  return USBD_CMPSIT_DeviceQualifierDesc;
+}

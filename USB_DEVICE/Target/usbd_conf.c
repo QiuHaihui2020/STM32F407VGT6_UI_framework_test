@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include "usbd_msc.h"
 #include "usbd_audio.h"
+#include "usbd_cdc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -334,7 +335,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   pdev->pData = &hpcd_USB_OTG_FS;
 
   hpcd_USB_OTG_FS.Instance = USB_OTG_FS;
-  hpcd_USB_OTG_FS.Init.dev_endpoints = 4;
+  hpcd_USB_OTG_FS.Init.dev_endpoints = 6;
   hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
   hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
@@ -365,7 +366,10 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
   HAL_PCDEx_SetRxFiFo(&hpcd_USB_OTG_FS, 0x80);
   HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 0, 0x40);
-  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80);
+  // HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x80);
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 1, 0x40);
+  // HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 2, 0x40);
+  HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 3, 0x40);
   }
   return USBD_OK;
 }
@@ -626,7 +630,19 @@ USBD_StatusTypeDef USBD_LL_SetTestMode(USBD_HandleTypeDef *pdev, uint8_t testmod
 void *USBD_static_malloc(uint32_t size)
 {
   static uint32_t mem[(sizeof(USBD_AUDIO_HandleTypeDef)/4)+1];/* On 32-bit boundary */
-  
+  static uint32_t mem1[(sizeof(USBD_MSC_BOT_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  static uint32_t mem2[(sizeof(USBD_CDC_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+
+  if (size == sizeof(USBD_MSC_BOT_HandleTypeDef))
+  {
+    return &mem1[0];
+  }
+
+  if (size == sizeof(USBD_CDC_HandleTypeDef))
+  {
+    return &mem2[0];
+  }
+
   return mem;
 }
 

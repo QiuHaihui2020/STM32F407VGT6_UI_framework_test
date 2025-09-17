@@ -58,7 +58,7 @@ extern "C" {
 #endif /* AUDIO_FS_BINTERVAL */
 
 #ifndef AUDIO_OUT_EP
-#define AUDIO_OUT_EP                                  0x01U
+#define AUDIO_OUT_EP                                  0x02U
 #endif /* AUDIO_OUT_EP */
 
 #define USB_AUDIO_CONFIG_DESC_SIZ                     0x6DU
