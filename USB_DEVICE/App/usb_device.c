@@ -70,7 +70,7 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-#if 0 //AUDIO
+#if 1 //AUDIO
   if (USBD_Init(&hUsbDeviceFS, &FS_Desc, DEVICE_FS) != USBD_OK)
   {
     Error_Handler();
@@ -113,15 +113,15 @@ void MX_USB_DEVICE_Init(void)
   return;
 #endif
 
-	#if 1
+
   if (USBD_Init(&hUsbDeviceFS, &FS_Desc, DEVICE_FS) != USBD_OK)
   {
     log_debug("USB init error\n");
     Error_Handler();
   }
 
-#if 1
-#if 0
+#ifdef USE_USBD_COMPOSITE
+#if USBD_CDC_CMPSIT_ENABLE
     if(USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS) != USBD_OK)
   {
     log_debug("USBD_CDC_RegisterInterface error\n");
@@ -135,7 +135,7 @@ if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC,CLASS_TYPE_CDC,0) != USB
   }
 #endif 
 
-#if 1
+#if USBD_MSC_CMPSIT_ENABLE
   if (USBD_MSC_RegisterStorage(&hUsbDeviceFS, &USBD_Storage_Interface_fops_FS) != USBD_OK)
   {
 	  log_debug("USBD_MSC_RegisterStorage error\n");
@@ -150,7 +150,7 @@ if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC,CLASS_TYPE_CDC,0) != USB
   }
 #endif
 
-#if 0
+#if USBD_AUDIO_CMPSIT_ENABLE
   if (USBD_AUDIO_RegisterInterface(&hUsbDeviceFS, &USBD_AUDIO_fops_FS) != USBD_OK)
   {
 	  log_debug("USBD_MSC_RegisterStorage error\n");
@@ -173,75 +173,6 @@ if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC,CLASS_TYPE_CDC,0) != USB
 
   return;
 #endif
-
-        if (USBD_CDC_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS) != USBD_OK)
-        {
-            Error_Handler();
-        }
-        if (USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC, CLASS_TYPE_CDC, CDC_OUT_EP) != USBD_OK)
-        {
-            Error_Handler();
-        }
-
-        if (USBD_MSC_RegisterStorage(&hUsbDeviceFS, &USBD_Storage_Interface_fops_FS) != USBD_OK)
-        {
-            Error_Handler();
-        }
-        if (USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_MSC, CLASS_TYPE_MSC, MSC_EPOUT_ADDR) != USBD_OK)
-        {
-            Error_Handler();
-        }
-
-
-	// extern USBD_ClassTypeDef USBD_COMPOSITE;
-  // if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_COMPOSITE) != USBD_OK)
-  // {
-	//   log_debug("USBD_RegisterClass error\n");
-  //   Error_Handler();
-  // }
-
-    if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
-  {
-	  log_debug("USBD_Start error\n");
-    Error_Handler();
-  }
-
-  return;
-  // if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_MSC) != USBD_OK)
-  // {
-  //   Error_Handler();
-  // }
-
-  // if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_CMPSIT) != USBD_OK)
-  // {
-  //   Error_Handler();
-  // }
-
-  //  if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_MSC,CLASS_TYPE_MSC,0) != USBD_OK)
-  //{
-//	  log_debug("USBD_RegisterClassComposite error\n");
-  //  Error_Handler();
-  //}
-  // if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_AUDIO,CLASS_TYPE_AUDIO,0) != CLASS_TYPE_MSC)
-  // {
-  //   Error_Handler();
-  // }
-  // if (USBD_AUDIO_RegisterInterface(&hUsbDeviceFS, &USBD_AUDIO_fops_FS) != USBD_OK)
-  // {
-  //   Error_Handler();
-  // }
-  if (USBD_MSC_RegisterStorage(&hUsbDeviceFS, &USBD_Storage_Interface_fops_FS) != USBD_OK)
-  {
-	  log_debug("USBD_MSC_RegisterStorage error\n");
-    Error_Handler();
-  }
-  if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
-  {
-	  log_debug("USBD_Start error\n");
-    Error_Handler();
-  }
-  return;
-	#endif
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */
