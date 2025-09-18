@@ -23,7 +23,10 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "usbd_cdc.h"
-
+#include "log_debug.h"
+#ifdef USE_USBD_COMPOSITE
+#include "usbd_composite.h"
+#endif
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -155,7 +158,8 @@ static int8_t CDC_Init_FS(void)
   /* USER CODE BEGIN 3 */
   /* Set Application Buffers */
 #ifdef USE_USBD_COMPOSITE
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0, hUsbDeviceFS.classId);
+  uint8_t hUsbDeviceFS_classId = USBD_get_composite_class_id(&hUsbDeviceFS, CLASS_TYPE_CDC);
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0, hUsbDeviceFS_classId);
 #else
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
 #endif
@@ -292,12 +296,24 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
     return USBD_BUSY;
   }
 #ifdef USE_USBD_COMPOSITE
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len, hUsbDeviceFS.classId);
-  result = USBD_CDC_TransmitPacket(&hUsbDeviceFS, hUsbDeviceFS.classId);
+  
+  uint8_t hUsbDeviceFS_classId = USBD_get_composite_class_id(&hUsbDeviceFS, CLASS_TYPE_CDC);
+  // log_debug("classId: %d\n", hUsbDeviceFS_classId);
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len, hUsbDeviceFS_classId);
+  result = USBD_CDC_TransmitPacket(&hUsbDeviceFS, hUsbDeviceFS_classId);
 #else
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
 #endif
+
+  uint32_t Timeout = HAL_GetTick();
+	while(hcdc->TxState)
+	{
+		if(HAL_GetTick() - Timeout >=10)//超时
+		{
+			break;
+		}
+	}
   /* USER CODE END 7 */
   return result;
 }

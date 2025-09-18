@@ -36,9 +36,13 @@
 
 /* USER CODE BEGIN INCLUDE */
 /*---------- -----------*/
+#ifndef USE_USBD_COMPOSITE
+#define USE_USBD_COMPOSITE
+#endif
+
 #define MSC_MEDIA_PACKET     512U
 #define USBD_COMPOSITE_USE_IAD 1
-#define USBD_MAX_SUPPORTED_CLASS 2
+#define USBD_MAX_SUPPORTED_CLASS 4
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
