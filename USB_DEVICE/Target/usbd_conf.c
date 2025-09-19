@@ -30,6 +30,9 @@
 #include "usbd_msc.h"
 #include "usbd_audio.h"
 #include "usbd_cdc.h"
+#include "log_debug.h"
+
+#define USBD_LOG log_debug
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -637,14 +640,16 @@ void *USBD_static_malloc(uint32_t size)
 
   if (size == sizeof(USBD_MSC_BOT_HandleTypeDef))
   {
+    USBD_LOG("MSC memory allocated, size = %d\n");
     return &mem1[0];
   }
 
   if (size == sizeof(USBD_CDC_HandleTypeDef))
   {
+    USBD_LOG("CDC memory allocated, size = %d\n");
     return &mem2[0];
   }
-
+  USBD_LOG("AUDIO memory allocated, size = %d\n");
   return mem;
 }
 

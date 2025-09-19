@@ -70,7 +70,9 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-#if 1 //AUDIO
+#ifndef USE_USBD_COMPOSITE
+
+
   if (USBD_Init(&hUsbDeviceFS, &FS_Desc, DEVICE_FS) != USBD_OK)
   {
     Error_Handler();
@@ -165,7 +167,7 @@ if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC,CLASS_TYPE_CDC,0) != USB
   }
 
 #endif
-    if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
+  if (USBD_Start(&hUsbDeviceFS) != USBD_OK)
   {
 	  log_debug("USBD_Start error\n");
     Error_Handler();

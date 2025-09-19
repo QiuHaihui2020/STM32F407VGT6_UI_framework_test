@@ -39,7 +39,15 @@ EndBSPDependencies */
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_composite_builder.h"
 #include "usbd_msc.h"
+#include "usbd_cdc.h"
+#include "usbd_audio.h"
+#include "usbd_conf.h"
+#include "log_debug.h"
+
+#define USBD_LOG log_debug
 #ifdef USE_USBD_COMPOSITE
+
+#define MY_COMPOSITE_TEST 1
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
   * @{
@@ -183,142 +191,332 @@ USBD_ClassTypeDef  USBD_CMPSIT =
 #endif /* USBD_SUPPORT_USER_STRING_DESC */
 };
 
+#define AUDIO_SAMPLE_FREQ(frq) \
+  (uint8_t)(frq), (uint8_t)((frq >> 8)), (uint8_t)((frq >> 16))
+
+#define AUDIO_PACKET_SZE(frq) \
+  (uint8_t)(((frq * 2U * 2U) / 1000U) & 0xFFU), (uint8_t)((((frq * 2U * 2U) / 1000U) >> 8) & 0xFFU)
+
+#ifdef USE_USBD_COMPOSITE
+#define AUDIO_PACKET_SZE_WORD(frq)     (uint32_t)((((frq) * 2U * 2U)/1000U))
+#endif /* USE_USBD_COMPOSITE  */
+
+/* Derived counts and sizes */
+#define USBD_CMPSIT_NUM_INTERFACES   (USBD_AUDIO_INTERFACES_NUM + USBD_MSC_INTERFACES_NUM + USBD_CDC_INTERFACES_NUM)
+
+#define USB_CMPSIT_CONFIG_DESC_SIZ   (9 + USB_CMPSIT_AUDIO_CONFIG_DESC_SIZ + USB_CMPSIT_CDC_CONFIG_DESC_SIZ + USB_CMPSIT_MSC_CONFIG_DESC_SIZ)
+
+#define CDC_COMM_ITF_NBR 0x00U
+#define CDC_DATA_ITF_NBR 0x01U
+#define MSC_STD_ITF_NBR 0x02U
+#define AUDIO_SPKR_AC_ITF_NBR 0x03U
+#define AUDIO_SPKR_AS_ITF_NBR 0x04U
+#define AUDIO_SPKR_STR_DESC_IDX 0x00U
+#define AUDIO_STREAMING_CTRL                          0x02U      
+#define USB_CMPSIT_CONFIG_DESC_SIZ   (9 + USB_CMPSIT_AUDIO_CONFIG_DESC_SIZ + USB_CMPSIT_CDC_CONFIG_DESC_SIZ + USB_CMPSIT_MSC_CONFIG_DESC_SIZ)
+#ifdef USBD_CMPST_MAX_CONFDESC_SZ
+#undef USBD_CMPST_MAX_CONFDESC_SZ
+#endif
+#define USBD_CMPST_MAX_CONFDESC_SZ   USB_CMPSIT_CONFIG_DESC_SIZ
+
+
 /* The generic configuration descriptor buffer that will be filled by builder*/
 __ALIGN_BEGIN static uint8_t USBD_CMPSIT_FSCfgDesc[USBD_CMPST_MAX_CONFDESC_SZ]  __ALIGN_END = {
   /* Configuration Descriptor */
-  0x09,                                       /* bLength: Configuration Descriptor size */
-  USB_DESC_TYPE_CONFIGURATION,                /* bDescriptorType: Configuration */
-  USBD_CMPST_MAX_CONFDESC_SZ,                    /* wTotalLength */
-  0x00,
-  0x03,                                       /* bNumInterfaces: 2 interfaces */
-  0x01,                                       /* bConfigurationValue: Configuration value */
-  0x00,                                       /* iConfiguration: Index of string descriptor
-                                                 describing the configuration */
+  0x09,                         /* bLength: Configuration Descriptor size */
+  USB_DESC_TYPE_CONFIGURATION,  /* bDescriptorType: Configuration */
+  LOBYTE(USBD_CMPST_MAX_CONFDESC_SZ), /* wTotalLength */
+  HIBYTE(USBD_CMPST_MAX_CONFDESC_SZ),
+  USBD_CMPSIT_NUM_INTERFACES,                         /* bNumInterfaces: CDC(2)+MSC(1)+Audio(2)=5 interfaces */
+  0x01,                         /* bConfigurationValue */
+  0x00,                         /* iConfiguration */
 #if (USBD_SELF_POWERED == 1U)
-  0xC0,                                       /* bmAttributes: Bus Powered according to user configuration */
+  0xC0,                         /* bmAttributes: Self Powered */
 #else
-  0x80,                                       /* bmAttributes: Bus Powered according to user configuration */
-#endif /* USBD_SELF_POWERED */
-  USBD_MAX_POWER,                             /* MaxPower (mA) */
+  0x80,                         /* bmAttributes: Bus Powered */
+#endif
+  USBD_MAX_POWER,               /* MaxPower */
 
-  /*---------------------------------------------------------------------------*/
-  /* Interface Association Descriptor: CDC device (virtual com port) */
-  0x08,   /* bLength: IAD size */
-  0x0B,   /* bDescriptorType: Interface Association Descriptor */
-  0x00,   /* bFirstInterface */
-  0x02,   /* bInterfaceCount */
-  0x02,   /* bFunctionClass: Communication Interface Class */
-  0x02,   /* bFunctionSubClass: Abstract Control Model */
-  0x01,   /* bFunctionProtocol: Common AT commands */
-  0x00,   /* iFunction */
-  /* Interface Descriptor */
-  0x09,                                       /* bLength: Interface Descriptor size */
-  USB_DESC_TYPE_INTERFACE,                    /* bDescriptorType: Interface */
-  /* Interface descriptor type */
-  0x00,                                       /* bInterfaceNumber: Number of Interface */
-  0x00,                                       /* bAlternateSetting: Alternate setting */
-  0x01,                                       /* bNumEndpoints: One endpoint used */
-  0x02,                                       /* bInterfaceClass: Communication Interface Class */
-  0x02,                                       /* bInterfaceSubClass: Abstract Control Model */
-  0x01,                                       /* bInterfaceProtocol: Common AT commands */
-  0x00,                                       /* iInterface */
-  /* Header Functional Descriptor */
-  0x05,                                       /* bLength: Endpoint Descriptor size */
-  0x24,                                       /* bDescriptorType: CS_INTERFACE */
-  0x00,                                       /* bDescriptorSubtype: Header Func Desc */
-  0x10,                                       /* bcdCDC: spec release number */
+#if USBD_CDC_CMPSIT_ENABLE
+  /* CDC IAD */
+  0x08,
+  0x0B,
+  CDC_COMM_ITF_NBR,         /* bFirstInterface */
+  USBD_CDC_INTERFACES_NUM,         /* bInterfaceCount */
+  0x02,         /* bFunctionClass: Communication Interface Class */
+  0x02,         /* bFunctionSubClass: Abstract Control Model */
+  0x01,         /* bFunctionProtocol: AT commands */
+  0x06,         /* iFunction */
+
+  /* CDC Communication Interface Descriptor */
+  0x09,
+  USB_DESC_TYPE_INTERFACE,
+  CDC_COMM_ITF_NBR,         /* bInterfaceNumber */
+  0x00,
+  0x01,         /* One endpoint: CDC_CMD_EP */
+  0x02,
+  0x02,
   0x01,
-  /* Call Management Functional Descriptor */
-  0x05,                                       /* bFunctionLength */
-  0x24,                                       /* bDescriptorType: CS_INTERFACE */
-  0x01,                                       /* bDescriptorSubtype: Call Management Func Desc */
-  0x00,                                       /* bmCapabilities: D0+D1 */
-  0x01,                                       /* bDataInterface */
-  /* ACM Functional Descriptor */
-  0x04,                                       /* bFunctionLength */
-  0x24,                                       /* bDescriptorType: CS_INTERFACE */
-  0x02,                                       /* bDescriptorSubtype: Abstract Control Management desc */
-  0x02,                                       /* bmCapabilities */
-  /* Union Functional Descriptor */
-  0x05,                                       /* bFunctionLength */
-  0x24,                                       /* bDescriptorType: CS_INTERFACE */
-  0x06,                                       /* bDescriptorSubtype: Union func desc */
-  0x00,                                       /* bMasterInterface: Communication class interface */
-  0x01,                                       /* bSlaveInterface0: Data Class Interface */
-  /* Endpoint 2 Descriptor */
-  0x07,                                       /* bLength: Endpoint Descriptor size */
-  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
-  CDC_CMD_EP,                                 /* bEndpointAddress */
-  0x03,                                       /* bmAttributes: Interrupt */
-  LOBYTE(CDC_CMD_PACKET_SIZE),                /* wMaxPacketSize */
+  0x06,
+
+  /* CDC Header Functional Descriptor */
+  0x05,
+  0x24,
+  0x00,
+  0x10, 0x01,
+
+  /* CDC Call Management Functional Descriptor */
+  0x05,
+  0x24,
+  0x01,
+  0x00,
+  0x01,         /* bDataInterface */
+
+  /* CDC ACM Functional Descriptor */
+  0x04,
+  0x24,
+  0x02,
+  0x02,
+
+  /* CDC Union Functional Descriptor */
+  0x05,
+  0x24,
+  0x06,
+  0x00,         /* Master interface */
+  0x01,         /* Slave interface */
+
+  /* CDC Command Endpoint Descriptor */
+  0x07,
+  USB_DESC_TYPE_ENDPOINT,
+  CDC_CMD_EP,
+  0x03,
+  LOBYTE(CDC_CMD_PACKET_SIZE),
   HIBYTE(CDC_CMD_PACKET_SIZE),
-  CDC_FS_BINTERVAL,                           /* bInterval */
-  /*---------------------------------------------------------------------------*/
-  /* Data class interface descriptor */
-  0x09,                                       /* bLength: Endpoint Descriptor size */
-  USB_DESC_TYPE_INTERFACE,                    /* bDescriptorType: */
-  0x01,                                       /* bInterfaceNumber: Number of Interface */
-  0x00,                                       /* bAlternateSetting: Alternate setting */
-  0x02,                                       /* bNumEndpoints: Two endpoints used */
-  0x0A,                                       /* bInterfaceClass: CDC */
-  0x00,                                       /* bInterfaceSubClass */
-  0x00,                                       /* bInterfaceProtocol */
-  0x06,                                       /* iInterface */
-  /* Endpoint OUT Descriptor */
-  0x07,                                       /* bLength: Endpoint Descriptor size */
-  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
-  CDC_OUT_EP,                                 /* bEndpointAddress */
-  0x02,                                       /* bmAttributes: Bulk */
-  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),        /* wMaxPacketSize */
+  CDC_FS_BINTERVAL,
+
+  /* CDC Data Interface Descriptor */
+  0x09,
+  USB_DESC_TYPE_INTERFACE,
+  CDC_DATA_ITF_NBR,         /* bInterfaceNumber */
+  0x00,
+  0x02,         /* Two endpoints: IN/OUT */
+  0x0A,
+  0x00,
+  0x00,
+  0x06,
+
+  /* CDC Data OUT Endpoint Descriptor */
+  0x07,
+  USB_DESC_TYPE_ENDPOINT,
+  CDC_OUT_EP,
+  0x02,
+  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
   HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
-  0x00,                                       /* bInterval */
-  /* Endpoint IN Descriptor */
-  0x07,                                       /* bLength: Endpoint Descriptor size */
-  USB_DESC_TYPE_ENDPOINT,                     /* bDescriptorType: Endpoint */
-  CDC_IN_EP,                                  /* bEndpointAddress */
-  0x02,                                       /* bmAttributes: Bulk */
-  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),        /* wMaxPacketSize */
+  0x00,
+
+  /* CDC Data IN Endpoint Descriptor */
+  0x07,
+  USB_DESC_TYPE_ENDPOINT,
+  CDC_IN_EP,
+  0x02,
+  LOBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
   HIBYTE(CDC_DATA_FS_MAX_PACKET_SIZE),
-  0x00,                                        /* bInterval */
-  /* Interface Association Descriptor: Mass Storage device */
-  0x08,   /* bLength: IAD size */
-  0x0B,   /* bDescriptorType: Interface Association Descriptor */
-  0x02,   /* bFirstInterface */
-  0x01,   /* bInterfaceCount */
-  0x08,   /* bFunctionClass: */
-  0x06,   /* bFunctionSubClass: */
-  0x50,   /* bFunctionProtocol: */
-  0x00,   /* iFunction */
-  /********************  Mass Storage interface ********************/
-  0x09,                                            /* bLength: Interface Descriptor size */
-  0x04,                                            /* bDescriptorType: */
-  0x02,                                            /* bInterfaceNumber: Number of Interface */
-  0x00,                                            /* bAlternateSetting: Alternate setting */
-  0x02,                                            /* bNumEndpoints */
-  0x08,                                            /* bInterfaceClass: MSC Class */
-  0x06,                                            /* bInterfaceSubClass : SCSI transparent*/
-  0x50,                                            /* nInterfaceProtocol */
-  0x00,                                            /* iInterface: */
-  /********************  Mass Storage Endpoints ********************/
-  0x07,                                            /* Endpoint descriptor length = 7 */
-  0x05,                                            /* Endpoint descriptor type */
-  MSC_EPIN_ADDR,                                   /* Endpoint address (IN, address 1) */
-  0x02,                                            /* Bulk endpoint type */
+  0x00,
+#endif /* USBD_MSC_CMPSIT_ENABLE */
+
+#if USBD_MSC_CMPSIT_ENABLE
+  /* MSC IAD */
+  0x08,
+  0x0B,
+  MSC_STD_ITF_NBR,        /* bFirstInterface: MSC interface */
+  USBD_MSC_INTERFACES_NUM,
+  0x08,
+  0x06,
+  0x50,
+  0x07,
+
+  /* MSC Interface Descriptor */
+  0x09,
+  USB_DESC_TYPE_INTERFACE,
+  MSC_STD_ITF_NBR,        /* MSC interface number */
+  0x00,
+  0x02,        /* Two endpoints */
+  0x08,
+  0x06,
+  0x50,
+  0x07,
+
+  /* MSC IN Endpoint */
+  0x07,
+  USB_DESC_TYPE_ENDPOINT,
+  MSC_EPIN_ADDR,
+  0x02,
   LOBYTE(MSC_MAX_FS_PACKET),
   HIBYTE(MSC_MAX_FS_PACKET),
-  0x00,                                            /* Polling interval in milliseconds */
-  0x07,                                            /* Endpoint descriptor length = 7 */
-  0x05,                                            /* Endpoint descriptor type */
-  MSC_EPOUT_ADDR,                                  /* Endpoint address (OUT, address 1) */
-  0x02,                                            /* Bulk endpoint type */
+  0x00,
+
+  /* MSC OUT Endpoint */
+  0x07,
+  USB_DESC_TYPE_ENDPOINT,
+  MSC_EPOUT_ADDR,
+  0x02,
   LOBYTE(MSC_MAX_FS_PACKET),
   HIBYTE(MSC_MAX_FS_PACKET),
-  0x00                                             /* Polling interval in milliseconds */
+  0x00,
+#endif /* USBD_MSC_CMPSIT_ENABLE */
+
+#if USBD_AUDIO_CMPSIT_ENABLE
+    /******** IAD to associate the two SPKR interfaces */
+    0x08,                        /* bLength */
+    0x0B,                        /* bDescriptorType */
+    AUDIO_SPKR_AC_ITF_NBR,      /* bFirstInterface */
+    USBD_AUDIO_INTERFACES_NUM,                        /* bInterfaceCount */
+    USB_DEVICE_CLASS_AUDIO,      /* bFunctionClass */
+    AUDIO_SUBCLASS_AUDIOCONTROL, /* bFunctionSubClass */
+    AUDIO_PROTOCOL_UNDEFINED,    /* bFunctionProtocol */
+    0x00,                        /* iFunction (Index of string descriptor describing this function) */
+
+    /* USB Speaker Standard interface descriptor */
+    AUDIO_INTERFACE_DESC_SIZE,   /* bLength */
+    USB_DESC_TYPE_INTERFACE,     /* bDescriptorType */
+    AUDIO_SPKR_AC_ITF_NBR,      /* bInterfaceNumber */
+    0x00,                        /* bAlternateSetting */
+    0x00,                        /* bNumEndpoints */
+    USB_DEVICE_CLASS_AUDIO,      /* bInterfaceClass */
+    AUDIO_SUBCLASS_AUDIOCONTROL, /* bInterfaceSubClass */
+    AUDIO_PROTOCOL_UNDEFINED,    /* bInterfaceProtocol */
+    AUDIO_SPKR_STR_DESC_IDX,    /* iInterface */
+    /* 09 byte*/
+
+    /* USB Speaker Class-specific AC Interface Descriptor */
+    AUDIO_INTERFACE_DESC_SIZE,       /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE, /* bDescriptorType */
+    AUDIO_CONTROL_HEADER,            /* bDescriptorSubtype */
+    0x00, /* 1.00 */                 /* bcdADC */
+    0x01,
+    0x27, /* wTotalLength = 39*/
+    0x00,
+    0x01,                  /* bInCollection */
+    AUDIO_SPKR_AS_ITF_NBR, /* baInterfaceNr */
+    /* 09 byte*/
+
+    /* USB Speaker Input Terminal Descriptor */
+    AUDIO_INPUT_TERMINAL_DESC_SIZE,  /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE, /* bDescriptorType */
+    AUDIO_CONTROL_INPUT_TERMINAL,    /* bDescriptorSubtype */
+    0x01,                            /* bTerminalID */
+    0x01,                            /* wTerminalType AUDIO_TERMINAL_USB_STREAMING   0x0101 */
+    0x01,
+    0x00, /* bAssocTerminal */
+    0x01, /* bNrChannels */
+    0x00, /* wChannelConfig 0x0000  Mono */
+    0x00,
+    0x00, /* iChannelNames */
+    0x00, /* iTerminal */
+    /* 12 byte*/
+
+    /* USB Speaker Audio Feature Unit Descriptor */
+    0x09,                            /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE, /* bDescriptorType */
+    AUDIO_CONTROL_FEATURE_UNIT,      /* bDescriptorSubtype */
+    AUDIO_STREAMING_CTRL,            /* bUnitID */
+    0x01,                            /* bSourceID */
+    0x01,                            /* bControlSize */
+    AUDIO_CONTROL_MUTE,              /* bmaControls(0) */
+    0x00,                            /* bmaControls(1) */
+    0x00,                            /* iTerminal */
+    /* 09 byte*/
+
+    /*USB Speaker Output Terminal Descriptor */
+    0x09,                            /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE, /* bDescriptorType */
+    AUDIO_CONTROL_OUTPUT_TERMINAL,   /* bDescriptorSubtype */
+    0x03,                            /* bTerminalID */
+    0x01,                            /* wTerminalType  0x0301*/
+    0x03,
+    0x00, /* bAssocTerminal */
+    0x02, /* bSourceID */
+    0x00, /* iTerminal */
+    /* 09 byte*/
+
+    /* USB Speaker Standard AS Interface Descriptor - Audio Streaming Zero Bandwidth */
+    /* Interface 1, Alternate Setting 0                                             */
+    AUDIO_INTERFACE_DESC_SIZE,     /* bLength */
+    USB_DESC_TYPE_INTERFACE,       /* bDescriptorType */
+    AUDIO_SPKR_AS_ITF_NBR,        /* bInterfaceNumber */
+    0x00,                          /* bAlternateSetting */
+    0x00,                          /* bNumEndpoints */
+    USB_DEVICE_CLASS_AUDIO,        /* bInterfaceClass */
+    AUDIO_SUBCLASS_AUDIOSTREAMING, /* bInterfaceSubClass */
+    AUDIO_PROTOCOL_UNDEFINED,      /* bInterfaceProtocol */
+    0x00,                          /* iInterface */
+    /* 09 byte*/
+
+    /* USB Speaker Standard AS Interface Descriptor - Audio Streaming Operational */
+    /* Interface 1, Alternate Setting 1                                           */
+    AUDIO_INTERFACE_DESC_SIZE,     /* bLength */
+    USB_DESC_TYPE_INTERFACE,       /* bDescriptorType */
+    AUDIO_SPKR_AS_ITF_NBR,         /* bInterfaceNumber */
+    0x01,                          /* bAlternateSetting */
+    0x01,                          /* bNumEndpoints */
+    USB_DEVICE_CLASS_AUDIO,        /* bInterfaceClass */
+    AUDIO_SUBCLASS_AUDIOSTREAMING, /* bInterfaceSubClass */
+    AUDIO_PROTOCOL_UNDEFINED,      /* bInterfaceProtocol */
+    0x00,                          /* iInterface */
+    /* 09 byte*/
+
+    /* USB Speaker Audio Streaming Interface Descriptor */
+    AUDIO_STREAMING_INTERFACE_DESC_SIZE, /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE,     /* bDescriptorType */
+    AUDIO_STREAMING_GENERAL,             /* bDescriptorSubtype */
+    0x01,                                /* bTerminalLink */
+    0x01,                                /* bDelay */
+    0x01,                                /* wFormatTag AUDIO_FORMAT_PCM  0x0001 */
+    0x00,
+    /* 07 byte*/
+
+    /* USB Speaker Audio Type III Format Interface Descriptor */
+    0x0B,                               /* bLength */
+    AUDIO_INTERFACE_DESCRIPTOR_TYPE,    /* bDescriptorType */
+    AUDIO_STREAMING_FORMAT_TYPE,        /* bDescriptorSubtype */
+    AUDIO_FORMAT_TYPE_I,                /* bFormatType */
+    0x02,                               /* bNrChannels */
+    0x02,                               /* bSubFrameSize :  2 Bytes per frame (16bits) */
+    16,                                 /* bBitResolution (16-bits per sample) */
+    0x01,                               /* bSamFreqType only one frequency supported */
+    AUDIO_SAMPLE_FREQ(USBD_AUDIO_FREQ), /* Audio sampling frequency coded on 3 bytes */
+    /* 11 byte*/
+
+    /* Endpoint 1 - Standard Descriptor */
+    AUDIO_STANDARD_ENDPOINT_DESC_SIZE, /* bLength */
+    USB_DESC_TYPE_ENDPOINT,            /* bDescriptorType */
+    AUDIO_OUT_EP,                     /* bEndpointAddress 1 out endpoint */
+    USBD_EP_TYPE_ISOC,                 /* bmAttributes */
+    AUDIO_PACKET_SZE(USBD_AUDIO_FREQ), /* wMaxPacketSize in Bytes (Freq(Samples)*2(Stereo)*2(HalfWord)) */
+    AUDIO_FS_BINTERVAL,                /* bInterval */
+    0x00,                              /* bRefresh */
+    0x00,                              /* bSynchAddress */
+    /* 09 byte*/
+
+    /* Endpoint - Audio Streaming Descriptor*/
+    AUDIO_STREAMING_ENDPOINT_DESC_SIZE, /* bLength */
+    AUDIO_ENDPOINT_DESCRIPTOR_TYPE,     /* bDescriptorType */
+    AUDIO_ENDPOINT_GENERAL,             /* bDescriptor */
+    0x00,                               /* bmAttributes */
+    0x00,                               /* bLockDelayUnits */
+    0x00,                               /* wLockDelay */
+    0x00,
+    /* 07 byte*/
+#endif /* USBD_AUDIO_CMPSIT_ENABLE */
 };
 
 static uint8_t *pCmpstFSConfDesc = USBD_CMPSIT_FSCfgDesc;
 /* Variable that dynamically holds the current size of the configuration descriptor */
+#if MY_COMPOSITE_TEST
+static __IO uint32_t CurrFSConfDescSz = USBD_CMPST_MAX_CONFDESC_SZ;
+#else
 static __IO uint32_t CurrFSConfDescSz = 0U;
+#endif /* MY_COMPOSITE_TEST */
 
 #ifdef USE_USB_HS
 __ALIGN_BEGIN static uint8_t USBD_CMPSIT_HSCfgDesc[USBD_CMPST_MAX_CONFDESC_SZ]  __ALIGN_END = {0};
@@ -365,65 +563,7 @@ uint8_t  USBD_CMPSIT_AddClass(USBD_HandleTypeDef *pdev,
                               USBD_CompositeClassTypeDef class,
                               uint8_t cfgidx)
 {
-	switch(class)
-	{
-		case CLASS_TYPE_CDC:{
-			pdev->tclasslist[pdev->classId].ClassType = CLASS_TYPE_CDC;
-			
-			pdev->tclasslist[pdev->classId].Active = 1U;
-			pdev->tclasslist[pdev->classId].NumEps = 3;
-			
-			pdev->tclasslist[pdev->classId].Eps[0].add = CDC_CMD_EP;
-			pdev->tclasslist[pdev->classId].Eps[0].type = USBD_EP_TYPE_INTR;
-			pdev->tclasslist[pdev->classId].Eps[0].size = CDC_CMD_PACKET_SIZE;
-			pdev->tclasslist[pdev->classId].Eps[0].is_used = 1U;
-			
-			pdev->tclasslist[pdev->classId].Eps[1].add = CDC_OUT_EP;
-			pdev->tclasslist[pdev->classId].Eps[1].type = USBD_EP_TYPE_BULK;
-			pdev->tclasslist[pdev->classId].Eps[1].size = CDC_DATA_FS_MAX_PACKET_SIZE;
-			pdev->tclasslist[pdev->classId].Eps[1].is_used = 1U;
-			
-			pdev->tclasslist[pdev->classId].Eps[2].add = CDC_IN_EP;
-			pdev->tclasslist[pdev->classId].Eps[2].type = USBD_EP_TYPE_BULK;
-			pdev->tclasslist[pdev->classId].Eps[2].size = CDC_DATA_FS_MAX_PACKET_SIZE;
-			pdev->tclasslist[pdev->classId].Eps[2].is_used = 1U;
- 
-			pdev->tclasslist[pdev->classId].NumIf = 2;
-			pdev->tclasslist[pdev->classId].Ifs[0] = 0;
-			pdev->tclasslist[pdev->classId].Ifs[1] = 1;	
-			
-		}break;
- 
-		case CLASS_TYPE_MSC:{
-			pdev->tclasslist[pdev->classId].ClassType = CLASS_TYPE_MSC;
-			
-			pdev->tclasslist[pdev->classId].Active = 1U;
-			pdev->tclasslist[pdev->classId].NumEps = 2;
-			
-			pdev->tclasslist[pdev->classId].Eps[0].add = MSC_EPIN_ADDR;
-			pdev->tclasslist[pdev->classId].Eps[0].type = USBD_EP_TYPE_BULK;
-			pdev->tclasslist[pdev->classId].Eps[0].size = MSC_MAX_FS_PACKET;
-			pdev->tclasslist[pdev->classId].Eps[0].is_used = 1U;
-			
-			pdev->tclasslist[pdev->classId].Eps[1].add = MSC_EPOUT_ADDR;
-			pdev->tclasslist[pdev->classId].Eps[1].type = USBD_EP_TYPE_BULK;
-			pdev->tclasslist[pdev->classId].Eps[1].size = MSC_MAX_FS_PACKET;
-			pdev->tclasslist[pdev->classId].Eps[1].is_used = 1U;
-			
- 
-			pdev->tclasslist[pdev->classId].NumIf = 1;
-			pdev->tclasslist[pdev->classId].Ifs[0] = 2;						
-			
-		}break;
-		default:break;
-	}
-	pdev->tclasslist[pdev->classId].CurrPcktSze = 0U;
-
-  UNUSED(cfgidx);
-
-  return (uint8_t)USBD_OK;
-
-
+	USBD_LOG("USBD_CMPSIT_AddClass, classId %d, type %d\r\n",pdev->classId,class);
   if ((pdev->classId < USBD_MAX_SUPPORTED_CLASS) && (pdev->tclasslist[pdev->classId].Active == 0U))
   {
     /* Store the class parameters in the global tab */
@@ -435,10 +575,10 @@ uint8_t  USBD_CMPSIT_AddClass(USBD_HandleTypeDef *pdev,
     /* Call configuration descriptor builder and endpoint configuration builder */
     if (USBD_CMPSIT_AddToConfDesc(pdev) != (uint8_t)USBD_OK)
     {
+      USBD_LOG("Error in configuration descriptor builder \n");
       return (uint8_t)USBD_FAIL;
     }
   }
-
   UNUSED(cfgidx);
 
   return (uint8_t)USBD_OK;
@@ -455,7 +595,7 @@ uint8_t  USBD_CMPSIT_AddToConfDesc(USBD_HandleTypeDef *pdev)
 {
   uint8_t idxIf = 0U;
   uint8_t iEp = 0U;
-
+  USBD_LOG("USBD_CMPSIT_AddToConfDesc\n");
   /* For the first class instance, start building the config descriptor common part */
   if (pdev->classId == 0U)
   {
@@ -504,6 +644,7 @@ uint8_t  USBD_CMPSIT_AddToConfDesc(USBD_HandleTypeDef *pdev)
 
       /* Find the first available interface slot and Assign number of interfaces */
       idxIf = USBD_CMPSIT_FindFreeIFNbr(pdev);
+      USBD_LOG("MSC Interface Number: %d \n", idxIf);
       pdev->tclasslist[pdev->classId].NumIf = 1U;
       pdev->tclasslist[pdev->classId].Ifs[0] = idxIf;
 
@@ -535,6 +676,7 @@ uint8_t  USBD_CMPSIT_AddToConfDesc(USBD_HandleTypeDef *pdev)
 
       /* Find the first available interface slot and Assign number of interfaces */
       idxIf = USBD_CMPSIT_FindFreeIFNbr(pdev);
+      USBD_LOG("CDC Interface Number %d\n", idxIf);
       pdev->tclasslist[pdev->classId].NumIf = 2U;
       pdev->tclasslist[pdev->classId].Ifs[0] = idxIf;
       pdev->tclasslist[pdev->classId].Ifs[1] = (uint8_t)(idxIf + 1U);
@@ -666,6 +808,7 @@ uint8_t  USBD_CMPSIT_AddToConfDesc(USBD_HandleTypeDef *pdev)
 
       /* Find the first available interface slot and Assign number of interfaces */
       idxIf = USBD_CMPSIT_FindFreeIFNbr(pdev);
+      USBD_LOG("AUDIO Interface Number %d\n", idxIf);
       pdev->tclasslist[pdev->classId].NumIf = 2U;
       pdev->tclasslist[pdev->classId].Ifs[0] = idxIf;
       pdev->tclasslist[pdev->classId].Ifs[1] = (uint8_t)(idxIf + 1U);
@@ -870,7 +1013,7 @@ uint8_t  USBD_CMPSIT_AddToConfDesc(USBD_HandleTypeDef *pdev)
 uint8_t  *USBD_CMPSIT_GetFSCfgDesc(uint16_t *length)
 {
   *length = (uint16_t)CurrFSConfDescSz;
-
+  USBD_LOG("USBD_CMPSIT_GetFSCfgDesc: %d bytes\n", *length);
   return USBD_CMPSIT_FSCfgDesc;
 }
 
@@ -898,7 +1041,7 @@ uint8_t  *USBD_CMPSIT_GetHSCfgDesc(uint16_t *length)
 uint8_t  *USBD_CMPSIT_GetOtherSpeedCfgDesc(uint16_t *length)
 {
   *length = (uint16_t)CurrFSConfDescSz;
-
+  USBD_LOG("USBD_CMPSIT_GetOtherSpeedCfgDesc: %d bytes\n", *length);
   return USBD_CMPSIT_FSCfgDesc;
 }
 
@@ -911,6 +1054,7 @@ uint8_t  *USBD_CMPSIT_GetOtherSpeedCfgDesc(uint16_t *length)
 uint8_t  *USBD_CMPSIT_GetDeviceQualifierDescriptor(uint16_t *length)
 {
   *length = (uint16_t)(sizeof(USBD_CMPSIT_DeviceQualifierDesc));
+  USBD_LOG("USBD_CMPSIT_GetDeviceQualifierDescriptor Size: %d", *length);
   return USBD_CMPSIT_DeviceQualifierDesc;
 }
 
@@ -947,6 +1091,9 @@ static uint8_t USBD_CMPSIT_FindFreeIFNbr(USBD_HandleTypeDef *pdev)
   */
 static void  USBD_CMPSIT_AddConfDesc(uint32_t Conf, __IO uint32_t *pSze)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   /* Intermediate variable to comply with MISRA-C Rule 11.3 */
   USBD_ConfigDescTypeDef *ptr = (USBD_ConfigDescTypeDef *)Conf;
 
@@ -1048,6 +1195,9 @@ static void  USBD_CMPSIT_HIDMouseDesc(USBD_HandleTypeDef *pdev, uint32_t pConf,
   */
 static void  USBD_CMPSIT_MSCDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   USBD_IfDescTypeDef *pIfDesc;
   USBD_EpDescTypeDef *pEpDesc;
 
@@ -1085,6 +1235,9 @@ static void  USBD_CMPSIT_MSCDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO 
   */
 static void  USBD_CMPSIT_CDCDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef               *pIfDesc;
   static USBD_EpDescTypeDef               *pEpDesc;
   static USBD_CDCHeaderFuncDescTypeDef    *pHeadDesc;
@@ -1183,6 +1336,9 @@ static void  USBD_CMPSIT_CDCDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO 
   */
 static void  USBD_CMPSIT_DFUDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef *pIfDesc;
   static USBD_DFUFuncDescTypeDef *pDFUFuncDesc;
   uint32_t idx;
@@ -1224,6 +1380,9 @@ static void  USBD_CMPSIT_DFUDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO 
   */
 static void  USBD_CMPSIT_CDC_ECMDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef             *pIfDesc;
   static USBD_EpDescTypeDef             *pEpDesc;
   static USBD_ECMFuncDescTypeDef        *pFuncDesc;
@@ -1317,6 +1476,9 @@ static void  USBD_CMPSIT_CDC_ECMDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, _
   */
 static void  USBD_CMPSIT_AUDIODesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef *pIfDesc;
   static USBD_IadDescTypeDef *pIadDesc;
   UNUSED(speed);
@@ -1471,6 +1633,9 @@ static void  USBD_CMPSIT_AUDIODesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __I
   */
 static void  USBD_CMPSIT_RNDISDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef               *pIfDesc;
   static USBD_EpDescTypeDef               *pEpDesc;
   static USBD_CDCHeaderFuncDescTypeDef    *pHeadDesc;
@@ -1567,6 +1732,9 @@ static void  USBD_CMPSIT_RNDISDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __I
   */
 static void  USBD_CMPSIT_CUSTOMHIDDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef *pIfDesc;
   static USBD_EpDescTypeDef *pEpDesc;
   static USBD_DescTypeDef *pDesc;
@@ -1616,6 +1784,9 @@ static void  USBD_CMPSIT_CUSTOMHIDDesc(USBD_HandleTypeDef *pdev, uint32_t pConf,
   */
 static void  USBD_CMPSIT_VIDEODesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
 #ifdef USBD_UVC_FORMAT_UNCOMPRESSED
   __ALIGN_BEGIN static uint8_t usbd_uvc_guid[16] __ALIGN_END = {DBVAL(UVC_UNCOMPRESSED_GUID), 0x00, 0x00, 0x10,
                                                                 0x00, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71
@@ -1817,6 +1988,9 @@ static void  USBD_CMPSIT_VIDEODesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __I
   */
 static void  USBD_CMPSIT_PRNTDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   static USBD_IfDescTypeDef *pIfDesc;
   static USBD_EpDescTypeDef *pEpDesc;
 
@@ -1923,6 +2097,9 @@ static void  USBD_CMPSIT_CCIDDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO
   */
 static void  USBD_CMPSIT_MTPDesc(USBD_HandleTypeDef *pdev, uint32_t pConf, __IO uint32_t *Sze, uint8_t speed)
 {
+#if MY_COMPOSITE_TEST
+  return;
+#endif
   USBD_IfDescTypeDef *pIfDesc;
   USBD_EpDescTypeDef *pEpDesc;
 
@@ -2056,6 +2233,19 @@ uint8_t USBD_CMPST_ClearConfDesc(USBD_HandleTypeDef *pdev)
 
 #endif /* USE_USBD_COMPOSITE */
 
+#ifdef USE_USBD_COMPOSITE
+uint8_t USBD_get_composite_class_id(USBD_HandleTypeDef *pdev, uint8_t classType)
+{
+  for (uint8_t i = 0; i < USBD_MAX_SUPPORTED_CLASS; i++)
+  {
+    if (pdev->tclasslist[i].ClassType == classType)
+    {
+      return i;
+    }
+  }
+  return 0xFF;
+}
+#endif
 /**
   * @}
   */

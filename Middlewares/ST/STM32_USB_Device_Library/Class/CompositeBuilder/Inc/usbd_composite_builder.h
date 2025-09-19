@@ -25,6 +25,8 @@ extern "C" {
 #endif
 #define USBD_CMPSIT_ACTIVATE_MSC                           1U
 #define USBD_CMPSIT_ACTIVATE_CDC                           1U
+#define USBD_CMPSIT_ACTIVATE_AUDIO                         1U
+#define USBD_COMPOSITE_USE_IAD          1
 /* Includes ------------------------------------------------------------------*/
 #include  "usbd_ioreq.h"
 
@@ -88,7 +90,7 @@ extern "C" {
 #endif /* USBD_CMPSIT_ACTIVATE_HID */
 
 #ifndef USBD_CMPSIT_ACTIVATE_MSC
-#define USBD_CMPSIT_ACTIVATE_MSC                           1U
+#define USBD_CMPSIT_ACTIVATE_MSC                           0U
 #endif /* USBD_CMPSIT_ACTIVATE_MSC */
 
 #ifndef USBD_CMPSIT_ACTIVATE_DFU

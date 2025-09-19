@@ -37,19 +37,21 @@
 /* USER CODE BEGIN INCLUDE */
 /*---------- -----------*/
 #ifndef USE_USBD_COMPOSITE
-//#define USE_USBD_COMPOSITE
+#define USE_USBD_COMPOSITE
 #endif
 
 #define USBD_AUDIO_CMPSIT_ENABLE        1
+#define USBD_MSC_CMPSIT_ENABLE          1
+#define USBD_CDC_CMPSIT_ENABLE          1
+
 #if (USBD_AUDIO_CMPSIT_ENABLE == 1)
-#define USB_CMPSIT_AUDIO_CONFIG_DESC_SIZ (USB_AUDIO_CONFIG_DESC_SIZ-9)
+#define USB_CMPSIT_AUDIO_CONFIG_DESC_SIZ (USB_AUDIO_CONFIG_DESC_SIZ-9+8)
 #define USBD_AUDIO_INTERFACES_NUM       2
 #else
 #define USB_CMPSIT_AUDIO_CONFIG_DESC_SIZ 0
 #define USBD_AUDIO_INTERFACES_NUM      0
 #endif
 
-#define USBD_MSC_CMPSIT_ENABLE          0
 #if (USBD_MSC_CMPSIT_ENABLE == 1)
 #define USB_CMPSIT_MSC_CONFIG_DESC_SIZ  (USB_MSC_CONFIG_DESC_SIZ-9+8)
 #define USBD_MSC_INTERFACES_NUM         1
@@ -58,7 +60,6 @@
 #define USBD_MSC_INTERFACES_NUM      0
 #endif
 
-#define USBD_CDC_CMPSIT_ENABLE          0
 #if (USBD_CDC_CMPSIT_ENABLE == 1)
 #define USB_CMPSIT_CDC_CONFIG_DESC_SIZ (USB_CDC_CONFIG_DESC_SIZ-9+8)
 #define USBD_CDC_INTERFACES_NUM         2
@@ -67,11 +68,8 @@
 #define USBD_CDC_INTERFACES_NUM      0
 #endif
 
-
-
 #define MSC_MEDIA_PACKET     512U
-#define USBD_COMPOSITE_USE_IAD 1
-#define USBD_MAX_SUPPORTED_CLASS 4
+#define USBD_MAX_SUPPORTED_CLASS 3
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
@@ -99,19 +97,19 @@
   */
 
 /*---------- -----------*/
-#define USBD_MAX_NUM_INTERFACES     3
+#define USBD_MAX_NUM_INTERFACES     6
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1U
 /*---------- -----------*/
 #define USBD_MAX_STR_DESC_SIZ     512U
 /*---------- -----------*/
-#define USBD_DEBUG_LEVEL     2U
+#define USBD_DEBUG_LEVEL     3U
 /*---------- -----------*/
 #define USBD_LPM_ENABLED     0U
 /*---------- -----------*/
 #define USBD_SELF_POWERED     1U
 /*---------- -----------*/
-#define USBD_AUDIO_FREQ     22100U
+#define USBD_AUDIO_FREQ     48000U
 
 /****************************************/
 /* #define for FS and HS identification */
