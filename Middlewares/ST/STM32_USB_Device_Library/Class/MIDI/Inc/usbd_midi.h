@@ -86,6 +86,17 @@ extern "C" {
 
 #define MIDI_REQ_SET_REPORT                    0x09U
 #define MIDI_REQ_GET_REPORT                    0x01U
+
+/*bDescriptorSubType*/
+#define MIDI_STREAMING_HEADER   0x01U 
+#define MIDI_STREAMING_IN_JACK  0x02U
+#define MIDI_STREAMING_OUT_JACK 0x03U
+
+#define MIDI_STREAMING_GENERAL 0x01U
+
+#define MIDI_JACK_TYPE_EMBEDDED                0x01U
+#define MIDI_JACK_TYPE_EXTERNAL                0x02U
+
 /**
   * @}
   */

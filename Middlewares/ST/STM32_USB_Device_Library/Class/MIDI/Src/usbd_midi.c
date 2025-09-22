@@ -45,6 +45,7 @@ EndBSPDependencies */
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_midi.h"
 #include "usbd_ctlreq.h"
+#include "usbd_audio.h"
 
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
@@ -130,6 +131,10 @@ USBD_ClassTypeDef  USBD_MIDI =
 #endif /* USE_USBD_COMPOSITE  */
 };
 
+#define USBD_MIDI_INTERFACES_NUM    2
+#define MIDI_AC_ITF_NBR 0x00U
+#define MIDI_MS_ITF_NBR 0x01U
+
 #ifndef USE_USBD_COMPOSITE
 /* USB MIDI device FS Configuration Descriptor */
 __ALIGN_BEGIN static uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZ] __ALIGN_END =
@@ -138,7 +143,7 @@ __ALIGN_BEGIN static uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZ] __ALIGN
   USB_DESC_TYPE_CONFIGURATION,                /* bDescriptorType: Configuration */
   LOBYTE(USB_MIDI_CONFIG_DESC_SIZ),                    /* wTotalLength */
   HIBYTE(USB_MIDI_CONFIG_DESC_SIZ),
-  0x02,                                       /* bNumInterfaces: 2 interfaces */
+  USBD_MIDI_INTERFACES_NUM,                                       /* bNumInterfaces: 2 interfaces */
   0x01,                                       /* bConfigurationValue: Configuration value */
   0x00,                                       /* iConfiguration: Index of string descriptor
                                                  describing the configuration */
@@ -153,43 +158,43 @@ __ALIGN_BEGIN static uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZ] __ALIGN
 /* 09 */
 0x09,         /*bLength: Interface Descriptor size*/
 USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
-0x00,         /*bInterfaceNumber: Number of Interface*/
+MIDI_AC_ITF_NBR,         /*bInterfaceNumber: Number of Interface*/
 0x00,         /*bAlternateSetting: Alternate setting*/
 0x00,         /*bNumEndpoints*/
-0x01,         /*bInterfaceClass: Audio*/
-0x01,         /*bInterfaceSubClass : Audio Control*/
-0x00,            /*nInterfaceProtocol*/
+USB_DEVICE_CLASS_AUDIO,         /*bInterfaceClass: Audio*/
+AUDIO_SUBCLASS_AUDIOCONTROL,         /*bInterfaceSubClass : Audio Control*/
+AUDIO_PROTOCOL_UNDEFINED,            /*nInterfaceProtocol*/
 0x00,            /*iInterface: Index of string descriptor*/
 
 /**************** Class-specific AC Interface Descriptor ******************/
 /* 18 */
 0x09,         /*bLength: Interface Descriptor size*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x01,         /*bDescriptorSubType: Header*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+AUDIO_CONTROL_HEADER,         /*bDescriptorSubType: Header*/
 0x00,         /*bcdADC: Revision of class specification - 1.0*/
 0x01,
 0x09,         /*wTotalLength: Total size of class specific discriptor*/
 0x00,
 0x01,         /*bInCollection: Number of streaming interfaces*/
-0x01,         /*baInterfaceNr : MIDIStreaming interface 1 belongs to this AudioControl interface*/
+MIDI_MS_ITF_NBR,         /*baInterfaceNr : MIDIStreaming interface 1 belongs to this AudioControl interface*/
 
 /******************* Standard MS Interface Descriptor *********************/
 /* 27 */
 0x09,         /*bLength: Interface Descriptor size*/
 USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
-0x01,         /*bInterfaceNumber: Number of Interface*/
+MIDI_MS_ITF_NBR,         /*bInterfaceNumber: Number of Interface*/
 0x00,         /*bAlternateSetting: Alternate setting*/
 0x02,         /*bNumEndpoints*/
-0x01,         /*bInterfaceClass: Audio*/
-0x03,         /*bInterfaceSubClass : MIDI Streaming*/
-0,            /*nInterfaceProtocol*/
-0,            /*iInterface: Index of string descriptor*/
+USB_DEVICE_CLASS_AUDIO,         /*bInterfaceClass: Audio*/
+AUDIO_SUBCLASS_MIDISTREAMING,         /*bInterfaceSubClass : MIDI Streaming*/
+AUDIO_PROTOCOL_UNDEFINED,            /*nInterfaceProtocol*/
+0x00,            /*iInterface: Index of string descriptor*/
 
 /**************** Class-specific MS Interface Descriptor ******************/
 /* 36 */
 0x07,         /*bLength: Interface Descriptor size*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x01,         /*bDescriptorSubType: MS Header*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+MIDI_STREAMING_HEADER,         /*bDescriptorSubType: MS Header*/
 0x00,         /*bcdADC: Revision of class specification*/
 0x01,
 0x41,         /*wTotalLength: Total size of class specific discriptor*/
@@ -198,27 +203,27 @@ USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
 /******************* MIDI IN Jack Descriptor (Embedded) *******************/
 /* 43 */
 0x06,         /*bLength: Size of this descriptor*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x02,         /*bDescriptorSubType: MIDI IN Jack*/
-0x01,         /*bJackType: Embedded*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+MIDI_STREAMING_IN_JACK,         /*bDescriptorSubType: MIDI IN Jack*/
+MIDI_JACK_TYPE_EMBEDDED,         /*bJackType: Embedded*/
 0x01,         /*bJackID: ID of this Jack*/
 0x00,         /*iJack*/
 
 /******************* MIDI IN Jack Descriptor (External) *******************/
 /* 49 */
 0x06,         /*bLength: Size of this descriptor*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x02,         /*bDescriptorSubType: MIDI IN Jack*/
-0x02,         /*bJackType: External*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+MIDI_STREAMING_IN_JACK,         /*bDescriptorSubType: MIDI IN Jack*/
+MIDI_JACK_TYPE_EXTERNAL,         /*bJackType: External*/
 0x02,         /*bJackID: ID of this Jack*/
 0x00,         /*iJack*/
 
 /******************* MIDI OUT Jack Descriptor (Embedded) ******************/
 /* 55 */
 0x09,         /*bLength: Size of this descriptor*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x03,         /*bDescriptorSubType: MIDI OUT Jack*/
-0x01,         /*bJackType: Embedded*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+MIDI_STREAMING_OUT_JACK,         /*bDescriptorSubType: MIDI OUT Jack*/
+MIDI_JACK_TYPE_EMBEDDED,         /*bJackType: Embedded*/
 0x03,         /*bJackID: ID of this Jack*/
 0x01,         /*bNrInputPins: Number of Input Pins of this Jack*/
 0x02,         /*BaSourceID: ID of the Entry to which this Pin is connected*/
@@ -228,9 +233,9 @@ USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
 /******************* MIDI OUT Jack Descriptor (External) ******************/
 /* 64 */
 0x09,         /*bLength: Size of this descriptor*/
-0x24,         /*bDescriptorType: Class-specific interface descriptor type*/
-0x03,         /*bDescriptorSubType: MIDI OUT Jack*/
-0x02,         /*bJackType: External*/
+AUDIO_INTERFACE_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific interface descriptor type*/
+MIDI_STREAMING_OUT_JACK,         /*bDescriptorSubType: MIDI OUT Jack*/
+MIDI_JACK_TYPE_EXTERNAL,         /*bJackType: External*/
 0x04,         /*bJackID: ID of this Jack*/
 0x01,         /*bNrInputPins: Number of Input Pins of this Jack*/
 0x01,         /*BaSourceID: ID of the Entry to which this Pin is connected*/
@@ -241,8 +246,8 @@ USB_DESC_TYPE_INTERFACE, /*bDescriptorType: Interface descriptor type*/
 /* 73 */
 0x09,         /*bLength: Size of this descriptor*/
 USB_DESC_TYPE_ENDPOINT, /*bDescriptorType: Endpoint descriptor type*/
-0x01,         /*bEndpointAddress: OUT Endpoint 1*/
-0x02,         /*bmAttributes: Bulk, not shared.*/
+MIDI_EPOUT_ADDR,         /*bEndpointAddress: OUT Endpoint 1*/
+USBD_EP_TYPE_BULK,         /*bmAttributes: Bulk, not shared.*/
 0x40,         /*wMaxPacketSize 64*/
 0x00,
 0x00,         /*bInterval*/
@@ -252,8 +257,8 @@ USB_DESC_TYPE_ENDPOINT, /*bDescriptorType: Endpoint descriptor type*/
 /************* Class-specific MS Bulk OUT Endpoint Descriptor *************/
 /* 82 */
 0x05,         /*bLength: Size of this descriptor*/
-0x25,         /*bDescriptorType: Class-specific endpoint descriptor type*/
-0x01,         /*bDescriptorSubType: MS General*/
+AUDIO_ENDPOINT_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific endpoint descriptor type*/
+MIDI_STREAMING_GENERAL,         /*bDescriptorSubType: MS General*/
 0x01,         /*bNumEmbMIDIJack: Number of embedded MIDI IN Jack*/
 0x01,         /*BaAssocJackID: ID of the Embedded MIDI IN Jack*/
 
@@ -261,8 +266,8 @@ USB_DESC_TYPE_ENDPOINT, /*bDescriptorType: Endpoint descriptor type*/
 /* 87 */
 0x09,         /*bLength: Size of this descriptor*/
 USB_DESC_TYPE_ENDPOINT, /*bDescriptorType: Endpoint descriptor type*/
-0x81,         /*bEndpointAddress: IN Endpoint 1*/
-0x02,         /*bmAttributes: Bulk, not shared.*/
+MIDI_EPIN_ADDR,         /*bEndpointAddress: IN Endpoint 1*/
+USBD_EP_TYPE_BULK,         /*bmAttributes: Bulk, not shared.*/
 0x40,         /*wMaxPacketSize 64*/
 0x00,
 0x00,         /*bInterval*/
@@ -272,8 +277,8 @@ USB_DESC_TYPE_ENDPOINT, /*bDescriptorType: Endpoint descriptor type*/
 /* 96 */
 
 0x05,         /*bLength: Size of this descriptor*/
-0x25,         /*bDescriptorType: Class-specific endpoint descriptor type*/
-0x01,         /*bDescriptorSubType: MS General*/
+AUDIO_ENDPOINT_DESCRIPTOR_TYPE,         /*bDescriptorType: Class-specific endpoint descriptor type*/
+MIDI_STREAMING_GENERAL,         /*bDescriptorSubType: MS General*/
 0x01,         /*bNumEmbMIDIJack: Number of embedded MIDI OUT Jack*/
 0x03,         /*BaAssocJackID: ID of the Embedded MIDI OUT Jack*/
 /* 101 */
