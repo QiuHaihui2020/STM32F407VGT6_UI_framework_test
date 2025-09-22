@@ -8,6 +8,8 @@
         "stm32f4xx_hal.h": "c",
         "usbd_msc.h": "c",
         "usbd_ioreq.h": "c",
-        "usbd_def.h": "c"
+        "usbd_def.h": "c",
+        "usbd_cdc.h": "c",
+        "stm32f4xx.h": "c"
     }
 }

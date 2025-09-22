@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,USE_USBD_COMPOSITE1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;..\Middlewares\ST\STM32_USB_Device_Library\Class\MIDI\Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1898,6 +1898,62 @@
               <FilePath>..\USB_DEVICE\App\usbd_cdc_if.c</FilePath>
             </File>
             <File>
+              <FileName>usbd_audio_if.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USB_DEVICE/App/usbd_audio_if.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>1</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
+            </File>
+            <File>
               <FileName>usb_device.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USB_DEVICE/App/usb_device.c</FilePath>
@@ -2010,60 +2066,9 @@
               </FileOption>
             </File>
             <File>
-              <FileName>usbd_audio_if.c</FileName>
+              <FileName>usbd_midi_if.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USB_DEVICE/App/usbd_audio_if.c</FilePath>
-              <FileOption>
-                <CommonProperty>
-                  <UseCPPCompiler>2</UseCPPCompiler>
-                  <RVCTCodeConst>0</RVCTCodeConst>
-                  <RVCTZI>0</RVCTZI>
-                  <RVCTOtherData>0</RVCTOtherData>
-                  <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>1</IncludeInBuild>
-                  <AlwaysBuild>2</AlwaysBuild>
-                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
-                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
-                  <PublicsOnly>2</PublicsOnly>
-                  <StopOnExitCode>11</StopOnExitCode>
-                  <CustomArgument></CustomArgument>
-                  <IncludeLibraryModules></IncludeLibraryModules>
-                  <ComprImg>1</ComprImg>
-                </CommonProperty>
-                <FileArmAds>
-                  <Cads>
-                    <interw>2</interw>
-                    <Optim>0</Optim>
-                    <oTime>2</oTime>
-                    <SplitLS>2</SplitLS>
-                    <OneElfS>2</OneElfS>
-                    <Strict>2</Strict>
-                    <EnumInt>2</EnumInt>
-                    <PlainCh>2</PlainCh>
-                    <Ropi>2</Ropi>
-                    <Rwpi>2</Rwpi>
-                    <wLevel>0</wLevel>
-                    <uThumb>2</uThumb>
-                    <uSurpInc>2</uSurpInc>
-                    <uC99>2</uC99>
-                    <uGnu>2</uGnu>
-                    <useXO>2</useXO>
-                    <v6Lang>0</v6Lang>
-                    <v6LangP>0</v6LangP>
-                    <vShortEn>2</vShortEn>
-                    <vShortWch>2</vShortWch>
-                    <v6Lto>2</v6Lto>
-                    <v6WtE>2</v6WtE>
-                    <v6Rtti>2</v6Rtti>
-                    <VariousControls>
-                      <MiscControls></MiscControls>
-                      <Define></Define>
-                      <Undefine></Undefine>
-                      <IncludePath></IncludePath>
-                    </VariousControls>
-                  </Cads>
-                </FileArmAds>
-              </FileOption>
+              <FilePath>..\USB_DEVICE\App\usbd_midi_if.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2407,6 +2412,62 @@
               </FileOption>
             </File>
             <File>
+              <FileName>usbd_audio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Src/usbd_audio.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>1</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
+            </File>
+            <File>
               <FileName>usbd_core.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c</FilePath>
@@ -2575,60 +2636,9 @@
               </FileOption>
             </File>
             <File>
-              <FileName>usbd_audio.c</FileName>
+              <FileName>usbd_midi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Src/usbd_audio.c</FilePath>
-              <FileOption>
-                <CommonProperty>
-                  <UseCPPCompiler>2</UseCPPCompiler>
-                  <RVCTCodeConst>0</RVCTCodeConst>
-                  <RVCTZI>0</RVCTZI>
-                  <RVCTOtherData>0</RVCTOtherData>
-                  <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>1</IncludeInBuild>
-                  <AlwaysBuild>2</AlwaysBuild>
-                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
-                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
-                  <PublicsOnly>2</PublicsOnly>
-                  <StopOnExitCode>11</StopOnExitCode>
-                  <CustomArgument></CustomArgument>
-                  <IncludeLibraryModules></IncludeLibraryModules>
-                  <ComprImg>1</ComprImg>
-                </CommonProperty>
-                <FileArmAds>
-                  <Cads>
-                    <interw>2</interw>
-                    <Optim>0</Optim>
-                    <oTime>2</oTime>
-                    <SplitLS>2</SplitLS>
-                    <OneElfS>2</OneElfS>
-                    <Strict>2</Strict>
-                    <EnumInt>2</EnumInt>
-                    <PlainCh>2</PlainCh>
-                    <Ropi>2</Ropi>
-                    <Rwpi>2</Rwpi>
-                    <wLevel>0</wLevel>
-                    <uThumb>2</uThumb>
-                    <uSurpInc>2</uSurpInc>
-                    <uC99>2</uC99>
-                    <uGnu>2</uGnu>
-                    <useXO>2</useXO>
-                    <v6Lang>0</v6Lang>
-                    <v6LangP>0</v6LangP>
-                    <vShortEn>2</vShortEn>
-                    <vShortWch>2</vShortWch>
-                    <v6Lto>2</v6Lto>
-                    <v6WtE>2</v6WtE>
-                    <v6Rtti>2</v6Rtti>
-                    <VariousControls>
-                      <MiscControls></MiscControls>
-                      <Define></Define>
-                      <Undefine></Undefine>
-                      <IncludePath></IncludePath>
-                    </VariousControls>
-                  </Cads>
-                </FileArmAds>
-              </FileOption>
+              <FilePath>..\Middlewares\ST\STM32_USB_Device_Library\Class\MIDI\Src\usbd_midi.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3743,6 +3753,11 @@
               <FilePath>..\USB_DEVICE\App\usbd_cdc_if.c</FilePath>
             </File>
             <File>
+              <FileName>usbd_audio_if.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USB_DEVICE/App/usbd_audio_if.c</FilePath>
+            </File>
+            <File>
               <FileName>usb_device.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USB_DEVICE/App/usb_device.c</FilePath>
@@ -3753,9 +3768,9 @@
               <FilePath>../USB_DEVICE/App/usbd_desc.c</FilePath>
             </File>
             <File>
-              <FileName>usbd_audio_if.c</FileName>
+              <FileName>usbd_midi_if.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USB_DEVICE/App/usbd_audio_if.c</FilePath>
+              <FilePath>..\USB_DEVICE\App\usbd_midi_if.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3808,6 +3823,11 @@
               <FilePath>..\Middlewares\ST\STM32_USB_Device_Library\Class\CompositeBuilder\Src\usbd_composite_builder.c</FilePath>
             </File>
             <File>
+              <FileName>usbd_audio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Src/usbd_audio.c</FilePath>
+            </File>
+            <File>
               <FileName>usbd_core.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c</FilePath>
@@ -3823,9 +3843,9 @@
               <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c</FilePath>
             </File>
             <File>
-              <FileName>usbd_audio.c</FileName>
+              <FileName>usbd_midi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Src/usbd_audio.c</FilePath>
+              <FilePath>..\Middlewares\ST\STM32_USB_Device_Library\Class\MIDI\Src\usbd_midi.c</FilePath>
             </File>
           </Files>
         </Group>

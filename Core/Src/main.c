@@ -164,7 +164,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-        CDC_Transmit_FS("USB CDC test\n", 15);
+        //CDC_Transmit_FS("USB CDC test\n", 15);
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_SET);
         HAL_Delay(500);
         HAL_GPIO_WritePin(GPIOE, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_RESET);

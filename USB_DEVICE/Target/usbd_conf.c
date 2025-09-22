@@ -24,12 +24,13 @@
 #include "usbd_def.h"
 #include "usbd_core.h"
 
-#include "usbd_audio.h"
+#include "usbd_midi.h"
 
 /* USER CODE BEGIN Includes */
 #include "usbd_msc.h"
 #include "usbd_audio.h"
 #include "usbd_cdc.h"
+#include "usbd_midi.h"
 #include "log_debug.h"
 
 #define USBD_LOG log_debug
@@ -635,6 +636,7 @@ void *USBD_static_malloc(uint32_t size)
   static uint32_t mem[(sizeof(USBD_AUDIO_HandleTypeDef)/4)+1];/* On 32-bit boundary */
   static uint32_t mem1[(sizeof(USBD_MSC_BOT_HandleTypeDef)/4)+1];/* On 32-bit boundary */
   static uint32_t mem2[(sizeof(USBD_CDC_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  static uint32_t mem3[(sizeof(USBD_MIDI_HandleTypeDef)/4+1)];/* On 32-bit boundary */
 
   if (size == sizeof(USBD_MSC_BOT_HandleTypeDef))
   {
@@ -646,6 +648,11 @@ void *USBD_static_malloc(uint32_t size)
   {
     USBD_LOG("CDC memory allocated, size = %d\n");
     return &mem2[0];
+  }
+  if (size == sizeof(USBD_MIDI_HandleTypeDef))
+  {
+    USBD_LOG("MIDI memory allocated, size = %d\n");
+    return &mem3[0];
   }
   USBD_LOG("AUDIO memory allocated, size = %d\n");
   return mem;

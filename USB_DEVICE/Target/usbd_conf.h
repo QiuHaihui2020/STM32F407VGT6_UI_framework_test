@@ -37,7 +37,7 @@
 /* USER CODE BEGIN INCLUDE */
 /*---------- -----------*/
 #ifndef USE_USBD_COMPOSITE
-#define USE_USBD_COMPOSITE
+// #define USE_USBD_COMPOSITE
 #endif
 
 #define USBD_AUDIO_CMPSIT_ENABLE        1
@@ -70,6 +70,11 @@
 
 #define MSC_MEDIA_PACKET     512U
 #define USBD_MAX_SUPPORTED_CLASS 3
+#define USBD_MIDI_OUTREPORT_BUF_SIZE     2U
+/*---------- -----------*/
+#define USBD_MIDI_REPORT_DESC_SIZE     2U
+/*---------- -----------*/
+#define MIDI_FS_BINTERVAL     0x5U
 /* USER CODE END INCLUDE */
 
 /** @addtogroup USBD_OTG_DRIVER
