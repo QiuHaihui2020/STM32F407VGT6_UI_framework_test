@@ -22,6 +22,7 @@
 #include "usbd_midi_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include "log_debug.h"
 
 /* USER CODE END INCLUDE */
 
@@ -124,7 +125,7 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 
 static int8_t MIDI_Init_FS(void);
 static int8_t MIDI_DeInit_FS(void);
-static int8_t MIDI_OutEvent_FS(uint8_t event_idx, uint8_t state);
+static int8_t MIDI_OutEvent_FS(uint8_t *data, uint16_t length);
 
 /**
   * @}
@@ -173,18 +174,12 @@ static int8_t MIDI_DeInit_FS(void)
   * @param  state: Event state
   * @retval USBD_OK if all operations are OK else USBD_FAIL
   */
-static int8_t MIDI_OutEvent_FS(uint8_t event_idx, uint8_t state)
+static int8_t MIDI_OutEvent_FS(uint8_t *data, uint16_t length)
 {
   /* USER CODE BEGIN 6 */
-  UNUSED(event_idx);
-  UNUSED(state);
-
-  /* Start next USB packet transfer once data processing is completed */
-  if (USBD_MIDI_ReceivePacket(&hUsbDeviceFS) != (uint8_t)USBD_OK)
-  {
-    return -1;
-  }
-
+  UNUSED(data);
+  UNUSED(length);
+  put_buf(data, length);
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -197,9 +192,9 @@ static int8_t MIDI_OutEvent_FS(uint8_t event_idx, uint8_t state)
   * @retval USBD_OK if all operations are OK else USBD_FAIL
   */
 
-int8_t USBD_MIDI_SendReport_FS(uint8_t *report, uint16_t len)
+int8_t USBD_MIDI_SendPacket_FS(uint8_t *report, uint16_t len)
 {
-  return USBD_MIDI_SendReport(&hUsbDeviceFS, report, len);
+  return USBD_MIDI_SendPacket(&hUsbDeviceFS, report, len);
 }
 
 /* USER CODE END 7 */

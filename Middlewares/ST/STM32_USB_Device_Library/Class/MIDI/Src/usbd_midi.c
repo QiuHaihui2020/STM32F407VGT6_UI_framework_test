@@ -353,8 +353,8 @@ static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
 #ifdef USE_USBD_COMPOSITE
   /* Get the Endpoints addresses allocated for this class instance */
-  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_INTR, (uint8_t)pdev->classId);
-  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_INTR, (uint8_t)pdev->classId);
+  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_BULK, (uint8_t)pdev->classId);
+  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_BULK, (uint8_t)pdev->classId);
 #endif /* USE_USBD_COMPOSITE */
 
   if (pdev->dev_speed == USBD_SPEED_HIGH)
@@ -369,13 +369,13 @@ static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   }
 
   /* Open EP IN */
-  (void)USBD_LL_OpenEP(pdev, MIDIInEpAdd, USBD_EP_TYPE_INTR,
+  (void)USBD_LL_OpenEP(pdev, MIDIInEpAdd, USBD_EP_TYPE_BULK,
                        MIDI_EPIN_SIZE);
 
   pdev->ep_in[MIDIInEpAdd & 0xFU].is_used = 1U;
 
   /* Open EP OUT */
-  (void)USBD_LL_OpenEP(pdev, MIDIOutEpAdd, USBD_EP_TYPE_INTR,
+  (void)USBD_LL_OpenEP(pdev, MIDIOutEpAdd, USBD_EP_TYPE_BULK,
                        MIDI_EPOUT_SIZE);
 
   pdev->ep_out[MIDIOutEpAdd & 0xFU].is_used = 1U;
@@ -406,8 +406,8 @@ static uint8_t USBD_MIDI_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
 #ifdef USE_USBD_COMPOSITE
   /* Get the Endpoints addresses allocated for this class instance */
-  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_INTR, (uint8_t)pdev->classId);
-  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_INTR, (uint8_t)pdev->classId);
+  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_BULK, (uint8_t)pdev->classId);
+  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_BULK, (uint8_t)pdev->classId);
 #endif /* USE_USBD_COMPOSITE */
 
   /* Close MIDI EP IN */
@@ -555,29 +555,9 @@ static uint8_t USBD_MIDI_Setup(USBD_HandleTypeDef *pdev,
           break;
 
         case USB_REQ_GET_DESCRIPTOR:
-          if ((req->wValue >> 8) == MIDI_REPORT_DESC)
-          {
-            len = MIN(USBD_MIDI_REPORT_DESC_SIZE, req->wLength);
-            pbuf = ((USBD_MIDI_ItfTypeDef *)pdev->pUserData[pdev->classId])->pReport;
-          }
-          else
-          {
-            if ((req->wValue >> 8) == MIDI_DESCRIPTOR_TYPE)
-            {
-              pbuf = USBD_MIDI_Desc;
-              len = MIN(USB_MIDI_DESC_SIZ, req->wLength);
-            }
-          }
-
-          if (pbuf != NULL)
-          {
-            (void)USBD_CtlSendData(pdev, pbuf, len);
-          }
-          else
-          {
-            USBD_CtlError(pdev, req);
-            ret = USBD_FAIL;
-          }
+          /* 音频/MIDI类不应由类驱动返回 HID 类描述符，未知描述符请求直接 STALL */
+          USBD_CtlError(pdev, req);
+          ret = USBD_FAIL;
           break;
 
         case USB_REQ_GET_INTERFACE:
@@ -623,7 +603,7 @@ static uint8_t USBD_MIDI_Setup(USBD_HandleTypeDef *pdev,
 }
 
 /**
-  * @brief  USBD_MIDI_SendReport
+  * @brief  USBD_MIDI_SendPacket
   *         Send MIDI Report
   * @param  pdev: device instance
   * @param  buff: pointer to report
@@ -631,12 +611,12 @@ static uint8_t USBD_MIDI_Setup(USBD_HandleTypeDef *pdev,
   * @retval status
   */
 #ifdef USE_USBD_COMPOSITE
-uint8_t USBD_MIDI_SendReport(USBD_HandleTypeDef *pdev,
+uint8_t USBD_MIDI_SendPacket(USBD_HandleTypeDef *pdev,
                                    uint8_t *report, uint16_t len, uint8_t ClassId)
 {
   USBD_MIDI_HandleTypeDef *hhid = (USBD_MIDI_HandleTypeDef *)pdev->pClassDataCmsit[ClassId];
 #else
-uint8_t USBD_MIDI_SendReport(USBD_HandleTypeDef *pdev,
+uint8_t USBD_MIDI_SendPacket(USBD_HandleTypeDef *pdev,
                                    uint8_t *report, uint16_t len)
 {
   USBD_MIDI_HandleTypeDef *hhid = (USBD_MIDI_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
@@ -649,7 +629,7 @@ uint8_t USBD_MIDI_SendReport(USBD_HandleTypeDef *pdev,
 
 #ifdef USE_USBD_COMPOSITE
   /* Get Endpoint IN address allocated for this class instance */
-  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_INTR, ClassId);
+  MIDIInEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_IN, USBD_EP_TYPE_BULK, ClassId);
 #endif /* USE_USBD_COMPOSITE */
 
   if (pdev->dev_state == USBD_STATE_CONFIGURED)
@@ -789,10 +769,16 @@ static uint8_t USBD_MIDI_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
 
   hhid = (USBD_MIDI_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
 
-  /* USB data will be immediately processed, this allow next USB traffic being
-  NAKed till the end of the application processing */
-  ((USBD_MIDI_ItfTypeDef *)pdev->pUserData[pdev->classId])->OutEvent(hhid->Report_buf[0],
-                                                                           hhid->Report_buf[1]);
+  uint16_t rx_len = USBD_LL_GetRxDataSize(pdev, epnum);
+
+  /* 将完整数据缓冲和长度传递给应用层 */
+  ((USBD_MIDI_ItfTypeDef *)pdev->pUserData[pdev->classId])->OutEvent(hhid->Report_buf, rx_len);
+
+#ifndef USBD_MIDI_OUT_PREPARE_RECEIVE_DISABLED
+  /* 处理完成后，立即重装 OUT 端点继续接收后续数据 */
+  (void)USBD_LL_PrepareReceive(pdev, MIDIOutEpAdd, hhid->Report_buf,
+                               USBD_MIDI_OUTREPORT_BUF_SIZE);
+#endif /* USBD_MIDI_OUT_PREPARE_RECEIVE_DISABLED */
 
   return (uint8_t)USBD_OK;
 }
@@ -815,7 +801,7 @@ uint8_t USBD_MIDI_ReceivePacket(USBD_HandleTypeDef *pdev)
 
 #ifdef USE_USBD_COMPOSITE
   /* Get OUT Endpoint address allocated for this class instance */
-  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_INTR, (uint8_t)pdev->classId);
+  MIDIOutEpAdd = USBD_CoreGetEPAdd(pdev, USBD_EP_OUT, USBD_EP_TYPE_BULK, (uint8_t)pdev->classId);
 #endif /* USE_USBD_COMPOSITE */
 
   hhid = (USBD_MIDI_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
@@ -845,8 +831,7 @@ static uint8_t USBD_MIDI_EP0_RxReady(USBD_HandleTypeDef *pdev)
 
   if (hhid->IsReportAvailable == 1U)
   {
-    ((USBD_MIDI_ItfTypeDef *)pdev->pUserData[pdev->classId])->OutEvent(hhid->Report_buf[0],
-                                                                             hhid->Report_buf[1]);
+    ((USBD_MIDI_ItfTypeDef *)pdev->pUserData[pdev->classId])->OutEvent(hhid->Report_buf, 0U);
     hhid->IsReportAvailable = 0U;
   }
 

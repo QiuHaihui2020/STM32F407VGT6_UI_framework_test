@@ -45,7 +45,7 @@ extern "C" {
 #endif /* MIDI_EPIN_ADDR */
 
 #ifndef MIDI_EPIN_SIZE
-#define MIDI_EPIN_SIZE                         0x02U
+#define MIDI_EPIN_SIZE                         0x40U
 #endif /* MIDI_EPIN_SIZE */
 
 #ifndef MIDI_EPOUT_ADDR
@@ -53,7 +53,7 @@ extern "C" {
 #endif /* MIDI_EPOUT_ADDR */
 
 #ifndef MIDI_EPOUT_SIZE
-#define MIDI_EPOUT_SIZE                        0x02U
+#define MIDI_EPOUT_SIZE                        0x40U
 #endif /* MIDI_EPOUT_SIZE*/
 
 #define USB_MIDI_CONFIG_DESC_SIZ               101U
@@ -68,7 +68,7 @@ extern "C" {
 #endif /* MIDI_FS_BINTERVAL */
 
 #ifndef USBD_MIDI_OUTREPORT_BUF_SIZE
-#define USBD_MIDI_OUTREPORT_BUF_SIZE            0x02U
+#define USBD_MIDI_OUTREPORT_BUF_SIZE            0x40U
 #endif /* USBD_MIDI_OUTREPORT_BUF_SIZE */
 
 #ifndef USBD_MIDI_REPORT_DESC_SIZE
@@ -116,7 +116,7 @@ typedef struct _USBD_MIDI_Itf
   uint8_t *pReport;
   int8_t (* Init)(void);
   int8_t (* DeInit)(void);
-  int8_t (* OutEvent)(uint8_t event_idx, uint8_t state);
+  int8_t (* OutEvent)(uint8_t *data, uint16_t length);
 #ifdef USBD_MIDI_CTRL_REQ_COMPLETE_CALLBACK_ENABLED
   int8_t (* CtrlReqComplete)(uint8_t request, uint16_t wLength);
 #endif /* USBD_MIDI_CTRL_REQ_COMPLETE_CALLBACK_ENABLED */
@@ -179,10 +179,10 @@ extern USBD_ClassTypeDef USBD_MIDI;
   * @{
   */
 #ifdef USE_USBD_COMPOSITE
-uint8_t USBD_MIDI_SendReport(USBD_HandleTypeDef *pdev,
+uint8_t USBD_MIDI_SendPacket(USBD_HandleTypeDef *pdev,
                                    uint8_t *report, uint16_t len, uint8_t ClassId);
 #else
-uint8_t USBD_MIDI_SendReport(USBD_HandleTypeDef *pdev,
+uint8_t USBD_MIDI_SendPacket(USBD_HandleTypeDef *pdev,
                                    uint8_t *report, uint16_t len);
 #endif /* USE_USBD_COMPOSITE */
 uint8_t USBD_MIDI_ReceivePacket(USBD_HandleTypeDef *pdev);
