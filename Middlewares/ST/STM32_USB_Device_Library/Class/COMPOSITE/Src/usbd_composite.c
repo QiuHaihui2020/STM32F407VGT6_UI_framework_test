@@ -756,4 +756,13 @@ uint8_t USBD_get_composite_class_id(USBD_HandleTypeDef *pdev, uint8_t classType)
   }
   return 0xFF;
 }
+
+uint8_t USBD_CMPST_ClearConfDesc(USBD_HandleTypeDef *pdev)
+{
+  UNUSED(pdev);
+
+
+  return (uint8_t)USBD_OK;
+}
+
 #endif

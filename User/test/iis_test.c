@@ -39,9 +39,15 @@ int get_sine48k_data(u16 *s_cnt, s16 *data, u16 points, u8 ch)
 
 static u16 tx_s_cnt = 0;
 int16_t tx_buffer[48 * 2];
+
+static void iis_tx_irq_callback(void *data, uint16_t len)
+{
+    get_sine48k_data(&tx_s_cnt, data, len/4, 2);
+}
 void iis_tx_test(void)
 {
 	log_debug("iis_tx\n");
-	get_sine48k_data(&tx_s_cnt, tx_buffer, 48, 2);
-	HAL_I2S_Transmit_DMA(&hi2s2, tx_buffer, 48 * 2);
+	// get_sine48k_data(&tx_s_cnt, tx_buffer, 48, 2);
+	// HAL_I2S_Transmit_DMA(&hi2s2, tx_buffer, 48 * 2);
+    HAL_I2s_tx_start(iis_tx_irq_callback);
 }

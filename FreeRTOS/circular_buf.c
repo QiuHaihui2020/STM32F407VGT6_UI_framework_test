@@ -7,11 +7,11 @@
     //os_mutex_create(&cbuffer->lock)
 
 #define CBUF_ENTER_CRITICAL() \
-    os_task_enter_critical(&cbuffer->lock)
+    // os_task_enter_critical(&cbuffer->lock)
     //spin_lock(&cbuffer->lock)
 
 #define CBUF_EXIT_CRITICAL() \
-    os_task_exit_critical(&cbuffer->lock)
+    // os_task_exit_critical(&cbuffer->lock)
     //spin_unlock(&cbuffer->lock)
 
 

@@ -22,7 +22,11 @@
 #include "usbd_audio_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "log_debug.h"
+#include "i2s.h"
+#include "string.h"
+#include "circular_buf.h"
+#define USBD_LOG log_debug
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -124,7 +128,19 @@ static int8_t AUDIO_PeriodicTC_FS(uint8_t *pbuf, uint32_t size, uint8_t cmd);
 static int8_t AUDIO_GetState_FS(void);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
-
+#define USB_SPK_BUF_SIZE 192
+#define USB_SPK_BUF_NUM 2
+static uint8_t usb_spk_buf[USB_SPK_BUF_NUM][USB_SPK_BUF_SIZE];
+static cbuffer_t usb_spk_cbuf;
+static uint8_t usb_spk_buf_widx = 0;
+static uint8_t usb_spk_buf_ridx = 0;
+static void audio_i2s_tx_callback(uint8_t *pbuf, uint16_t size)
+{
+  uint16_t rlen = cbuf_read(&usb_spk_cbuf, pbuf, size);
+  if (rlen != size) {
+    log_error("usb spk iis read error, rlen %d, size %d\r\n", rlen, size);
+  }
+}
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
 /**
@@ -153,9 +169,11 @@ USBD_AUDIO_ItfTypeDef USBD_AUDIO_fops_FS =
 static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t options)
 {
   /* USER CODE BEGIN 0 */
+  USBD_LOG("AUDIO_Init_FS, AudioFreq %d, Vol %d, opt %d\r\n", AudioFreq, Volume, options);
   UNUSED(AudioFreq);
   UNUSED(Volume);
   UNUSED(options);
+  
   return (USBD_OK);
   /* USER CODE END 0 */
 }
@@ -168,6 +186,7 @@ static int8_t AUDIO_Init_FS(uint32_t AudioFreq, uint32_t Volume, uint32_t option
 static int8_t AUDIO_DeInit_FS(uint32_t options)
 {
   /* USER CODE BEGIN 1 */
+  USBD_LOG("AUDIO_DeInit_FS, opt %d\r\n", options);
   UNUSED(options);
   return (USBD_OK);
   /* USER CODE END 1 */
@@ -183,12 +202,18 @@ static int8_t AUDIO_DeInit_FS(uint32_t options)
 static int8_t AUDIO_AudioCmd_FS(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 {
   /* USER CODE BEGIN 2 */
+  USBD_LOG("AUDIO_AudioCmd_FS, size %d, cmd %d\r\n", size, cmd);
   switch(cmd)
   {
     case AUDIO_CMD_START:
+    USBD_LOG("AUDIO_CMD_START\r\n");
+    cbuf_init(&usb_spk_cbuf, usb_spk_buf, sizeof(usb_spk_buf));
+    HAL_I2s_tx_start(audio_i2s_tx_callback);
     break;
 
     case AUDIO_CMD_PLAY:
+    USBD_LOG("AUDIO_CMD_PLAY\r\n");
+    HAL_I2s_tx_stop();
     break;
   }
   UNUSED(pbuf);
@@ -206,7 +231,9 @@ static int8_t AUDIO_AudioCmd_FS(uint8_t* pbuf, uint32_t size, uint8_t cmd)
 static int8_t AUDIO_VolumeCtl_FS(uint8_t vol)
 {
   /* USER CODE BEGIN 3 */
+  USBD_LOG("AUDIO_VolumeCtl_FS, vol %d\r\n", vol);
   UNUSED(vol);
+
   return (USBD_OK);
   /* USER CODE END 3 */
 }
@@ -219,6 +246,7 @@ static int8_t AUDIO_VolumeCtl_FS(uint8_t vol)
 static int8_t AUDIO_MuteCtl_FS(uint8_t cmd)
 {
   /* USER CODE BEGIN 4 */
+  USBD_LOG("AUDIO_MuteCtl_FS, cmd %d\r\n", cmd);
   UNUSED(cmd);
   return (USBD_OK);
   /* USER CODE END 4 */
@@ -232,6 +260,12 @@ static int8_t AUDIO_MuteCtl_FS(uint8_t cmd)
 static int8_t AUDIO_PeriodicTC_FS(uint8_t *pbuf, uint32_t size, uint8_t cmd)
 {
   /* USER CODE BEGIN 5 */
+  USBD_LOG("AUDIO_PeriodicTC_FS, size %d, cmd %d\r\n", size, cmd);
+  // set_i2s_tx_dma_data(pbuf, size);
+  uint16_t wlen = cbuf_write(&usb_spk_cbuf, pbuf, size);
+  if (wlen != size) {
+    log_error("usb write cbuf failed %d %d\r\n", wlen, size);
+  }
   UNUSED(pbuf);
   UNUSED(size);
   UNUSED(cmd);

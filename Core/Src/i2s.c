@@ -21,7 +21,10 @@
 #include "i2s.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "log_debug.h"
+#include "typedef.h"
+#include <string.h>
+static int16_t iis_tx_buffer[2][IIS_TX_FRAME_POINTS * IIS_CHANNELS];
 /* USER CODE END 0 */
 
 I2S_HandleTypeDef hi2s2;
@@ -187,5 +190,73 @@ void HAL_I2S_MspDeInit(I2S_HandleTypeDef* i2sHandle)
 }
 
 /* USER CODE BEGIN 1 */
+static void (*HAL_I2S_tx_irq_callback)(void *data, uint16_t len) = NULL;
+static enum I2S_TX_STATE i2s_tx_sta = I2S_TX_STOP_STA;
 
+void HAL_I2s_tx_start(void(*irq_callback)(void *data, uint16_t len))
+{
+	HAL_I2S_tx_irq_callback = irq_callback;
+    HAL_I2S_Transmit_DMA(&hi2s2, (uint16_t *)iis_tx_buffer, IIS_TX_FRAME_POINTS * IIS_CHANNELS * 2);
+	i2s_tx_sta = I2S_TX_START_STA;
+}
+void HAL_I2s_tx_stop(void)
+{
+	i2s_tx_sta = I2S_TX_STOP_STA;
+    HAL_I2S_DMAStop(&hi2s2);
+	HAL_I2S_tx_irq_callback = NULL;
+}
+
+void HAL_I2S_set_tx_irq_handler(void(*irq_callback)(void *data, uint16_t len))
+{
+    HAL_I2S_tx_irq_callback = irq_callback;
+}
+
+void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+	i2s_tx_sta = I2S_TX_HALF_IRQ_STA;
+    if (HAL_I2S_tx_irq_callback) {
+        HAL_I2S_tx_irq_callback(&iis_tx_buffer[0][0], IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t));
+    }
+}
+
+void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+	i2s_tx_sta = I2S_TX_FULL_IRQ_STA;
+    if (HAL_I2S_tx_irq_callback) {
+        HAL_I2S_tx_irq_callback(&iis_tx_buffer[1][0], IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t));
+    }
+}
+
+uint8_t get_i2s_tx_state(void)
+{
+	return i2s_tx_sta;
+}
+
+static enum I2S_TX_STATE last_i2s_tx_sta = 0;
+void set_i2s_tx_dma_data(void *data, uint16_t len)
+{
+	
+	if (len != IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t)) {
+		log_error("in len (%d) != need len (%d)\n", len, IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t));
+		return ;
+	}
+	enum I2S_TX_STATE cur_sta = i2s_tx_sta;
+	#if 0
+	if (cur_sta == last_i2s_tx_sta) {
+		log_error("cur_sta == last_i2s_tx_sta\n");
+		return;
+	} else 
+	#endif
+	{
+		if (cur_sta == I2S_TX_HALF_IRQ_STA) {
+			memcpy(&iis_tx_buffer[0][0], data, len);
+		} else if (cur_sta == I2S_TX_FULL_IRQ_STA) {
+			memcpy(&iis_tx_buffer[1][0], data, len);
+		} else {
+			log_error("no i2s irq\n");
+		}
+	}
+	last_i2s_tx_sta = cur_sta;
+	
+}
 /* USER CODE END 1 */
