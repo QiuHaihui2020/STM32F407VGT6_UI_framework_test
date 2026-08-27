@@ -17,7 +17,7 @@ for /f "usebackq delims=" %%j in (`dir /s /b %cd%\*.uvprojx`) do (
 :break_loop
 
 :: 设置编译目标（根据实际需求修改）
-set TARGET_NAME=RAM_Debug
+set TARGET_NAME=STM32F407VGT6_Template
 
 :: 添加路径存在性检查
 if not exist "%UV%" (

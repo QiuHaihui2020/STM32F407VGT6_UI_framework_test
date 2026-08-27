@@ -1,6 +1,12 @@
 #ifndef __LOG_DEBUG_H__
 #define __LOG_DEBUG_H__
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #if defined(RAM_DEBUG) && (RAM_DEBUG == 1)
 #define RTT_LOG_ENABLE 	1
 #else
@@ -13,8 +19,12 @@
 #include <stdint.h>
 #define SEGGER_RTT_printf(...) 
 #endif
+#include <stdio.h>
 
 #define LOG_TIME_INFO_ENABLE 1 //是否打开时间信息
+
+#define UART_PRINTF_ENABLE 1 //是否打开串口打印, 0使用RTT打印，1使用串口打印
+#define USE_UART_DMA_TX    1 //是否使用DMA发送串口数据
 
 extern uint32_t tick_us;
 extern uint32_t tick_ms;
@@ -29,8 +39,8 @@ extern uint32_t tick_hour;
 #define SYS_MS   tick_ms
 #define SYS_US   tick_us
 
-#define TIME_INFO_STR  "[%02d:%02d:%02d.%03d.%03d] "
-#define TIME_INFO_ARGS SYS_HOUR,SYS_MIN,SYS_SEC,SYS_MS,SYS_US
+#define TIME_INFO_STR  "[%02d:%02d:%02d.%03d] "
+#define TIME_INFO_ARGS SYS_HOUR,SYS_MIN,SYS_SEC,SYS_MS
 #else
 #define SYS_HOUR 0
 #define SYS_MIN  0
@@ -42,19 +52,29 @@ extern uint32_t tick_hour;
 #define TIME_INFO_ARGS ""
 #endif
 
-#define w_printf(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__)
-#define g_printf(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__) //green
-#define r_printf(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__)  //red
-#define y_printf(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_YELLOW, TIME_INFO_ARGS, ##__VA_ARGS__)  //yellow
+#if UART_PRINTF_ENABLE
+#define w_printf(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__)
+#define g_printf(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__) //green
+#define r_printf(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__)  //red
+#define y_printf(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_YELLOW, TIME_INFO_ARGS, ##__VA_ARGS__)  //yellow
+#else
+#define w_printf(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__)
+#define g_printf(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__) //green
+#define r_printf(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__)  //red
+#define y_printf(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_YELLOW, TIME_INFO_ARGS, ##__VA_ARGS__)  //yellow
+#endif
 
-#define log_debug(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__)
-#define log_info(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__) 
-#define log_error(format, ...) SEGGER_RTT_printf(0, "%s"TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__)  
+#define log_debug(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__)
+#define log_info(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__) 
+#define log_error(format, ...) printf("%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__) 
+//#define log_debug(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_GREEN, TIME_INFO_ARGS, ##__VA_ARGS__)
+//#define log_info(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_WHITE, TIME_INFO_ARGS, ##__VA_ARGS__) 
+//#define log_error(format, ...) SEGGER_RTT_printf(0, "%s" TIME_INFO_STR format, RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, ##__VA_ARGS__)  
 
 #define configASSERT(x, ...) \
     do { \
         if (!(x)) { \
-            SEGGER_RTT_printf(0, "%s"TIME_INFO_STR" Assertion failed in %s:%d | ", RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, __FILE__, __LINE__); \
+            SEGGER_RTT_printf(0, "%s" TIME_INFO_STR " Assertion failed in %s:%d | ", RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, __FILE__, __LINE__); \
 			SEGGER_RTT_printf(0, ""__VA_ARGS__); \
             while (1); \
         } \
@@ -77,5 +97,11 @@ extern uint32_t tick_hour;
 #define LINE_INFO log_debug("func: %s, line: %d \r\n", __func__, __LINE__);
 void log_timer_calculation(void);
 	
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif // __LOG_DEBUG_H__
 

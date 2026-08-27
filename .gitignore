@@ -10,3 +10,4 @@ build/
 *.map
 *.axf
 *.iex
+*.dbgconf

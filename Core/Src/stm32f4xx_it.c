@@ -63,15 +63,14 @@
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_i2s2_ext_rx;
 extern DMA_HandleTypeDef hdma_spi2_tx;
-extern DMA_HandleTypeDef hdma_sdio_rx;
-extern DMA_HandleTypeDef hdma_sdio_tx;
-extern SD_HandleTypeDef hsd;
+extern DMA_HandleTypeDef hdma_usart1_tx;
+extern UART_HandleTypeDef huart1;
 extern TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN EV */
 
 // Parse CFSR and print specific fault causes
-#define printf log_debug
+// #define printf log_debug   /* 与 log_debug.h 的 log_debug()->printf() 互相递归展开，会退化成对不存在的函数 log_debug() 的调用 */
 
 // 定义RAM地址范围（根据实际MCU调整）
 #define RAM_START_ADDR  0x20000000
@@ -458,31 +457,17 @@ void TIM4_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles SDIO global interrupt.
+  * @brief This function handles USART1 global interrupt.
   */
-void SDIO_IRQHandler(void)
+void USART1_IRQHandler(void)
 {
-  /* USER CODE BEGIN SDIO_IRQn 0 */
+  /* USER CODE BEGIN USART1_IRQn 0 */
 
-  /* USER CODE END SDIO_IRQn 0 */
-  HAL_SD_IRQHandler(&hsd);
-  /* USER CODE BEGIN SDIO_IRQn 1 */
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
 
-  /* USER CODE END SDIO_IRQn 1 */
-}
-
-/**
-  * @brief This function handles DMA2 stream3 global interrupt.
-  */
-void DMA2_Stream3_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA2_Stream3_IRQn 0 */
-
-  /* USER CODE END DMA2_Stream3_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_sdio_rx);
-  /* USER CODE BEGIN DMA2_Stream3_IRQn 1 */
-
-  /* USER CODE END DMA2_Stream3_IRQn 1 */
+  /* USER CODE END USART1_IRQn 1 */
 }
 
 /**
@@ -500,17 +485,17 @@ void OTG_FS_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles DMA2 stream6 global interrupt.
+  * @brief This function handles DMA2 stream7 global interrupt.
   */
-void DMA2_Stream6_IRQHandler(void)
+void DMA2_Stream7_IRQHandler(void)
 {
-  /* USER CODE BEGIN DMA2_Stream6_IRQn 0 */
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 0 */
 
-  /* USER CODE END DMA2_Stream6_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_sdio_tx);
-  /* USER CODE BEGIN DMA2_Stream6_IRQn 1 */
+  /* USER CODE END DMA2_Stream7_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_tx);
+  /* USER CODE BEGIN DMA2_Stream7_IRQn 1 */
 
-  /* USER CODE END DMA2_Stream6_IRQn 1 */
+  /* USER CODE END DMA2_Stream7_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

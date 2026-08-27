@@ -23,8 +23,8 @@
 #include "usb_device.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
-#include "usbd_midi.h"
-#include "usbd_midi_if.h"
+#include "usbd_customhid.h"
+#include "usbd_custom_hid_if.h"
 
 /* USER CODE BEGIN Includes */
 #include "usbd_msc.h"
@@ -201,11 +201,11 @@ if(USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_CDC,CLASS_TYPE_CDC,0) != USB
   {
     Error_Handler();
   }
-  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_MIDI) != USBD_OK)
+  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_CUSTOM_HID) != USBD_OK)
   {
     Error_Handler();
   }
-  if (USBD_MIDI_RegisterInterface(&hUsbDeviceFS, &USBD_MIDI_fops_FS) != USBD_OK)
+  if (USBD_CUSTOM_HID_RegisterInterface(&hUsbDeviceFS, &USBD_CustomHID_fops_FS) != USBD_OK)
   {
     Error_Handler();
   }

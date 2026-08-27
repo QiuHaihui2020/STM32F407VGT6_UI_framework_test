@@ -22,8 +22,11 @@
 #include "usbd_storage_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include "main.h"          /* SDIO_ENABLE */
+#if SDIO_ENABLE
 #include "sdio.h"
 #include "sd_diskio.h"
+#endif /* SDIO_ENABLE */
 #include "log_debug.h"
 /* USER CODE END INCLUDE */
 
@@ -177,6 +180,11 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
+#if !SDIO_ENABLE
+    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    (void)lun;
+    return USBD_FAIL;
+#else
     //需要提取初始化sd卡，这里初始化sd卡会卡死
     if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
     {
@@ -185,6 +193,7 @@ int8_t STORAGE_Init_FS(uint8_t lun)
     }
     log_debug("STORAGE_Init_FS fail\n");
     return USBD_FAIL;
+#endif /* SDIO_ENABLE */
   /* USER CODE END 2 */
 }
 
@@ -198,6 +207,13 @@ int8_t STORAGE_Init_FS(uint8_t lun)
 int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
   /* USER CODE BEGIN 3 */
+#if !SDIO_ENABLE
+    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    (void)lun;
+    *block_num  = 0U;
+    *block_size = 0U;
+    return USBD_FAIL;
+#else
 	HAL_SD_CardInfoTypeDef info;
 	if(HAL_SD_GetCardState(&hsd) ==  HAL_SD_CARD_TRANSFER)
 	{
@@ -210,6 +226,7 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
     log_debug("STORAGE_GetCapacity_FS Fail !!!\n");
 	return  USBD_FAIL;
     
+#endif /* SDIO_ENABLE */
   /* USER CODE END 3 */
 }
 
@@ -221,6 +238,11 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
+#if !SDIO_ENABLE
+    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    (void)lun;
+    return USBD_FAIL;
+#else
     if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
     {
         return USBD_OK;
@@ -228,6 +250,7 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
     log_debug("STORAGE_IsReady_FS Fail !!!\n");
     return USBD_FAIL;
 
+#endif /* SDIO_ENABLE */
   /* USER CODE END 4 */
 }
 
@@ -255,6 +278,11 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 6 */
+#if !SDIO_ENABLE
+    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    (void)lun; (void)buf; (void)blk_addr; (void)blk_len;
+    return USBD_FAIL;
+#else
     int8_t ret = USBD_FAIL;  
     if( HAL_SD_ReadBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
     // if( HAL_SD_ReadBlocks(&hsd, buf, blk_addr,  blk_len, HAL_MAX_DELAY) == HAL_OK )
@@ -267,6 +295,7 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
         log_debug("STORAGE_Read_FS Fail !!!\n");
     } 
     return ret;
+#endif /* SDIO_ENABLE */
   /* USER CODE END 6 */
 }
 
@@ -281,6 +310,11 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
+#if !SDIO_ENABLE
+    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    (void)lun; (void)buf; (void)blk_addr; (void)blk_len;
+    return USBD_FAIL;
+#else
 
     int8_t ret = USBD_FAIL; 
     if( HAL_SD_WriteBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
@@ -294,6 +328,7 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
         log_debug("STORAGE_Write_FS Fail !!!\n");
     }
     return ret;
+#endif /* SDIO_ENABLE */
   /* USER CODE END 7 */
 }
 

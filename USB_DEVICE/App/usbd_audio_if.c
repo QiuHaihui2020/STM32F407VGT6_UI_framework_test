@@ -134,7 +134,7 @@ static uint8_t usb_spk_buf[USB_SPK_BUF_NUM][USB_SPK_BUF_SIZE];
 static cbuffer_t usb_spk_cbuf;
 static uint8_t usb_spk_buf_widx = 0;
 static uint8_t usb_spk_buf_ridx = 0;
-static void audio_i2s_tx_callback(uint8_t *pbuf, uint16_t size)
+static void audio_i2s_tx_callback(void *pbuf, uint16_t size)
 {
   uint16_t rlen = cbuf_read(&usb_spk_cbuf, pbuf, size);
   if (rlen != size) {

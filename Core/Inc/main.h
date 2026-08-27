@@ -46,6 +46,16 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+/* SDIO/SD 卡驱动开关.
+ * 0 = 不使用 SDIO. CubeMX 已关闭 SDIO 并移除 sdio.c / stm32f4xx_hal_sd.c 等源文件,
+ *     且 stm32f4xx_hal_conf.h 中 HAL_SD_MODULE_ENABLED 已注释, 此时必须为 0.
+ * 1 = 使用 SDIO. 需先在 CubeMX 重新使能 SDIO 并重新生成代码后再置 1. */
+#define SDIO_ENABLE   0
+
+/* FATFS 文件系统开关. 与 SDIO_ENABLE 相互独立:
+ * FATFS 的物理层由 diskio 驱动决定, 不必是 SD 卡. */
+#define FATFS_ENABLE  1
+
 
 /* USER CODE END EM */
 

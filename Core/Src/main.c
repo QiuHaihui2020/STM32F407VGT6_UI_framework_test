@@ -21,7 +21,6 @@
 #include "dma.h"
 #include "fatfs.h"
 #include "i2s.h"
-#include "sdio.h"
 #include "spi.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -107,7 +106,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
     // SCB->VTOR = 0x20000000;
-    log_info("STMF407 software start \n");
+    /* 原 log_info() 已移至 MX_USART1_UART_Init() 之后: 此处 UART 未初始化, 打印必然失败 */
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -129,14 +128,17 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_SDIO_SD_Init();
-  MX_FATFS_Init();
   MX_USART1_UART_Init();
   MX_FSMC_Init();
   MX_I2S2_Init();
   MX_SPI3_Init();
   MX_USB_DEVICE_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
+    /* 串口最早可用点: 紧随 MX_USART1_UART_Init(), 且在 LCD_Init() 之前.
+       LCD/FSMC 若外设未接可能阻塞, 放在其后会看不到任何日志 */
+    log_info("STMF407 software start\r\n");
+    static uint32_t s_heartbeat = 0;
   
     LCD_Init();
     LCD_Clear(WHITE);
@@ -144,7 +146,7 @@ int main(void)
 
 
     //SD_Driver.disk_initialize(0);
-    //fs_test();
+    fs_test();
     //iis_tx_test();
     
 
@@ -155,6 +157,7 @@ int main(void)
     // }
     // log_debug("create task succ\n");
     // os_start();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -164,13 +167,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+        log_info("heartbeat %u\r\n", s_heartbeat++);
         //CDC_Transmit_FS("USB CDC test\n", 15);
         int8_t USBD_MIDI_SendPacket_FS(uint8_t *report, uint16_t len);
         uint8_t packet[4] = {0x09, 0x90, 0x3C, 0x64};
         USBD_MIDI_SendPacket_FS(packet, 4);
-        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
         HAL_Delay(500);
-        HAL_GPIO_WritePin(GPIOE, GPIO_PIN_5 | GPIO_PIN_6, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
         HAL_Delay(500);
     }
     return 0;
@@ -265,8 +269,7 @@ void Error_Handler(void)
     }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.

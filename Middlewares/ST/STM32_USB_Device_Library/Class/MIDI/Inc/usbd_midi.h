@@ -135,22 +135,6 @@ typedef struct
   MIDI_StateTypeDef state;
 } USBD_MIDI_HandleTypeDef;
 
-/*
- * HID Class specification version 1.1
- * 6.2.1 HID Descriptor
- */
-
-typedef struct
-{
-  uint8_t           bLength;
-  uint8_t           bDescriptorTypeCHID;
-  uint16_t          bcdMIDI;
-  uint8_t           bCountryCode;
-  uint8_t           bNumDescriptors;
-  uint8_t           bDescriptorType;
-  uint16_t          wItemLength;
-} __PACKED USBD_DescTypeDef;
-
 /**
   * @}
   */

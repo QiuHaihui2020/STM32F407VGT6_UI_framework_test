@@ -5,7 +5,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2025 STMicroelectronics.
+  * Copyright (c) 2026 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -24,7 +24,6 @@
 /-----------------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_hal.h"
-#include "bsp_driver_sd.h"
 
 /*-----------------------------------------------------------------------------/
 / Function Configurations
