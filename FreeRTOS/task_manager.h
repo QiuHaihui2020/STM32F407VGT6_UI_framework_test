@@ -9,6 +9,7 @@
 
 //判断是否在中断里面
 #define is_in_irq() (__get_IPSR() != 0U)
+#define os_time_dly(x) vTaskDelay(x)
 
 //计数信号量的最大计算
 #define MAX_SEM_COUNT 100
@@ -193,6 +194,8 @@ int sys_timer_modify(uint32_t timer_id, uint32_t msec);
  */
 int sys_timer_reset(uint32_t timer_id);
 
+void sys_mem_dump(void);
+void task_info_dump(void);
 
 #endif // !__TASK_TABLE_H__
 

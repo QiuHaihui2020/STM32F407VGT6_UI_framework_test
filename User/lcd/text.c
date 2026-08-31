@@ -7,7 +7,12 @@
  *版权所有，盗版必究。
 **********************************************************************************/
 #include "lcd.h"
-#include "text.h"													   
+#include "text.h"
+#include "main.h"          /* LCD_ENABLE */
+
+#if LCD_ENABLE
+/* font.h 直接定义(而非 extern)了两张字库表, 必须放在条件块内,
+   否则关掉 LCD 也照样占 RO-data */													   
 #include "font.h" 
 /*****************************************************************************
 ** 函数名称: LCD_ShowChar
@@ -91,11 +96,4 @@ void LCD_ShowString(u16 x,u16 y,const u8 *pstr,u16 Color)
     }  
 }
 
-
-
-
-
-
-
-
-
+#endif /* LCD_ENABLE */

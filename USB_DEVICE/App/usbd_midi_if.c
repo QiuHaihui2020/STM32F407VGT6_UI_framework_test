@@ -194,7 +194,18 @@ static int8_t MIDI_OutEvent_FS(uint8_t *data, uint16_t length)
 
 int8_t USBD_MIDI_SendPacket_FS(uint8_t *report, uint16_t len)
 {
-  return USBD_MIDI_SendPacket(&hUsbDeviceFS, report, len);
+#ifdef USE_USBD_COMPOSITE
+  /* MIDI 没有对应的 CLASS_TYPE_xxx, MX_USB_DEVICE_Init() 的 composite 分支里
+     也没有 USBD_RegisterClassComposite(&hUsbDeviceFS, &USBD_MIDI, ...),
+     即复合设备配置下 MIDI 接口/端点根本不存在.
+     这里直接返回失败, 而不是随便传一个 ClassId 去索引 pClassDataCmsit[] --
+     那会拿到别的类的句柄, 往别人的端点上发数据. */
+  UNUSED(report);
+  UNUSED(len);
+  return (int8_t)USBD_FAIL;
+#else
+  return (int8_t)USBD_MIDI_SendPacket(&hUsbDeviceFS, report, len);
+#endif /* USE_USBD_COMPOSITE */
 }
 
 /* USER CODE END 7 */

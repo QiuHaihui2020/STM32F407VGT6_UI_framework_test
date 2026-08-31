@@ -26,6 +26,8 @@
 #if SDIO_ENABLE
 #include "sdio.h"
 #include "sd_diskio.h"
+#else
+#include "flash_disk.h"    /* SDIO 去掉后, MSC 的后端介质换成片内 Flash 磁盘 */
 #endif /* SDIO_ENABLE */
 #include "log_debug.h"
 /* USER CODE END INCLUDE */
@@ -181,9 +183,15 @@ int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
 #if !SDIO_ENABLE
-    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    /* 后端为片内 Flash: 无上电时序, FlashDisk_Init() 只做配置自检, 幂等,
+       与 FatFs 的 USER_initialize() 各调各的, 重复调用无副作用. */
     (void)lun;
-    return USBD_FAIL;
+    if (FlashDisk_Init() != FLASH_DISK_OK)
+    {
+        log_debug("STORAGE_Init_FS: FlashDisk_Init fail\n");
+        return USBD_FAIL;
+    }
+    return USBD_OK;
 #else
     //需要提取初始化sd卡，这里初始化sd卡会卡死
     if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
@@ -208,11 +216,15 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 {
   /* USER CODE BEGIN 3 */
 #if !SDIO_ENABLE
-    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
     (void)lun;
-    *block_num  = 0U;
-    *block_size = 0U;
-    return USBD_FAIL;
+    /* 容量直接问驱动, 不要在这里另写一份常量: 与 flash_disk.h 的
+       FLASH_DISK_SIZE / FLASH_DISK_SECTOR_SIZE 保持单一事实来源 */
+    *block_num  = FlashDisk_GetSectorCount();
+    *block_size = (uint16_t)FlashDisk_GetSectorSize();
+    /* 主机发出 READ_CAPACITY 才会走到这里, 是 MSC 真正跑通的第一个标志 */
+    // log_debug("STORAGE_GetCapacity_FS: %u blocks x %u B\n",
+    //           (unsigned int)*block_num, (unsigned int)*block_size);
+    return USBD_OK;
 #else
 	HAL_SD_CardInfoTypeDef info;
 	if(HAL_SD_GetCardState(&hsd) ==  HAL_SD_CARD_TRANSFER)
@@ -239,9 +251,9 @@ int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
 #if !SDIO_ENABLE
-    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
+    /* 片内 Flash 焊在板上, 介质恒定在位 */
     (void)lun;
-    return USBD_FAIL;
+    return USBD_OK;
 #else
     if(HAL_SD_GetCardState(&hsd) == HAL_SD_CARD_TRANSFER)
     {
@@ -263,7 +275,15 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 5 */
     //log_debug("STORAGE_IsWriteProtected_FS: %d\r\n", lun);
+  (void)lun;
+#if (!SDIO_ENABLE) && (FLASH_DISK_READONLY != 0)
+  /* 返回非 0 = 写保护. SCSI 层据此在 MODE SENSE 里置 WP 位, 并让 WRITE(10)
+     直接回 NOT_READY/WRITE_PROTECTED. 不上报的话 Windows 挂载后会去写
+     System Volume Information, 要等写失败才报错, 现象比写保护提示难查得多. */
+  return (USBD_FAIL);
+#else
   return (USBD_OK);
+#endif
   /* USER CODE END 5 */
 }
 
@@ -279,9 +299,14 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 {
   /* USER CODE BEGIN 6 */
 #if !SDIO_ENABLE
-    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
-    (void)lun; (void)buf; (void)blk_addr; (void)blk_len;
-    return USBD_FAIL;
+    (void)lun;
+    if (FlashDisk_Read(buf, blk_addr, blk_len) != FLASH_DISK_OK)
+    {
+        log_debug("STORAGE_Read_FS fail: blk %u, len %u\n",
+                  (unsigned int)blk_addr, (unsigned int)blk_len);
+        return USBD_FAIL;
+    }
+    return USBD_OK;
 #else
     int8_t ret = USBD_FAIL;  
     if( HAL_SD_ReadBlocks_DMA(&hsd, buf, blk_addr, blk_len) == HAL_OK )
@@ -311,9 +336,22 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 {
   /* USER CODE BEGIN 7 */
 #if !SDIO_ENABLE
-    /* 未启用 SDIO: MSC 无后端介质, 一律上报失败, 主机按无介质处理 */
-    (void)lun; (void)buf; (void)blk_addr; (void)blk_len;
+    (void)lun;
+#if FLASH_DISK_READONLY
+    /* 只读配置下正常不该走到这里: STORAGE_IsWriteProtected_FS() 已上报写保护,
+       SCSI 层在 WRITE(10) 阶段就用 WRITE_PROTECTED 挡掉了. 留个日志兜底. */
+    (void)buf; (void)blk_addr; (void)blk_len;
+    log_debug("STORAGE_Write_FS: medium is read-only\n");
     return USBD_FAIL;
+#else
+    if (FlashDisk_Write(buf, blk_addr, blk_len) != FLASH_DISK_OK)
+    {
+        log_debug("STORAGE_Write_FS fail: blk %u, len %u\n",
+                  (unsigned int)blk_addr, (unsigned int)blk_len);
+        return USBD_FAIL;
+    }
+    return USBD_OK;
+#endif /* FLASH_DISK_READONLY */
 #else
 
     int8_t ret = USBD_FAIL; 

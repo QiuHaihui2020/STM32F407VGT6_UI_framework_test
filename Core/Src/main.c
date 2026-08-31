@@ -25,7 +25,6 @@
 #include "usart.h"
 #include "usb_device.h"
 #include "gpio.h"
-#include "fsmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -35,6 +34,7 @@
 #include "task_manager.h"
 #include "usbd_cdc_if.h"
 #include "test.h"
+#include "apps.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -129,7 +129,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
-  MX_FSMC_Init();
   MX_I2S2_Init();
   MX_SPI3_Init();
   MX_USB_DEVICE_Init();
@@ -140,23 +139,20 @@ int main(void)
     log_info("STMF407 software start\r\n");
     static uint32_t s_heartbeat = 0;
   
+#if LCD_ENABLE
     LCD_Init();
     LCD_Clear(WHITE);
-    LCD_ShowString(10, 10, "TFT LCD Display", BLACK);
+    LCD_ShowString(10, 10, (const u8 *)"TFT LCD Display", BLACK);
+#endif /* LCD_ENABLE */
 
 
     //SD_Driver.disk_initialize(0);
-    fs_test();
+    // fs_test();
     //iis_tx_test();
+    log_info("app_core_init \n");
+    app_core_init();
     
-
-    // BaseType_t xReturn = task_create(app_core_function, NULL, "app_core");
-    // if (xReturn != pdPASS)
-    // {
-    //     log_debug("create task failed\n");
-    // }
-    // log_debug("create task succ\n");
-    // os_start();
+    //启动rtos 后以下代码不会跑了的
 
   /* USER CODE END 2 */
 
@@ -169,9 +165,9 @@ int main(void)
     /* USER CODE BEGIN 3 */
         log_info("heartbeat %u\r\n", s_heartbeat++);
         //CDC_Transmit_FS("USB CDC test\n", 15);
-        int8_t USBD_MIDI_SendPacket_FS(uint8_t *report, uint16_t len);
-        uint8_t packet[4] = {0x09, 0x90, 0x3C, 0x64};
-        USBD_MIDI_SendPacket_FS(packet, 4);
+        // int8_t USBD_MIDI_SendPacket_FS(uint8_t *report, uint16_t len);
+        // uint8_t packet[4] = {0x09, 0x90, 0x3C, 0x64};
+        // USBD_MIDI_SendPacket_FS(packet, 4);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
         HAL_Delay(500);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);

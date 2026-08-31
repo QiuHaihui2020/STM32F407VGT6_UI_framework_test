@@ -47,24 +47,23 @@ static volatile DSTATUS Stat = STA_NOINIT;
 /* 本卷只有一个物理驱动器(片内 Flash) */
 #define USER_DISK_PDRV      (0U)
 
-/* ---- 配置一致性检查: 两侧不匹配会在运行期才暴露, 提前拦在编译期 ---- */
-#if (FLASH_DISK_READONLY != 0) && (_FS_READONLY == 0)
-#error "FLASH_DISK_READONLY=1 时必须把 ffconf.h 的 _FS_READONLY 也设为 1(在 CubeMX 的 FATFS 配置里改, 否则重新生成会被覆盖)"
-#endif
-#if (FLASH_DISK_READONLY == 0) && (_FS_READONLY != 0)
-#error "ffconf.h 的 _FS_READONLY=1 时应把 flash_disk.h 的 FLASH_DISK_READONLY 也设为 1, 才能省下中转扇区那 128KB"
-#endif
-#if (FLASH_DISK_READONLY != 0) && (_USE_MKFS != 0)
-#error "只读模式下请把 ffconf.h 的 _USE_MKFS 设为 0: f_mkfs 需要写盘"
-#endif
-#if (FLASH_DISK_READONLY != 0) && (_FS_LOCK != 0)
-#error "只读模式下请把 ffconf.h 的 _FS_LOCK 设为 0: FatFs 的文件锁只在可写配置下有意义"
-#endif
+/* ---- 配置一致性检查: 只拦真正的不一致 ----
+   FLASH_DISK_READONLY 和 ffconf.h 的 _FS_READONLY 是两层不同的开关, 不需要
+   同步, 更不该互相强制:
+     _FS_READONLY          FatFs 的 API 裁剪开关. =1 会把 f_write / f_mkfs /
+                           f_unlink 等整个编译掉, 目的只是省 code size.
+     FLASH_DISK_READONLY   物理层的策略开关. 决定写盘是否放行, 以及要不要留
+                           S5 那 128KB 中转扇区.
+   "FatFs 保留写 API, 但物理层拒绝写" 是完全合法的组合, 也是当前的用法:
+   USER_initialize() 在只读配置下上报 STA_PROTECT, FatFs 会在 f_open(FA_WRITE)
+   / f_mkfs 等所有写路径上直接返回 FR_WRITE_PROTECTED(见 ff.c 的 STA_PROTECT
+   检查). 这样切换只读只改 FLASH_DISK_READONLY 一个宏, 不必动 ffconf.h,
+   也就不受 CubeMX 重新生成的影响. */
 #if FLASH_DISK_SECTOR_SIZE != _MAX_SS
 #error "FLASH_DISK_SECTOR_SIZE 必须与 ffconf.h 的 _MAX_SS 一致"
 #endif
 
-  /* USER CODE END DECL */
+/* USER CODE END DECL */
 
 /* Private function prototypes -----------------------------------------------*/
 DSTATUS USER_initialize (BYTE pdrv);
@@ -114,6 +113,12 @@ DSTATUS USER_initialize (
         return Stat;
     }
     Stat = 0U;
+#if FLASH_DISK_READONLY
+    /* 物理层不放行写入. 用 STA_PROTECT 告诉 FatFs, 而不是去裁剪它的写 API:
+       f_open(FA_WRITE) / f_mkfs 会因此返回 FR_WRITE_PROTECTED, 语义正确, 且
+       只读与否只由 FLASH_DISK_READONLY 一个宏决定. */
+    Stat |= STA_PROTECT;
+#endif /* FLASH_DISK_READONLY */
     return Stat;
   /* USER CODE END INIT */
 }
@@ -193,7 +198,16 @@ DRESULT USER_write (
     {
         return RES_NOTRDY;
     }
-    if (FlashDisk_Write((const uint8_t *)buff, (uint32_t)sector, (uint32_t)count) != FLASH_DISK_OK)
+    FlashDisk_StatusTypeDef status =
+        FlashDisk_Write((const uint8_t *)buff, (uint32_t)sector, (uint32_t)count);
+
+    if (status == FLASH_DISK_ERR_READONLY)
+    {
+        /* 区分写保护和真正的写失败: 前者是配置使然, 报 RES_ERROR 会让上层
+           以为 Flash 坏了 */
+        return RES_WRPRT;
+    }
+    if (status != FLASH_DISK_OK)
     {
         return RES_ERROR;
     }

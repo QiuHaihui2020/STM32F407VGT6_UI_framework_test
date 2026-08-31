@@ -1,5 +1,15 @@
 #include "FreeRTOS.h"
 #include "task.h"
+#include "log_debug.h"
+
+extern uint32_t SystemCoreClock;
+
+/**
+* @brief 启动系统滴答定时器SysTick
+* @param 无
+* @retval 无
+*/
+
 #if !defined(xPortSysTickHandler) || (xPortSysTickHandler != SysTick_Handler)
 #define TICK_CNT_TIME_US (1000000 / configTICK_RATE_HZ)
 void SysTick_Init()
@@ -57,10 +67,10 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
     // 在这里处理栈溢出情况
     // 例如：打印错误信息、记录日志、系统复位等
     r_printf("Stack overflow in task: %s\n", pcTaskName);
-    configASSERT(0);
-    
-    // 可能需要进行系统复位
-    
+    // configASSERT 失败分支内部已死循环，此处无需再加 while(1)
+    configASSERT(0, "stack overflow: %s", pcTaskName);
+
+    // TODO(haihui.qiu): 需要时在此改为系统复位
 }
 #endif
 
@@ -75,6 +85,27 @@ void vApplicationMallocFailedHook(void)
      * 2. 复位系统
      * 3. 进入安全模式
      */
-    configASSERT(0);
+    // configASSERT 失败分支内部已死循环，此处无需再加 while(1)
+    configASSERT(0, "malloc failed");
+}
+#endif
+
+/* 可以使用SysTick作为运行时间统计的时基 */
+void vConfigureTimerForRunTimeStats(void)
+{
+
+}
+extern uint32_t HAL_GetTick(void);
+uint32_t xGetRunTimeCounterValue(void)
+{
+    return HAL_GetTick();
+}
+
+#if configUSE_IDLE_HOOK
+void vApplicationIdleHook(void)
+{
+    // 示例：喂狗
+    // HAL_IWDG_Refresh(&hiwdg);
+
 }
 #endif

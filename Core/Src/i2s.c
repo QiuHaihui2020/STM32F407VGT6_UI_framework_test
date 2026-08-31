@@ -232,20 +232,27 @@ uint8_t get_i2s_tx_state(void)
 	return i2s_tx_sta;
 }
 
-static enum I2S_TX_STATE last_i2s_tx_sta = 0;
+/* 置 1 开启"连续两次写入同一半缓冲"的检测。上层送数节奏异常时会重复填同一块
+ * 缓冲导致丢帧，排查时打开；平时关闭以省掉一次状态比较。 */
+#define I2S_TX_DUP_BUFFER_CHECK  0
+
+#if I2S_TX_DUP_BUFFER_CHECK
+static enum I2S_TX_STATE last_i2s_tx_sta = I2S_TX_STOP_STA;
+#endif
+
 void set_i2s_tx_dma_data(void *data, uint16_t len)
 {
-	
+
 	if (len != IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t)) {
 		log_error("in len (%d) != need len (%d)\n", len, IIS_TX_FRAME_POINTS * IIS_CHANNELS * sizeof(uint16_t));
 		return ;
 	}
 	enum I2S_TX_STATE cur_sta = i2s_tx_sta;
-	#if 0
+	#if I2S_TX_DUP_BUFFER_CHECK
 	if (cur_sta == last_i2s_tx_sta) {
 		log_error("cur_sta == last_i2s_tx_sta\n");
 		return;
-	} else 
+	} else
 	#endif
 	{
 		if (cur_sta == I2S_TX_HALF_IRQ_STA) {
@@ -256,8 +263,9 @@ void set_i2s_tx_dma_data(void *data, uint16_t len)
 			log_error("no i2s irq\n");
 		}
 	}
+#if I2S_TX_DUP_BUFFER_CHECK
 	last_i2s_tx_sta = cur_sta;
-	
+#endif
 }
 /* USER CODE END 1 */
 

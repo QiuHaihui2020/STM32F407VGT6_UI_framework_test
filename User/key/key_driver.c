@@ -1,5 +1,6 @@
 #include "key_driver.h"
 #include "log_debug.h"
+#include "apps.h"
 
 struct key_event global_key = {0};
 
@@ -108,14 +109,19 @@ void key_event_handler(struct key_event *key)
 
     global_key.event = key->event;
     global_key.value = key->value;
-    log_debug("key event:%d, value:%d\n", key->event, key->value);
+    //log_debug("key event:%d, value:%d\n", key->event, key->value);
+    /* 队列满时消息会丢, 按键响应会"吞键", 必须报出来而不是静默忽略 */
+    if (app_msg_post(2, key->value, key->event) != pdPASS) {
+        log_error("app_msg_post fail, key %d event %d\n", key->value, key->event);
+    }
 }
 
 void Key_Init(void)
 {
+
 }
 
-void Key_Scan(struct key_driver_ops *key_ops)
+struct key_event Key_Scan(struct key_driver_ops *key_ops)
 {
     struct key_driver_ops *key_handler = (struct key_driver_ops *)key_ops;
     struct key_driver_para *scan_para = (struct key_driver_para *)key_handler->param;
@@ -140,13 +146,13 @@ void Key_Scan(struct key_driver_ops *key_ops)
         // 记录上一次的按键值
         scan_para->filter_last_value = cur_key_value;
         // 第一次检测, 返回不做处理
-        return;
+        return key;
     }
     // 当前按键值与上一次按键值相等, filter_cnt开始累加
     if (scan_para->filter_cnt < scan_para->filter_time)
     {
         scan_para->filter_cnt++;
-        return;
+        return key;
     }
     //===== 按键消抖结束, 开始判断按键类型(单击, 双击, 长按, 多击, HOLD, (长按/HOLD)抬起)
 
@@ -237,5 +243,5 @@ __notify:
     key_event_handler(&key);
 __scan_end:
     scan_para->last_key = cur_key_value;
-    return;
+    return key;
 }

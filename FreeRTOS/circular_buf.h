@@ -2,9 +2,7 @@
 #define CIRCULAR_BUF_INTERFACE_H
 #include <stdint.h>
 #include "task_manager.h"
-
-typedef uint32_t u32;
-typedef uint8_t u8;
+#include "typedef.h"
 
 /* --------------------------------------------------------------------------*/
 /**

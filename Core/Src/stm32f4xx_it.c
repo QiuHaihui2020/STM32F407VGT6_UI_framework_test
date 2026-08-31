@@ -91,12 +91,12 @@ void Print_CFSR(uint32_t cfsr_value)
     if (mmfsr != 0)
     {
         log_debug("MMFSR (Memory Management Fault Status Register) Faults:\n");
-        if (mmfsr & (1 << 0)) log_debug("  - IACCVIOL: Instruction access violation\n");
-        if (mmfsr & (1 << 1)) log_debug("  - DACCVIOL: Data access violation\n");
-        if (mmfsr & (1 << 3)) log_debug("  - MUNSTKERR: Memory management fault on unstacking\n");
-        if (mmfsr & (1 << 4)) log_debug("  - MSTKERR: Memory management fault on stacking\n");
-        if (mmfsr & (1 << 5)) log_debug("  - MLSPERR: Memory management fault during floating-point lazy state preservation\n");
-        if (mmfsr & (1 << 7)) log_debug("  - MMARVALID: MMFAR register holds the fault address\n");
+        if (mmfsr & (1U << 0)) log_debug("  - IACCVIOL: Instruction access violation\n");
+        if (mmfsr & (1U << 1)) log_debug("  - DACCVIOL: Data access violation\n");
+        if (mmfsr & (1U << 3)) log_debug("  - MUNSTKERR: Memory management fault on unstacking\n");
+        if (mmfsr & (1U << 4)) log_debug("  - MSTKERR: Memory management fault on stacking\n");
+        if (mmfsr & (1U << 5)) log_debug("  - MLSPERR: Memory management fault during floating-point lazy state preservation\n");
+        if (mmfsr & (1U << 7)) log_debug("  - MMARVALID: MMFAR register holds the fault address\n");
     }
 
     // ============================
@@ -105,13 +105,13 @@ void Print_CFSR(uint32_t cfsr_value)
     if (bfsr != 0)
     {
         log_debug("BFSR (Bus Fault Status Register) Faults:\n");
-        if (bfsr & (1 << 0)) log_debug("  - IBUSERR: Instruction bus error\n");
-        if (bfsr & (1 << 1)) log_debug("  - PRECISERR: Precise bus error\n");
-        if (bfsr & (1 << 2)) log_debug("  - IMPRECISERR: Imprecise bus error\n");
-        if (bfsr & (1 << 3)) log_debug("  - UNSTKERR: Bus fault on unstacking\n");
-        if (bfsr & (1 << 4)) log_debug("  - STKERR: Bus fault on stacking\n");
-        if (bfsr & (1 << 5)) log_debug("  - LSPERR: Bus fault during floating-point lazy state preservation\n");
-        if (bfsr & (1 << 7)) log_debug("  - BFARVALID: BFAR register holds the fault address\n");
+        if (bfsr & (1U << 0)) log_debug("  - IBUSERR: Instruction bus error\n");
+        if (bfsr & (1U << 1)) log_debug("  - PRECISERR: Precise bus error\n");
+        if (bfsr & (1U << 2)) log_debug("  - IMPRECISERR: Imprecise bus error\n");
+        if (bfsr & (1U << 3)) log_debug("  - UNSTKERR: Bus fault on unstacking\n");
+        if (bfsr & (1U << 4)) log_debug("  - STKERR: Bus fault on stacking\n");
+        if (bfsr & (1U << 5)) log_debug("  - LSPERR: Bus fault during floating-point lazy state preservation\n");
+        if (bfsr & (1U << 7)) log_debug("  - BFARVALID: BFAR register holds the fault address\n");
     }
 
     // ============================
@@ -120,13 +120,13 @@ void Print_CFSR(uint32_t cfsr_value)
     if (ufsr != 0)
     {
         log_debug("UFSR (Usage Fault Status Register) Faults:\n");
-        if (ufsr & (1 << 0)) log_debug("  - UNDEFINSTR: Undefined instruction\n");
-        if (ufsr & (1 << 1)) log_debug("  - INVSTATE: Invalid state (e.g., illegal processor mode)\n");
-        if (ufsr & (1 << 2)) log_debug("  - INVPC: Invalid PC load (e.g., jump to invalid address)\n");
-        if (ufsr & (1 << 3)) log_debug("  - NOCP: No coprocessor (attempt to access non-existent coprocessor)\n");
+        if (ufsr & (1U << 0)) log_debug("  - UNDEFINSTR: Undefined instruction\n");
+        if (ufsr & (1U << 1)) log_debug("  - INVSTATE: Invalid state (e.g., illegal processor mode)\n");
+        if (ufsr & (1U << 2)) log_debug("  - INVPC: Invalid PC load (e.g., jump to invalid address)\n");
+        if (ufsr & (1U << 3)) log_debug("  - NOCP: No coprocessor (attempt to access non-existent coprocessor)\n");
         // 注意：根据ARM文档，这些位可能需要调整
-        if (ufsr & (1 << 8)) log_debug("  - UNALIGNED: Unaligned memory access\n");
-        if (ufsr & (1 << 9)) log_debug("  - DIVBYZERO: Division by zero\n");
+        if (ufsr & (1U << 8)) log_debug("  - UNALIGNED: Unaligned memory access\n");
+        if (ufsr & (1U << 9)) log_debug("  - DIVBYZERO: Division by zero\n");
     }
 }
 
@@ -134,17 +134,17 @@ void Print_HFSR(uint32_t hfsr_value)
 {
     log_debug("HFSR Value: 0x%08X\n", hfsr_value);
 
-    if (hfsr_value & (1 << 31))
+    if (hfsr_value & (1U << 31))
     {
         log_debug("  - DEBUGEVT: HardFault triggered by debug event (e.g., breakpoint)\n");
     }
 
-    if (hfsr_value & (1 << 30))
+    if (hfsr_value & (1U << 30))
     {
         log_debug("  - FORCED: HardFault caused by escalation from another fault (check CFSR)\n");
     }
 
-    if (hfsr_value & (1 << 1))  // 注意：通常是bit 1，不是bit 0
+    if (hfsr_value & (1U << 1))  // 注意：通常是bit 1，不是bit 0
     {
         log_debug("  - VECTTBL: HardFault caused by vector table read error\n");
     }
@@ -158,7 +158,7 @@ void Print_HFSR(uint32_t hfsr_value)
 void Print_Fault_Addresses(uint32_t cfsr_value)
 {
     // 检查 MMFAR 是否有效
-    if (cfsr_value & (1 << 7))  // MMARVALID (bit 7)
+    if (cfsr_value & (1U << 7))  // MMARVALID (bit 7)
     {
         uint32_t mmfar = SCB->MMFAR;
         log_debug("MMFAR (Memory Management Fault Address): 0x%08X\n", mmfar);
@@ -169,7 +169,7 @@ void Print_Fault_Addresses(uint32_t cfsr_value)
     }
 
     // 检查 BFAR 是否有效
-    if ((cfsr_value >> 8) & (1 << 7))  // BFARVALID (bit 15 of CFSR)
+    if ((cfsr_value >> 8) & (1U << 7))  // BFARVALID (bit 15 of CFSR)
     {
         uint32_t bfar = SCB->BFAR;
         log_debug("BFAR (Bus Fault Address): 0x%08X\n", bfar);
@@ -218,7 +218,7 @@ void HardFault_Handler(void)
 
     // 确定使用哪个堆栈指针
     volatile uint32_t *stack_ptr;
-    if (control & (1 << 1)) {
+    if (control & (1U << 1)) {
         stack_ptr = (uint32_t *)psp;  // 任务上下文（PSP）
     } else {
         stack_ptr = (uint32_t *)msp;  // 内核/中断上下文（MSP）

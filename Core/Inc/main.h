@@ -56,6 +56,16 @@ extern "C" {
  * FATFS 的物理层由 diskio 驱动决定, 不必是 SD 卡. */
 #define FATFS_ENABLE  1
 
+#define FSMC_ENABLE   0
+
+/* LCD 显示开关.
+ * 0 = 不使用 LCD. lcd.c / text.c 的实现体整体不参与编译, 连同 font.h 里的
+ *     两张 ASCII 字库表(asc2_1206 + asc2_1608, 合计约 2.6KB RO-data)一起省掉.
+ *     lcd.h / text.h 的声明仍然保留, 因此调用方必须自己用本宏包住调用点,
+ *     否则会在链接期才报 undefined symbol.
+ * 1 = 使用 LCD. */
+#define LCD_ENABLE    0
+
 
 /* USER CODE END EM */
 

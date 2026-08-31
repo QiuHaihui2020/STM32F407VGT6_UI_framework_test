@@ -139,6 +139,15 @@ tick off. */
 #define configUSE_QUEUE_SETS					1                               //为1时启用队列
 #define configCPU_CLOCK_HZ						( SystemCoreClock )             //CPU频率
 #define configTICK_RATE_HZ						( 1000 )                        //系统节拍时钟频率，这里设置为1000，周期就是1ms
+
+/* FreeRTOS 9.x 的 projdefs.h 未提供 pdTICKS_TO_MS；TinyUSB osal_freertos.h 会用到。
+ * 与新版内核语义一致：毫秒 = tick * 1000 / configTICK_RATE_HZ。
+ * 此处不用 TickType_t，因本文件在 FreeRTOS.h 展开顺序上早于 portmacro 对 TickType_t 的定义。 */
+#ifndef pdTICKS_TO_MS
+#define pdTICKS_TO_MS(xTicks) \
+	((uint32_t)(((uint32_t)(xTicks) * 1000UL) / (uint32_t)configTICK_RATE_HZ))
+#endif
+
 #define configMAX_PRIORITIES					( 32 )                          //系统支持的最大优先级数目    
 #define configMINIMAL_STACK_SIZE				( ( unsigned short ) 130 )      //空闲任务堆栈大小
 #define configMAX_TASK_NAME_LEN					( 16 )                          //任务名字最大长度
@@ -164,13 +173,19 @@ tick off. */
 #define configUSE_IDLE_HOOK						0                               //1，使用空闲钩子；0，不使用
 #define configUSE_TICK_HOOK						0                               //1，使用时间片钩子；0，不使用
 #define configUSE_MALLOC_FAILED_HOOK			1                               //为1时启用堆内存申请失败钩子函数
-#define configCHECK_FOR_STACK_OVERFLOW			1                               //为0时关闭栈溢出检测功能，为1时启用，为2时启用高级检测方式
+#define configCHECK_FOR_STACK_OVERFLOW			2                               //为0时关闭栈溢出检测功能，为1时启用，为2时启用高级检测方式
 
 /***************************************************************************************************************/
 /*                                FreeRTOS与运行时间和任务状态收集有关的配置选项                                 */
 /***************************************************************************************************************/
 /* Run time stats gathering definitions. */
 #define configGENERATE_RUN_TIME_STATS	        0                              //1，启用运行时间统计功能；0，不启用
+/* 以下是运行时间统计功能需要的宏定义 */
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() vConfigureTimerForRunTimeStats()
+#define portGET_RUN_TIME_COUNTER_VALUE() xGetRunTimeCounterValue()
+/* 可以使用SysTick作为运行时间统计的时基 */
+extern void vConfigureTimerForRunTimeStats(void);
+extern uint32_t xGetRunTimeCounterValue(void);
 
 #define configUSE_TRACE_FACILITY				0                              //1，启用可视化跟踪调试工具；0，不启用
 
@@ -210,7 +225,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelayUntil			1       //为1时启用vTaskDelayUntil()函数，用于延时一段时间后执行任务
 #define INCLUDE_vTaskDelay				1       //为1时启用vTaskDelay()函数，用于延时一段时间后执行任务
 #define INCLUDE_eTaskGetState			1       //为1时启用eTaskGetState()函数，用于获取任务状态
-#define INCLUDE_xTimerPendFunctionCall	0       //为1时启用xTimerPendFunctionCall()函数，用于将一个函数调用挂起，以便在定时器中断中执行
+#define INCLUDE_xTimerPendFunctionCall	1       //为1时启用xTimerPendFunctionCall()函数，用于将一个函数调用挂起，以便在定时器中断中执行
 
 /***************************************************************************************************************/
 /*                                FreeRTOS与中断有关的配置选项                                                  */
@@ -239,6 +254,13 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+
+#ifndef configSTACK_DEPTH_TYPE
+
+/* Defaults to StackType_t for backward compatibility, but can be overridden
+ * in FreeRTOSConfig.h if StackType_t is too restrictive. */
+    #define configSTACK_DEPTH_TYPE    StackType_t
+#endif
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS
 standard names. */

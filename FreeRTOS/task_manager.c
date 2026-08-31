@@ -59,6 +59,11 @@ int task_create(void (*task)(void *p), void *p, const char *name)
     if (q_flag == 0) {
         log_debug("task_handle_table malloc %d\n", sizeof(task_info_table)/sizeof(task_info_table[0]));
         task_handle_table = malloc(sizeof(struct task_handle) * sizeof(task_info_table)/sizeof(task_info_table[0]));
+        if (task_handle_table == NULL) {
+            log_error("task_handle_table malloc fail\n");
+            return pdFAIL;
+        } 
+        memset(task_handle_table, 0, sizeof(struct task_handle) * sizeof(task_info_table)/sizeof(task_info_table[0]));
         q_flag = 1;
     }
 
@@ -68,6 +73,11 @@ int task_create(void (*task)(void *p), void *p, const char *name)
             os_task_enter_critical(&uxSavedInterruptStatus);
             if (task_handle_table[i].xQueue == NULL && task_info_table[i].qsize) {
                 task_handle_table[i].xQueue = malloc(sizeof(xQueueHandle));
+                if (task_handle_table[i].xQueue == NULL) {
+                    log_error("task_handle_table[%d].xQueue malloc fail\n", i);
+                    os_task_exit_critical(&uxSavedInterruptStatus);
+                    return pdFAIL;
+                }
                 *task_handle_table[i].xQueue = xQueueCreate(task_info_table[i].qsize, sizeof(uint32_t));
             }
             if (task_handle_table[i].pxCreatedTask == NULL) {
@@ -88,7 +98,7 @@ int task_create(void (*task)(void *p), void *p, const char *name)
     }
     r_printf("create task %s not found \n", name);
     configASSERT(0);
-	//return xReturn;
+	return xReturn;
 }
 
 /* 启动任务调度器
@@ -127,7 +137,7 @@ int task_kill(const char *name)
     }
     r_printf("kill task %s not found \n", name);
     configASSERT(0);
-	//return pdFALSE;
+	return pdFALSE;
 }
 
 /* 往任务消息队尾发送消息

@@ -40,11 +40,13 @@ static FRESULT FsTest_ForceFormat(FATFS *p_fs)
 
     (void)f_mount(NULL, "", 1);
 
+#if FLASH_DISK_READONLY == 0
     if (FlashDisk_EraseAll() != FLASH_DISK_OK)
     {
         log_error("FlashDisk_EraseAll() fail\r\n");
         return FR_DISK_ERR;
     }
+#endif /* FLASH_DISK_READONLY */
 
     result = f_mkfs("", FM_ANY, 0, s_mkfs_work, sizeof(s_mkfs_work));
     if (result != FR_OK)

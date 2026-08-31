@@ -66,6 +66,7 @@ typedef enum __KEY_DRIVER_TYPE {
 } KEY_DRIVER_TYPE;
 
 enum key_action {
+    KEY_ACTION_NONE = 0,
     KEY_ACTION_CLICK,//短按抬起/单击
     KEY_ACTION_LONG,//长按
     KEY_ACTION_HOLD,//长按按着
@@ -120,7 +121,7 @@ struct key_driver_para {
 };
 
 void Key_Init(void);
-void Key_Scan(struct key_driver_ops *key_ops);
+struct key_event Key_Scan(struct key_driver_ops *key_ops);
 
 #endif // ! __KEY_H__
 
