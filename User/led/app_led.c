@@ -35,9 +35,10 @@ static void app_led_task(void *pvParameters)
 
 void app_led_init(void)
 {
-    BaseType_t xReturn = task_create(app_led_task, NULL, "led_task");
-    if (xReturn != pdPASS) {
-        log_debug("create app_led failed\n");
+    int err = task_create(app_led_task, NULL, "led_task");
+    if (err != OS_NO_ERR) {
+        log_error("create app_led failed, err %d\n", err);
+        return;
     }
     log_debug("create app_led succ\n");
 }

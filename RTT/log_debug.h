@@ -74,8 +74,8 @@ extern uint32_t tick_hour;
 #define configASSERT(x, ...) \
     do { \
         if (!(x)) { \
-            SEGGER_RTT_printf(0, "%s" TIME_INFO_STR " Assertion failed in %s:%d | ", RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, __FILE__, __LINE__); \
-			SEGGER_RTT_printf(0, ""__VA_ARGS__); \
+            printf("%s" TIME_INFO_STR " Assertion failed in %s:%d | ", RTT_CTRL_TEXT_BRIGHT_RED, TIME_INFO_ARGS, __FILE__, __LINE__); \
+			printf(""__VA_ARGS__); \
             while (1); \
         } \
     } while (0)
@@ -84,14 +84,14 @@ extern uint32_t tick_hour;
 
 #define put_buf(array, len) \
     do { \
-        SEGGER_RTT_printf(0, RTT_CTRL_TEXT_BRIGHT_WHITE); \
+        printf(RTT_CTRL_TEXT_BRIGHT_WHITE); \
         for (uint32_t i = 0; i < len; i++) { \
             if (i % 16 == 0) { \
-                SEGGER_RTT_printf(0, "\n"); \
+                printf("\n"); \
             } \
-            SEGGER_RTT_printf(0, "%02X ", array[i]); \
+            printf("%02X ", array[i]); \
         } \
-        SEGGER_RTT_printf(0, "\n"); \
+        printf("\n"); \
     } while (0)
   
 #define LINE_INFO log_debug("func: %s, line: %d \r\n", __func__, __LINE__);

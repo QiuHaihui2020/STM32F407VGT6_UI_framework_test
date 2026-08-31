@@ -14,7 +14,7 @@
       <uAC6>1</uAC6>
       <TargetOption>
         <TargetCommonOption>
-          <Device>STM32F407VGTx</Device>
+          <Device>STM32F407VETx</Device>
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F4xx_DFP.3.1.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
@@ -110,11 +110,11 @@
         </CommonProperty>
         <DllOption>
           <SimDllName>SARMCM3.DLL</SimDllName>
-          <SimDllArguments>-REMAP -MPU</SimDllArguments>
+          <SimDllArguments> -REMAP -MPU</SimDllArguments>
           <SimDlgDll>DCM.DLL</SimDlgDll>
           <SimDlgDllArguments>-pCM4</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
-          <TargetDllArguments>-MPU</TargetDllArguments>
+          <TargetDllArguments> -MPU</TargetDllArguments>
           <TargetDlgDll>TCM.DLL</TargetDlgDll>
           <TargetDlgDllArguments>-pCM4</TargetDlgDllArguments>
         </DllOption>
@@ -134,11 +134,11 @@
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
             <Capability>1</Capability>
-            <DriverSelection>4101</DriverSelection>
+            <DriverSelection>4096</DriverSelection>
           </Flash1>
           <bUseTDR>1</bUseTDR>
           <Flash2>BIN\UL2CM3.DLL</Flash2>
-          <Flash3></Flash3>
+          <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
           <pFcarmOut></pFcarmOut>
           <pFcarmGrp></pFcarmGrp>
@@ -276,7 +276,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x20000</Size>
+                <Size>0x80000</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -313,7 +313,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>2</Optim>
+            <Optim>7</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,USE_USBD_COMPOSITE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -397,11 +397,113 @@
               <FileName>lcd.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\lcd\lcd.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>text.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\lcd\text.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>iokey.c</FileName>
@@ -1414,16 +1516,6 @@
           <GroupName>Debug/RTT</GroupName>
           <Files>
             <File>
-              <FileName>SEGGER_RTT.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTT\SEGGER_RTT.c</FilePath>
-            </File>
-            <File>
-              <FileName>SEGGER_RTT_printf.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTT\SEGGER_RTT_printf.c</FilePath>
-            </File>
-            <File>
               <FileName>log_debug.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\RTT\log_debug.h</FilePath>
@@ -1512,11 +1604,113 @@
               <FileName>fs_test.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\test\fs_test.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>iis_test.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\test\iis_test.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
           </Files>
         </Group>
@@ -1601,6 +1795,57 @@
               <FileName>usbd_cdc_if.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\USB_DEVICE\App\usbd_cdc_if.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>usbd_audio_if.c</FileName>
@@ -1613,7 +1858,7 @@
                   <RVCTZI>0</RVCTZI>
                   <RVCTOtherData>0</RVCTOtherData>
                   <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>1</IncludeInBuild>
+                  <IncludeInBuild>0</IncludeInBuild>
                   <AlwaysBuild>2</AlwaysBuild>
                   <GenerateAssemblyFile>2</GenerateAssemblyFile>
                   <AssembleAssemblyFile>2</AssembleAssemblyFile>
@@ -1662,6 +1907,57 @@
               <FileName>usbd_midi_if.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\USB_DEVICE\App\usbd_midi_if.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>usb_device.c</FileName>
@@ -2115,6 +2411,57 @@
               <FileName>usbd_cdc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Middlewares\ST\STM32_USB_Device_Library\Class\CDC\Src\usbd_cdc.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>usbd_composite_builder.c</FileName>
@@ -2183,7 +2530,7 @@
                   <RVCTZI>0</RVCTZI>
                   <RVCTOtherData>0</RVCTOtherData>
                   <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>1</IncludeInBuild>
+                  <IncludeInBuild>0</IncludeInBuild>
                   <AlwaysBuild>2</AlwaysBuild>
                   <GenerateAssemblyFile>2</GenerateAssemblyFile>
                   <AssembleAssemblyFile>2</AssembleAssemblyFile>
@@ -2232,6 +2579,57 @@
               <FileName>usbd_midi.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Middlewares\ST\STM32_USB_Device_Library\Class\MIDI\Src\usbd_midi.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>usbd_core.c</FileName>
@@ -2456,6 +2854,266 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/port</GroupName>
+          <Files>
+            <File>
+              <FileName>ui_port_fs_fatfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_log.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_log.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_misc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_misc.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_registry.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_registry.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_shim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_shim.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_stubs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_stubs.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_hal_stm32f4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\hal\ui_hal_stm32f4.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/platform</GroupName>
+          <Files>
+            <File>
+              <FileName>lcd_ui_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\lcd_ui_api.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_platform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_platform.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_pushScreen_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_pushScreen_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_resources_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_resources_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_synthesis_oled.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_synthesis_oled.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/lcd_drive</GroupName>
+          <Files>
+            <File>
+              <FileName>oled_spi_ssd1306_128x64.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\lcd_drive\oled_spi_ssd1306_128x64.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/ui_dot</GroupName>
+          <Files>
+            <File>
+              <FileName>layer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\layer.c</FilePath>
+            </File>
+            <File>
+              <FileName>layout.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\layout.c</FilePath>
+            </File>
+            <File>
+              <FileName>lyrics.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\lyrics.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_battery.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_battery.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_core_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_core_api.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_core_dot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_core_dot.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_grid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_grid.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_number.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_number.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_p.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_p.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_pic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_pic.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_rotate.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_rotate.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_slider.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_slider.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_slider_vert.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_slider_vert.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_text.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_text.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_time.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_time.c</FilePath>
+            </File>
+            <File>
+              <FileName>window.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\window.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/font</GroupName>
+          <Files>
+            <File>
+              <FileName>font_ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_big5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_big5.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_gbk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_gbk.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_ksc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_ksc.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_other_language.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_other_language.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_sdfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_sdfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_sjis.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_sjis.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_textout.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_textout.c</FilePath>
+            </File>
+            <File>
+              <FileName>utf8_2_unicode.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\utf8_2_unicode.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/ui_draw</GroupName>
+          <Files>
+            <File>
+              <FileName>image_process.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_draw\image_process.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_circle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_draw\ui_circle.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/res</GroupName>
+          <Files>
+            <File>
+              <FileName>ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>mem_var.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\mem_var.c</FilePath>
+            </File>
+            <File>
+              <FileName>quicklz.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\quicklz.c</FilePath>
+            </File>
+            <File>
+              <FileName>resfile.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\resfile.c</FilePath>
+            </File>
+            <File>
+              <FileName>rle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\rle.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2794,7 +3452,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,RAM_DEBUG=1,USE_USBD_COMPOSITE1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -3410,16 +4068,6 @@
           <GroupName>Debug/RTT</GroupName>
           <Files>
             <File>
-              <FileName>SEGGER_RTT.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTT\SEGGER_RTT.c</FilePath>
-            </File>
-            <File>
-              <FileName>SEGGER_RTT_printf.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\RTT\SEGGER_RTT_printf.c</FilePath>
-            </File>
-            <File>
               <FileName>log_debug.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\RTT\log_debug.h</FilePath>
@@ -3633,6 +4281,266 @@
               <FileName>usbd_customhid.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Src/usbd_customhid.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/port</GroupName>
+          <Files>
+            <File>
+              <FileName>ui_port_fs_fatfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_log.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_log.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_misc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_misc.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_registry.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_registry.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_shim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_shim.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_port_stubs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\ui_port_stubs.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_hal_stm32f4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\port\hal\ui_hal_stm32f4.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/platform</GroupName>
+          <Files>
+            <File>
+              <FileName>lcd_ui_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\lcd_ui_api.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_platform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_platform.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_pushScreen_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_pushScreen_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_resources_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_resources_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_synthesis_oled.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\platform\ui_synthesis_oled.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/lcd_drive</GroupName>
+          <Files>
+            <File>
+              <FileName>oled_spi_ssd1306_128x64.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\lcd_drive\oled_spi_ssd1306_128x64.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/ui_dot</GroupName>
+          <Files>
+            <File>
+              <FileName>layer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\layer.c</FilePath>
+            </File>
+            <File>
+              <FileName>layout.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\layout.c</FilePath>
+            </File>
+            <File>
+              <FileName>lyrics.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\lyrics.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_battery.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_battery.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_core_api.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_core_api.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_core_dot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_core_dot.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_grid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_grid.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_number.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_number.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_p.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_p.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_pic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_pic.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_rotate.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_rotate.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_slider.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_slider.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_slider_vert.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_slider_vert.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_text.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_text.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_time.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\ui_time.c</FilePath>
+            </File>
+            <File>
+              <FileName>window.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_dot\window.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/font</GroupName>
+          <Files>
+            <File>
+              <FileName>font_ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_big5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_big5.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_gbk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_gbk.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_ksc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_ksc.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_other_language.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_other_language.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_sdfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_sdfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_sjis.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_sjis.c</FilePath>
+            </File>
+            <File>
+              <FileName>font_textout.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\font_textout.c</FilePath>
+            </File>
+            <File>
+              <FileName>utf8_2_unicode.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\font\utf8_2_unicode.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/ui_draw</GroupName>
+          <Files>
+            <File>
+              <FileName>image_process.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_draw\image_process.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_circle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\ui_draw\ui_circle.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UI/res</GroupName>
+          <Files>
+            <File>
+              <FileName>ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>mem_var.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\mem_var.c</FilePath>
+            </File>
+            <File>
+              <FileName>quicklz.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\quicklz.c</FilePath>
+            </File>
+            <File>
+              <FileName>resfile.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\resfile.c</FilePath>
+            </File>
+            <File>
+              <FileName>rle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\res\rle.c</FilePath>
             </File>
           </Files>
         </Group>

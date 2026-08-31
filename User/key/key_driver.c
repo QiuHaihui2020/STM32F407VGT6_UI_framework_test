@@ -111,7 +111,7 @@ void key_event_handler(struct key_event *key)
     global_key.value = key->value;
     //log_debug("key event:%d, value:%d\n", key->event, key->value);
     /* 队列满时消息会丢, 按键响应会"吞键", 必须报出来而不是静默忽略 */
-    if (app_msg_post(2, key->value, key->event) != pdPASS) {
+    if (app_msg_post(2, key->value, key->event) != OS_NO_ERR) {
         log_error("app_msg_post fail, key %d event %d\n", key->value, key->event);
     }
 }

@@ -226,7 +226,20 @@
 /  _NORTC_MDAY and _NORTC_YEAR have no effect.
 /  These options have no effect at read-only configuration (_FS_READONLY = 1). */
 
-#define _FS_LOCK    2     /* 0:Disable or >=1:Enable */
+/* 点阵屏 UI 框架需要同时常驻【至少 6 个】文件句柄:
+ *     .res 图片资源      res_file1  (res/resfile.c)
+ *     .str 字符串图片    str_file1  (res/resfile.c)
+ *     .sty 窗口布局      ui_file1   (platform/ui_resources_manager.c)
+ *     ASCII 字库         file       (res/ascii.c)
+ *     中文字库 .PIX      \  font/font_gbk.c 各持一个 fd
+ *     中文字库 .TAB      /
+ * 原值 2 会让 open_resource_file() 打开第 3 个文件时就返回
+ * FR_TOO_MANY_OPEN_FILES(18), 表现为 font_ascii_init fail / 界面全黑。
+ *
+ * 取 8 与 port/ui_port_fs_fatfs.c 的 UI_FS_MAX_OPEN 对齐 —— 两处限值不一致
+ * 时会出现"一层说还能开、另一层说满了"的错乱, 改一处记得改另一处。
+ * 代价: 每个锁位约 12 字节 static RAM, 8 个不到 100 字节。 */
+#define _FS_LOCK    8     /* 0:Disable or >=1:Enable */
 /* The option _FS_LOCK switches file lock function to control duplicated file open
 /  and illegal operation to open objects. This option must be 0 when _FS_READONLY
 /  is 1.

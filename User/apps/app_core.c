@@ -6,6 +6,11 @@
 #include "app_led.h"
 #include "test.h"
 
+/* 点阵屏 UI 框架。只用它的对外 API 头, 不碰内部实现。
+ * @note 别在这里包含 jl_debug.h —— 它会用框架的分级日志覆盖本文件的
+ *       log_debug, 而框架版在未定义 LOG_DEBUG_ENABLE 时是空实现。 */
+#include "jl_ui_api.h"
+
 const int iokey_table[3][KEY_ACTION_TRIPLE_CLICK + 1] = {
   // KEY_ACTION_CLICK,  KEY_ACTION_LONG,    KEY_ACTION_HOLD,    KEY_ACTION_UP,  KEY_ACTION_DOUBLE_CLICK,    KEY_ACTION_TRIPLE_CLICK,
     {KEY_PAGE_PREV,     KEY_NULL,           KEY_NULL,           KEY_NULL,       KEY_NULL,                   KEY_NULL},
@@ -41,19 +46,13 @@ int app_key_event_handle(int key_val, int key_action)
     switch (key_event) {
 
     case KEY_PAGE_PREV:
-        log_debug("KEY_PAGE_PREV\n");
-
-        /* code */
-        break;
     case KEY_PAGE_ENTER:
-        log_debug("KEY_PAGE_ENTER\n");
-
-        /* code */
-        break;
     case KEY_PAGE_NEXT:
-        log_debug("KEY_PAGE_NEXT\n");
-
-        /* code */
+    case KEY_PAGE_BACK:
+        /* 交给 UI 框架: 它会投递到 ui 任务, 再按当前窗口分发给控件。
+         * @note 这里传的是【应用层键值】(KEY_PAGE_*), 框架本身不解释键值,
+         *       只是原样透传给风格层的 onkey 回调, 所以两边约定一致即可。 */
+        ret = UI_KEY_MSG_POST(key_event);
         break;
 
     default:
@@ -79,6 +78,33 @@ void app_key_uinit(void)
     }
 }
 
+/**
+ * @brief 初始化点阵屏 UI 框架
+ *
+ * 必须在 os_start() 之后(即已经跑在任务里)调用 —— lcd_ui_init 内部会
+ * task_create 出 "ui" 任务并等它的启动信号量。
+ *
+ * @note ui_cfg_data 是框架侧定义的板级配置实例(见 platform/lcd_ui_api.c),
+ *       引脚取值来自 port/ui_port_config.h 的 TCFG_LCD_PIN_*。
+ */
+static void app_ui_init(void)
+{
+    /* 返回值就是内部 task_create 的结果, 杰理语义: 0 = 成功 */
+    int err = UI_INIT((void *)&ui_cfg_data);
+
+    if (err != OS_NO_ERR) {
+        /* 常见原因: 1) 资源文件(0:/ui/JL/JL.res 等)还没放进 FATFS;
+         *          2) OLED 没接好, 屏初始化命令发不出去。
+         * 这里只报错不停机, 让其余功能照常跑。 */
+        log_error("ui init failed: %d\n", err);
+        return;
+    }
+    log_info("ui init succ\n");
+
+    /* 显示首个窗口。ID 要与资源文件里的窗口编号对上, 见 port/ui_style.h */
+    UI_SHOW_WINDOW(ID_WINDOW_BT);
+}
+
 static void app_core_function(void *priv)
 {
     (void)priv;
@@ -87,13 +113,14 @@ static void app_core_function(void *priv)
     // iis_tx_test();
     app_key_init();
     app_led_init();
+    app_ui_init();
 
     int msg[16];
     while (1)
     {
         /* Q_CALLBACK 类型的消息已经在 os_taskq_pend 内部执行掉了,
          * 这里拿到的只会是 Q_MSG/Q_EVENT/Q_USER */
-        if (os_taskq_pend(msg, sizeof(msg), portMAX_DELAY) != pdPASS) {
+        if (os_taskq_pend(msg, sizeof(msg), portMAX_DELAY) != OS_TASKQ) {
             continue;
         }
         if (Q_TYPE(msg[0]) != Q_MSG) {
@@ -119,9 +146,10 @@ static void app_core_function(void *priv)
 
 void app_core_init(void)
 {
-    BaseType_t xReturn = task_create(app_core_function, NULL, "app_core");
-    if (xReturn != pdPASS) {
-        log_debug("create app_core failed\n");
+    int err = task_create(app_core_function, NULL, "app_core");
+    if (err != OS_NO_ERR) {
+        log_error("create app_core failed, err %d\n", err);
+        return;                 /* 主任务建不出来, 再往下 os_start() 也没意义 */
     }
     log_debug("create app_core succ\n");
     os_start();
