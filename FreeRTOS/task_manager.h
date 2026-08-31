@@ -14,6 +14,26 @@
 //计数信号量的最大计算
 #define MAX_SEM_COUNT 100
 
+/* taskq 消息类型, 取值与杰理 SDK(os_type.h) 保持一致, 方便 703 的代码直接移植。
+ * 队列里每条消息的头部 = 类型(高12位) | 参数个数(低20位),
+ * os_taskq_pend 把这个头原样放在 argv[0] 返回, 参数从 argv[1] 开始 */
+#define Q_MSG               0x100000
+#define Q_EVENT             0x200000
+#define Q_CALLBACK          0x300000
+#define Q_USER              0x400000
+
+#define Q_TYPE_MASK         0xFFF00000
+#define Q_ARGC_MASK         0x000FFFFF
+
+/* 从 os_taskq_pend 返回的消息头 argv[0] 中取出类型和参数个数 */
+#define Q_TYPE(header)      ((int)(header) & Q_TYPE_MASK)
+#define Q_ARGC(header)      ((int)(header) & Q_ARGC_MASK)
+
+/* Q_CALLBACK 回调支持的最大参数个数(每个参数按 int 宽度传递)。
+ * 杰理没有这个宏, 取 8 是对齐 os_api.h 里 "最大参数个数限制为8个int" 的说法,
+ * 也覆盖了 703 rcsp_event.c 里 APP_RCSP_MSG_VAL_MAX(8) 那条最长的调用链 */
+#define Q_CALLBACK_ARGC_MAX 8
+
 struct task_info {
     const char *name;
     uint8_t priority;
@@ -70,6 +90,33 @@ BaseType_t os_taskq_post_msg(const char *name, int argc, ...);
  * @note 可以在任务或者中断里面使用
  */
 BaseType_t os_taskq_post_msg_front(const char *name, int argc, ...);
+
+/* 往任务消息队尾发送指定类型的消息
+ * @param name 任务名称
+ * @param type 消息类型 Q_MSG / Q_EVENT / Q_CALLBACK / Q_USER
+ * @param argc 参数个数
+ * @param argv 参数数组
+ * @return pdPASS 成功
+ * @return pdFAIL / errQUEUE_FULL 失败
+ * @note 可以在任务或者中断里面使用
+ * @note Q_CALLBACK 的参数约定与杰理 SDK 一致: argv[0]=函数指针,
+ *       argv[1]=回调参数个数, argv[2...]=回调参数, 即 argc = 回调参数个数 + 2
+ * @note 返回值语义和杰理相反! 杰理是返回 0 表示成功, 这里是返回 pdPASS(1)
+ *       表示成功, 移植 703 代码时 if (ret) 这类判断要跟着改
+ */
+BaseType_t os_taskq_post_type(const char *name, int type, int argc, int *argv);
+
+/* 往任务发送一个回调消息(Q_CALLBACK), 由目标任务在自己的上下文里执行 func
+ * @param name 任务名称
+ * @param func 回调函数, 参数只能是 int 宽度(指针/整型), 最多 Q_CALLBACK_ARGC_MAX 个
+ * @param nargs 回调参数个数
+ * @param ... 回调参数列表
+ * @return pdPASS 成功, 其他为失败
+ * @note 可以在任务或者中断里面使用
+ * @note 用于把中断/其他任务里的处理搬到目标任务上下文执行。若参数是 malloc
+ *       出来的内存, 发送失败时调用方必须自己 free, 否则内存泄漏
+ */
+BaseType_t os_taskq_post_callback(const char *name, void *func, int nargs, ...);
 
 /* @任务获取消息
  * @param argv 获取消息buf

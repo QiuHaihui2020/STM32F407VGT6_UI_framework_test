@@ -91,7 +91,14 @@ static void app_core_function(void *priv)
     int msg[16];
     while (1)
     {
-        os_taskq_pend(msg, sizeof(msg), portMAX_DELAY);
+        /* Q_CALLBACK 类型的消息已经在 os_taskq_pend 内部执行掉了,
+         * 这里拿到的只会是 Q_MSG/Q_EVENT/Q_USER */
+        if (os_taskq_pend(msg, sizeof(msg), portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+        if (Q_TYPE(msg[0]) != Q_MSG) {
+            continue;
+        }
         //log_debug("msg :%d, key event: %d, key val %d\n", msg[1], msg[2], msg[3]);
 
         switch (msg[1]) {

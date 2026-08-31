@@ -140,6 +140,107 @@ int task_kill(const char *name)
 	return pdFALSE;
 }
 
+/* 查找任务在 task_info_table 中的下标
+ * @param name 任务名称
+ * @return 下标, 找不到返回 -1
+ */
+static int taskq_find_index(const char *name)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof(task_info_table)/sizeof(task_info_table[0])); i++) {
+        if (strcmp(task_info_table[i].name, name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* 从队列取一个 int, 自动区分中断/任务上下文 */
+static BaseType_t taskq_queue_receive(xQueueHandle xQueue, int *value, TickType_t xTicksToWait)
+{
+    if (is_in_irq()) {
+        return xQueueReceiveFromISR(xQueue, value, NULL);
+    }
+    return xQueueReceive(xQueue, value, xTicksToWait);
+}
+
+/* 执行 Q_CALLBACK 消息携带的回调
+ * @param argv 消息参数, argv[0]=函数指针, argv[1]=回调参数个数, argv[2...]=回调参数
+ * @param argc argv 的有效长度
+ * @return 无
+ * @note 这里按参数个数强转函数指针类型再调用, 与杰理 SDK 的做法一致:
+ *       AAPCS 下前 4 个 int 参数走 r0-r3, 多余的走栈, 被调函数只取自己声明的
+ *       那几个, 所以只要参数都是 int 宽度(含指针)就不会出错
+ * @note argc==1 是杰理支持的写法(只发函数指针, 不填参数个数), 按 0 个参数处理
+ */
+static void taskq_callback_handler(const int *argv, int argc)
+{
+    void *func;
+    int nargs;
+    int avail;
+    const int *p;
+
+    if (argc < 1) {
+        log_error("taskq callback argc %d err\n", argc);
+        return;
+    }
+    func = (void *)argv[0];
+    /* 703 里有 int msg[1] 只填函数指针就发出去的用法(见 spdif_player.c),
+     * 这种消息没有参数个数字段, 当成无参回调 */
+    nargs = (argc >= 2) ? argv[1] : 0;
+    p = &argv[2];
+    if (func == NULL) {
+        log_error("taskq callback func is NULL\n");
+        return;
+    }
+    /* 声称的参数个数不能超过实际收到的长度, 否则会把栈上的垃圾当参数传进去。
+     * argc==1 时消息里连参数个数字段都没有, 可用长度按 0 算, 不能写成
+     * argc-2, 那会是 -1 让下面的判断误报 */
+    avail = (argc >= 2) ? (argc - 2) : 0;
+    if ((nargs < 0) || (nargs > avail)) {
+        log_error("taskq callback nargs %d, argc %d err\n", nargs, argc);
+        return;
+    }
+    /* 超过支持上限时只传前 Q_CALLBACK_ARGC_MAX 个: 多传的参数被调函数不会读,
+     * 少传才会出事, 所以截断比整条丢弃安全(丢弃还会漏掉参数里 malloc 的内存) */
+    if (nargs > Q_CALLBACK_ARGC_MAX) {
+        log_error("taskq callback nargs %d > %d, truncated\n", nargs, Q_CALLBACK_ARGC_MAX);
+        nargs = Q_CALLBACK_ARGC_MAX;
+    }
+
+    switch (nargs) {
+    case 0:
+        ((void (*)(void))func)();
+        break;
+    case 1:
+        ((void (*)(int))func)(p[0]);
+        break;
+    case 2:
+        ((void (*)(int, int))func)(p[0], p[1]);
+        break;
+    case 3:
+        ((void (*)(int, int, int))func)(p[0], p[1], p[2]);
+        break;
+    case 4:
+        ((void (*)(int, int, int, int))func)(p[0], p[1], p[2], p[3]);
+        break;
+    case 5:
+        ((void (*)(int, int, int, int, int))func)(p[0], p[1], p[2], p[3], p[4]);
+        break;
+    case 6:
+        ((void (*)(int, int, int, int, int, int))func)(p[0], p[1], p[2], p[3], p[4], p[5]);
+        break;
+    case 7:
+        ((void (*)(int, int, int, int, int, int, int))func)(p[0], p[1], p[2], p[3], p[4], p[5], p[6]);
+        break;
+    case 8:
+        ((void (*)(int, int, int, int, int, int, int, int))func)(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+        break;
+    default:
+        break;
+    }
+}
+
 /* 往任务消息队尾发送消息
  * @param name 任务名称
  * @param argc 参数个数
@@ -179,8 +280,8 @@ BaseType_t os_taskq_post_msg(const char *name, int argc, ...)
         return errQUEUE_FULL;
     }  
 
-    // 先发送参数个数据
-    int value = argc;
+    // 先发送参数个数据, 头部同时带上消息类型
+    int value = argc | Q_MSG;
     if (is_in_irq()) {
         xReturn = xQueueSendFromISR(*task_handle_table[i].xQueue, &value, NULL);
     } else {
@@ -277,8 +378,8 @@ BaseType_t os_taskq_post_msg_front(const char *name, int argc, ...)
     free(params);
     va_end(args);  // 清理可变参数列表
 
-    // 再发送参数个数
-    value = argc;
+    // 再发送参数个数, 头部同时带上消息类型
+    value = argc | Q_MSG;
     if (is_in_irq()) {
         xReturn = xQueueSendToFrontFromISR(*task_handle_table[i].xQueue, &value, NULL);
     } else {
@@ -289,18 +390,127 @@ BaseType_t os_taskq_post_msg_front(const char *name, int argc, ...)
     return xReturn;
 }
 
+/* 往任务消息队尾发送指定类型的消息
+ * @param name 任务名称
+ * @param type 消息类型 Q_MSG / Q_EVENT / Q_CALLBACK / Q_USER
+ * @param argc 参数个数
+ * @param argv 参数数组
+ * @return pdPASS 成功
+ * @return pdFAIL / errQUEUE_FULL 失败
+ * @note 可以在任务或者中断里面使用
+ */
+BaseType_t os_taskq_post_type(const char *name, int type, int argc, int *argv)
+{
+    int i, j;
+    UBaseType_t uxSavedInterruptStatus;//保存中断状态
+    UBaseType_t uxSpace;
+    BaseType_t xReturn = pdFAIL;
+    int value;
+
+    i = taskq_find_index(name);
+    if (i < 0) {
+        r_printf("post task %s not found \n", name);
+        return xReturn;
+    }
+    if ((task_handle_table == NULL) || (task_handle_table[i].xQueue == NULL)) {
+        r_printf("task %s queue not created \n", name);
+        return xReturn;
+    }
+    /* 参数个数要能塞进消息头的低 20 位, 且类型不能占用参数个数的位段 */
+    if ((argc < 0) || (argc > Q_ARGC_MASK) || ((argc > 0) && (argv == NULL))) {
+        log_error("os_taskq_post_type argc %d err\n", argc);
+        return xReturn;
+    }
+
+    // 获取剩余容量
+    os_task_enter_critical(&uxSavedInterruptStatus);
+    if (is_in_irq()) {
+        uxSpace = task_info_table[i].qsize - uxQueueMessagesWaitingFromISR(*task_handle_table[i].xQueue);
+    } else {
+        uxSpace = uxQueueSpacesAvailable(*task_handle_table[i].xQueue);
+    }
+    if (uxSpace < (UBaseType_t)(argc + 1)) {
+        os_task_exit_critical(&uxSavedInterruptStatus);
+        r_printf("%s task_queue_send errQUEUE_FULL\n", name);
+        return errQUEUE_FULL;
+    }
+
+    // 先发送消息头: 类型 + 参数个数
+    value = (int)(((unsigned int)argc & Q_ARGC_MASK) | ((unsigned int)type & Q_TYPE_MASK));
+    if (is_in_irq()) {
+        xReturn = xQueueSendFromISR(*task_handle_table[i].xQueue, &value, NULL);
+    } else {
+        xReturn = xQueueSend(*task_handle_table[i].xQueue, &value, 0);
+    }
+    if (xReturn != pdPASS) {
+        os_task_exit_critical(&uxSavedInterruptStatus);
+        return xReturn;
+    }
+    // 再发送参数列表
+    for (j = 0; j < argc; j++) {
+        value = argv[j];
+        if (is_in_irq()) {
+            xReturn = xQueueSendFromISR(*task_handle_table[i].xQueue, &value, NULL);
+        } else {
+            xReturn = xQueueSend(*task_handle_table[i].xQueue, &value, 0);
+        }
+        if (xReturn != pdPASS) {
+            break;
+        }
+    }
+    os_task_exit_critical(&uxSavedInterruptStatus);
+
+    return xReturn;
+}
+
+/* 往任务发送一个回调消息(Q_CALLBACK), 由目标任务在自己的上下文里执行 func
+ * @param name 任务名称
+ * @param func 回调函数, 参数只能是 int 宽度, 最多 Q_CALLBACK_ARGC_MAX 个
+ * @param nargs 回调参数个数
+ * @param ... 回调参数列表
+ * @return pdPASS 成功, 其他为失败
+ * @note 可以在任务或者中断里面使用
+ */
+BaseType_t os_taskq_post_callback(const char *name, void *func, int nargs, ...)
+{
+    int argv[Q_CALLBACK_ARGC_MAX + 2];
+    int j;
+    va_list args;
+
+    if ((func == NULL) || (nargs < 0) || (nargs > Q_CALLBACK_ARGC_MAX)) {
+        log_error("os_taskq_post_callback param err, nargs %d\n", nargs);
+        return pdFAIL;
+    }
+
+    argv[0] = (int)func;
+    argv[1] = nargs;
+    va_start(args, nargs);
+    for (j = 0; j < nargs; j++) {
+        argv[2 + j] = va_arg(args, int);
+    }
+    va_end(args);
+
+    return os_taskq_post_type(name, Q_CALLBACK, nargs + 2, argv);
+}
+
 /* @任务获取消息
- * @param argv 获取消息buf
- * @param argc 获取消息buf长度
- * @param timeout_ms 获取消息超时时间
+ * @param argv 获取消息buf, 返回时 argv[0] 是消息头(类型|参数个数), 参数从 argv[1] 开始
+ * @param argc 获取消息buf长度, 单位字节
+ * @param timeout_ms 获取消息超时时间, portMAX_DELAY 为一直等待
  * @return 成功返回pdPASS，失败返回pdFAIL
- * @note 不能再中断里面使用   
+ * @note 不能在中断里面使用
+ * @note Q_CALLBACK 类型的消息在本函数内部直接执行掉, 不会返回给调用者,
+ *       执行完继续等待下一条消息, 因此调用者只会收到 Q_MSG/Q_EVENT/Q_USER
+ * @note 取消息类型用 Q_TYPE(argv[0]), 取参数个数用 Q_ARGC(argv[0])
  */
 BaseType_t os_taskq_pend(int *argv, int argc, uint32_t timeout_ms) 
 {
-    uint8_t i, j;
-    //UBaseType_t uxSavedInterruptStatus;
+    int i, j;
+    int nargs;
+    int drop;
     BaseType_t xReturn = pdFAIL;
+    TickType_t xTicksToWait;
+    TimeOut_t xTimeOut;
 
     // 不能在中断里面使用
     configASSERT(is_in_irq() == 0, "%s can't call in irq", __func__); 
@@ -308,51 +518,61 @@ BaseType_t os_taskq_pend(int *argv, int argc, uint32_t timeout_ms)
     //获取当前任务名字
     char *name = pcTaskGetTaskName(xTaskGetCurrentTaskHandle());
     // 查找任务对应的索引
-    for (i = 0; i < sizeof(task_info_table)/sizeof(task_info_table[0]); i++) {
-        if (strcmp(task_info_table[i].name, name) == 0) {
-            break;
-        }
-    }
-
-    // 遍历数据表没有该任务时直接返回
-    if (i >= sizeof(task_info_table)/sizeof(task_info_table[0])){
+    i = taskq_find_index(name);
+    if (i < 0) {
         log_error("task %s not found", name);
         return xReturn;
     }
-
-    // 区分是否中断接收
-    if (is_in_irq()) {
-        configASSERT(timeout_ms == 0, "%s can't call in irq\n", __func__); 
-        xReturn = xQueueReceiveFromISR(*task_handle_table[i].xQueue, &argv[0], NULL);
-    } else {
-        xReturn = xQueueReceive(*task_handle_table[i].xQueue, &argv[0], (timeout_ms == portMAX_DELAY) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms));
-        //xReturn = xQueueReceive(*task_handle_table[i].xQueue, &argv[0], (timeout_ms == portMAX_DELAY) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms));
-        //log_debug("task_queue_receive: %s, argv[0] = %d\n", name, argv[0]);
-    }
-    
-    if (xReturn != pdPASS) {
-        log_error("task_queue_receive: %s failed \n", name);
+    if ((task_handle_table == NULL) || (task_handle_table[i].xQueue == NULL)) {
+        log_error("task %s queue not created \n", name);
         return xReturn;
     }
-    if ( (argc / sizeof(uint32_t)) < (argv[0] + 1)) {
-        log_error("task_queue_receive: %s argc error \n", name);
-        return xReturn;
 
-    }
+    /* 超时先换算成 tick, 之后用 xTaskCheckForTimeOut 递减:
+     * Q_CALLBACK 会在本函数里被消化掉并继续等下一条消息, 如果每轮都用
+     * timeout_ms 重新计时, 只要回调来得够密, 超时就永远等不到 */
+    xTicksToWait = (timeout_ms == portMAX_DELAY) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+    vTaskSetTimeOutState(&xTimeOut);
 
-    for (j = 1; j < argv[0] + 1; j++) {
-        // 区分是否中断发送
-        if (is_in_irq()) {
-            xReturn = xQueueReceiveFromISR(*task_handle_table[i].xQueue, &argv[j], NULL);
-        } else {
-            xReturn = xQueueReceive(*task_handle_table[i].xQueue, &argv[j], (timeout_ms == portMAX_DELAY) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms));
-        }
+    while (1) {
+        // 先取消息头
+        xReturn = taskq_queue_receive(*task_handle_table[i].xQueue, &argv[0], xTicksToWait);
         if (xReturn != pdPASS) {
-            log_error("task_queue_receive 1: %s failed \n", name);
-            break;
+            return xReturn;
+        }
+
+        nargs = Q_ARGC(argv[0]);
+        if ((argc / (int)sizeof(uint32_t)) < (nargs + 1)) {
+            log_error("task_queue_receive: %s argc error \n", name);
+            /* buf 装不下这条消息, 把它剩下的参数丢掉, 否则后面的消息会整体错位,
+             * 错位的 Q_CALLBACK 会把参数当成函数指针来跑 */
+            for (j = 0; j < nargs; j++) {
+                taskq_queue_receive(*task_handle_table[i].xQueue, &drop, 0);
+            }
+            return pdFAIL;
+        }
+
+        /* 消息头和参数是在临界区里整体入队的, 到这里参数必定已经在队列中,
+         * 所以取参数不需要再等待 */
+        for (j = 1; j <= nargs; j++) {
+            xReturn = taskq_queue_receive(*task_handle_table[i].xQueue, &argv[j], 0);
+            if (xReturn != pdPASS) {
+                log_error("task_queue_receive 1: %s failed \n", name);
+                return xReturn;
+            }
+        }
+
+        if (Q_TYPE(argv[0]) != Q_CALLBACK) {
+            return pdPASS;
+        }
+
+        // Q_CALLBACK: 在当前任务上下文直接执行, 然后继续等待下一条消息
+        taskq_callback_handler(&argv[1], nargs);
+
+        if (xTaskCheckForTimeOut(&xTimeOut, &xTicksToWait) != pdFALSE) {
+            return pdFAIL;
         }
     }
-    return xReturn;
 }
 
 /* 清空当前任务的消息队列

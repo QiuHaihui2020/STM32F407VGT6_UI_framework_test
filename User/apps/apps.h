@@ -28,6 +28,12 @@ enum {
 
 #define app_msg_post(argc, ...)  os_taskq_post_msg("app_core", (argc)+1, APP_MSG_KEY_EVENT, ##__VA_ARGS__)
 
+/* 把 func 丢到 app_core 任务上下文里执行, 常用于中断/其他任务里不方便直接做的事
+ * @param func 回调函数, 参数只能是 int 宽度(指针/整型)
+ * @param nargs 回调参数个数, 最多 Q_CALLBACK_ARGC_MAX 个
+ */
+#define app_callback_post(func, nargs, ...)      os_taskq_post_callback("app_core", (void *)(func), (nargs), ##__VA_ARGS__)
+
 
 
 void app_core_init(void);
