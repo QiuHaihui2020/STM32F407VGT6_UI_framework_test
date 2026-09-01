@@ -11,8 +11,10 @@
 #ifndef __UI_PORT_CONFIG_H__
 #define __UI_PORT_CONFIG_H__
 
-/* 只为拿 ui_hal_pin_t 的枚举值。ui_hal.h 是纯接口, 不含配置, 无循环依赖 */
-#include "ui_hal.h"
+/* 本文件【不再 include 任何硬件相关头】。引脚与外设完全封在 port 里:
+ *   port/ui_lcd_if.h            框架看得到的唯一硬件边界(纯语义函数)
+ *   port/board/ui_board_pins.h  接线     —— 只有 port/lcd/ 下的实现读得到
+ *   port/board/ui_board_*.h     外设实例 —— 同上 */
 
 /* ========================================================================
  * 一、功能裁剪开关(对应原厂 app_config.h 的 TCFG_*)
@@ -31,7 +33,10 @@
 #define TCFG_UI_ENABLE_LEFT_MENU        0
 #define TCFG_BACKLIGHT_PWM_MODE         0   /**< 0=GPIO 开关(OLED 无背光) */
 #define TCFG_UI_SHUT_DOWN_TIME          0   /**< 0=不自动关机 */
-#define TCFG_TFT_LCD_DEV_SPI_HW_NUM     3   /**< 用 SPI3 */
+/* SPI 控制器编号原先在这里(TCFG_TFT_LCD_DEV_SPI_HW_NUM=3), 但它是个装饰品:
+ * 一路传到 shim 就被 (void)spi 丢掉, 真值硬编码在 HAL 里的 hspi3。
+ * 现在挪到 board/ui_board_stm32f4.h 的 UI_BOARD_SPI_BUS_ID, 与句柄、
+ * DMA 通路放在一起 —— 换 SPI 时三处在同一个文件里改。 */
 
 /* UI 风格。框架用它选 CONFIG_UI_STYLE 分支, 点阵屏走通用框架分支 */
 #define STYLE_JL_LED7                   0
@@ -82,48 +87,21 @@
 
 
 /* ========================================================================
- * 四、硬件引脚(STM32F407VGT6)
+ * 四、硬件
  *
- * SPI3: PB3=SCK  PB5=MOSI (MISO PB4 单色屏不用, 但 CubeMX 已占用)
- * 下面三个控制脚可按实际接线改, 改完不需要动别处。
+ * 【本节已空】—— 引脚、SPI 实例、DMA 通路全部移到 port/board/ 下。
+ *
+ * 原先这里写的是 GPIOB / GPIO_PIN_6 / DMA1_Stream5 这些【STM32 HAL 符号】,
+ * 而本文件被 ui_dot/、common/、middle/ 都 include 了 —— 等于让 MCU 无关的
+ * 核心层看见了 STM32。后来改成引脚 token 转发(TCFG_LCD_PIN_*), 虽然不再有
+ * 厂商符号, 但框架仍然"知道有引脚这回事"、还要懂 token 的编码约定。
+ *
+ * 现在框架只调语义函数:
+ *     ui_lcd_cs(0)   把片选拉低
+ *     ui_lcd_dc(1)   切到数据
+ *     ui_lcd_write_block(buf, len, 1)
+ * 引脚这个概念到 port 层就终止了, 改接线/换 SPI/换 MCU 都波及不到框架。
  * ======================================================================== */
-
-#define UI_PORT_PIN_CS_PORT             GPIOB
-#define UI_PORT_PIN_CS_PIN              GPIO_PIN_6
-#define UI_PORT_PIN_DC_PORT             GPIOB
-#define UI_PORT_PIN_DC_PIN              GPIO_PIN_7
-#define UI_PORT_PIN_RST_PORT            GPIOB
-#define UI_PORT_PIN_RST_PIN             GPIO_PIN_8
-/* SSD1306 是自发光, 无背光脚。留 0 表示不使用 */
-#define UI_PORT_PIN_BL_ENABLE           0
-
-/* SPI3_TX 的 DMA 通路。DMA1_Stream3/4 已被 I2S2 占用, Stream5 空闲。
- * 查《RM0090》Table 42: SPI3_TX = DMA1 Stream5 Ch0 或 Stream7 Ch0 */
-#define UI_PORT_SPI_DMA_STREAM          DMA1_Stream5
-#define UI_PORT_SPI_DMA_CHANNEL         DMA_CHANNEL_0
-#define UI_PORT_SPI_DMA_IRQn            DMA1_Stream5_IRQn
-
-/* ---- 框架侧的抽象引脚号 --------------------------------------------
- * lcd_ui_api.c 用这些宏填 struct lcd_platform_data, 框架再把值透传给
- * gpio_set_mode()。本移植的 gpio_set_mode 把它当 ui_hal_pin_t 用,
- * 所以这里直接给 HAL 的枚举值 —— 真正的 GPIO 端口/位在上面那几个
- * UI_PORT_PIN_*_PORT/PIN 宏里, 由 ui_hal_stm32f4.c 解析。 */
-#define TCFG_LCD_PIN_RESET      UI_HAL_PIN_LCD_RST
-#define TCFG_LCD_PIN_CS         UI_HAL_PIN_LCD_CS
-#define TCFG_LCD_PIN_DC         UI_HAL_PIN_LCD_DC
-#if UI_PORT_PIN_BL_ENABLE
-#define TCFG_LCD_PIN_BL         UI_HAL_PIN_LCD_BL
-#else
-#define TCFG_LCD_PIN_BL         UI_HAL_PIN_NONE
-#endif
-/* EN(屏供电使能) 与 TE(撕裂同步) 本板没接 */
-#define TCFG_LCD_PIN_EN         UI_HAL_PIN_NONE
-#define TCFG_LCD_PIN_TE         UI_HAL_PIN_NONE
-
-
-/** DMA 推一帧的超时保护(ms)。128 字节/page @ SPI 21MHz 约 50us,
- * 整屏 8 page 也远小于 10ms, 取 100ms 足够宽松 */
-#define UI_PORT_SPI_TIMEOUT_MS          100
 
 
 /* ========================================================================

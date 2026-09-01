@@ -30,7 +30,9 @@
 
 #if (TCFG_UI_ENABLE && (TCFG_LCD_OLED_ENABLE || TCFG_SPI_LCD_ENABLE))
 
-#include "ui_port.h"
+#include "jl_typedef.h"
+#include "jl_lcd_drive.h"   /* struct lcd_platform_data / lcd_e / 初始化码魔数 */
+#include "ui_lcd_if.h"      /* 与屏硬件之间唯一的边界(纯语义函数) */
 #include "jl_ui_api.h"
 #include "jl_os_api.h"
 /* #include "jl_app_stub.h" */
@@ -66,7 +68,10 @@ static u8  backlight_status = 0;
 static u8  lcd_sleep_in     = 0;
 static volatile u8 is_lcd_busy = 0;
 static struct lcd_platform_data *lcd_dat = NULL;
-struct mcpwm_config lcd_pwm_p_data;
+/* 原有 `struct mcpwm_config lcd_pwm_p_data;` 已删除: 该类型来自杰理的
+ * asm/mcpwm.h(移植期由 port/ui_port.h 仿造), 而全工程【零处使用】——
+ * TCFG_BACKLIGHT_PWM_MODE=0 走纯 GPIO, mcpwm_init/set_duty 连实现都没有。
+ * 需要 PWM 调背光时, 在 port/ui_lcd_if.h 里加 ui_lcd_backlight_set() 更直接。 */
 
 
 // 推屏管理模块私有参数，读写命令、数据需要根据不同屏幕配置，因此需根据屏幕类型设置
@@ -82,53 +87,50 @@ static struct ui_push_screen_var push_screen = {0};
 #define	__this	(&push_screen)
 
 
+/*
+ * 控制线。本文件【不知道任何引脚】—— 只说"把这条线拉高/拉低",
+ * 接在哪个端口哪一位写在 port/board/ui_board_pins.h 里。
+ *
+ * 原厂这几个函数里是 `gpio_set_mode(lcd_dat->pin_cs / 16,
+ * BIT(lcd_dat->pin_cs % 16), val)` —— 框架既持有引脚编号、又要自己把它
+ * 拆成端口号加位掩码。现在这两件事都不关框架的事了。
+ *
+ * 未接的线(本板的 BL/EN/TE)由 port 层静默忽略, 所以这里不需要逐个判空。
+ */
+
 // EN 控制
 void lcd_en_ctrl(u8 val)
 {
-    if (lcd_dat->pin_en == NO_CONFIG_PORT) {
-        return;
-    }
-    gpio_set_mode(lcd_dat->pin_en / 16, BIT(lcd_dat->pin_en) % 16, val);
+    ui_lcd_power(val);
 }
 
 // BL 控制
 void lcd_bl_ctrl(u8 val)
 {
-    if (lcd_dat->pin_bl == NO_CONFIG_PORT) {
-        return;
-    }
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_bl), !!val);
+    ui_lcd_bl(!!val);
 }
 
 // CS 控制
 static void spi_cs_ctrl(u8 val)
 {
-    if (lcd_dat->pin_cs == NO_CONFIG_PORT) {
-        return;
-    }
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_cs), val);
+    ui_lcd_cs(val);
 }
 
 // DC 控制
 static void spi_dc_ctrl(u8 val)
 {
-    if (lcd_dat->pin_dc == NO_CONFIG_PORT) {
-        return;
-    }
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_dc), val);
+    ui_lcd_dc(val);
 }
 
 // TE 控制
 static int spi_te_stat()
 {
-    if (lcd_dat->pin_te == NO_CONFIG_PORT) {
-        return -1;
-    }
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_te), PORT_INPUT_PULLUP_10K);
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_te), PORT_INPUT_PULLDOWN_10K);
-    gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_te), PORT_HIGHZ);
-
-    return gpio_read(lcd_dat->pin_te);
+    /* 原厂这里先用 gpio_set_mode 的第三参把脚切成上拉/下拉/高阱再读 ——
+     * 那是杰理 gpio_set_mode() 复用第三参表示输入模式的约定。新接口里
+     * 读 TE 是独立的 ui_lcd_te_read(), 引脚方向在 ui_lcd_init() 里定好。
+     * @note 本板没接 TE, ui_lcd_te_read() 直接返回 -1, 让框架走不等 TE
+     *       的直推路径 —— "有没接 TE" 也是 port 层的知识。 */
+    return (int)ui_lcd_te_read();
 }
 
 
@@ -154,11 +156,11 @@ static void lcd_reset()
     if (__this->lcd->reset) {
         __this->lcd->reset();
     } else {
-        gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_reset), 1);
+        ui_lcd_rst(1);
         os_time_dly(10);
-        gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_reset), 0);
+        ui_lcd_rst(0);
         os_time_dly(10);
-        gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_reset), 1);
+        ui_lcd_rst(1);
         os_time_dly(10);
     }
 }
@@ -192,7 +194,13 @@ int lcd_drv_backlight_ctrl(u8 on)
 {
     if (__this->lcd->backlight_ctrl) {
         __this->lcd->backlight_ctrl(on);
-    } else if (lcd_dat->pin_bl != -1) {
+    } else if (ui_lcd_has_backlight()) {
+        /* 原为 `else if (lcd_dat->pin_bl != -1)`。框架不再持有背光脚,
+         * 改成问 port 层"这块板能不能控背光" —— 语义等价,
+         * 但引脚这个概念不再出现在本层。
+         *
+         * @note PWM_MODE == 0 分支原厂就是空的(GPIO 背光由 lcd_bl_ctrl()
+         *       单独控), 这里不动它 —— 本次只做分层, 不改行为。 */
 #if (TCFG_BACKLIGHT_PWM_MODE == 0)
 
 #elif (TCFG_BACKLIGHT_PWM_MODE == 1)
@@ -361,13 +369,11 @@ int lcd_drv_init(void *p)
     lcd_dat = (struct lcd_platform_data *)cfg->private_data;
     ASSERT(lcd_dat, "Error! spi io not config");
 
-    log_debug("spi pin rest:%d, cs:%d, dc:%d, en:%d, spi:%d\n", \
-              lcd_dat->pin_reset, lcd_dat->pin_cs, lcd_dat->pin_dc, lcd_dat->pin_en, lcd_dat->spi_cfg);
+    /* 引脚已不在本层可见, 要看实际接线去 port/board/ui_board_pins.h */
+    log_debug("lcd drv init, type:%d\n", __this->lcd_type);
 
-    /* 如果有使能IO，设置使能IO输出高电平 */
-    if (lcd_dat->pin_en != -1) {
-        gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_en), 1);
-    }
+    /* 给屏供电。没接使能脚时这是空操作 */
+    ui_lcd_power(1);
 
     /*** mcu屏io注册 br27 IMD not surpport mcu screen***/
     /* __this->param->pap.wr_sel = lcd_dat->mcu_pins.pin_wr; */
@@ -668,84 +674,73 @@ static void lcd_drv_clear_screen(u32 color)
 
 /**************** 使用spi接口推屏所用接口 ********************/
 // io口操作
-static int spi_pnd = false;
 static void lcd_reset_l()
 {
-    gpio_set_mode((u32)lcd_dat->pin_reset / 16, BIT(lcd_dat->pin_reset % 16), 0);
+    ui_lcd_rst(0);
 }
 static void lcd_reset_h()
 {
-    gpio_set_mode((u32)lcd_dat->pin_reset / 16, BIT(lcd_dat->pin_reset % 16), 1);
+    ui_lcd_rst(1);
 }
 static void lcd_cs_l()
 {
-    gpio_set_mode((u32)lcd_dat->pin_cs / 16, BIT(lcd_dat->pin_cs % 16), 0);
+    ui_lcd_cs(0);
 }
 static void lcd_cs_h()
 {
-    gpio_set_mode((u32)lcd_dat->pin_cs / 16, BIT(lcd_dat->pin_cs % 16), 1);
+    ui_lcd_cs(1);
 }
 static void lcd_rs_l()
 {
-    gpio_set_mode((u32)lcd_dat->pin_dc / 16, BIT(lcd_dat->pin_dc % 16), 0);
+    ui_lcd_dc(0);
 }
 static void lcd_rs_h()
 {
-    gpio_set_mode((u32)lcd_dat->pin_dc / 16, BIT(lcd_dat->pin_dc % 16), 1);
+    ui_lcd_dc(1);
 }
 
 static void lcd_bl_l()
 {
-    gpio_set_mode((u32)lcd_dat->pin_bl / 16, BIT(lcd_dat->pin_bl % 16), 0);
+    ui_lcd_bl(0);
 }
 
 static void lcd_bl_h()
 {
-    gpio_set_mode((u32)lcd_dat->pin_bl / 16, BIT(lcd_dat->pin_bl % 16), 1);
+    ui_lcd_bl(1);
 }
 
-static u8 lcd_bl_io()
-{
-    return lcd_dat->pin_bl;
-}
 static int lcd_spi_send_byte(u8 byte)
 {
-    int ret;
-    ret = spi_send_byte(lcd_dat->spi_cfg, byte);
-
-    return 0;
+    /* 原厂这里把返回值存进 ret 又恒返回 0(错误被吞掉)。改为如实返回 */
+    return (int)ui_lcd_write_byte(byte);
 }
 
-void spi_dma_wait_finish()
+/*
+ * 原有的 spi_dma_wait_finish() 与 static int spi_pnd 已删除。
+ *
+ * 那份实现靠 spi_get_pending() 轮询, 而移植层里该函数恒返回 1 ——
+ * 整个循环是空转, 真正的等待发生在 HAL 内部。留着它的害处是让人以为
+ * 推屏有一套异步握手, 实际没有。现在所有等待点直接调
+ * ui_lcd_wait_done(), 只有一个真实现。
+ *
+ * lcd_bl_io() 也一并删了: 它把引脚 token 当 u8 返回(会截断),
+ * 而全工程零处调用。
+ */
+
+/**
+ * @brief 走 DMA 发一块数据
+ * @param wait 非 0 = 发完才返回
+ * @note 屏障必须在【启动 DMA 之前】: 确保调用方刚写进 buf 的显存内容已经
+ *       落到内存, DMA 才读得到正确数据。原代码把 ui_lcd_memory_barrier()
+ *       放在启动传输【之后】, 顺序是反的 —— 只因为那条路径实际是同步发送,
+ *       这个错才没有暴露出来。
+ */
+static int __spi_dma_send(const void *buf, u32 len, u8 wait)
 {
-    if (spi_pnd) {
-        while (!spi_get_pending(lcd_dat->spi_cfg)) {
-            wdt_clear();
-        }
-        spi_clear_pending(lcd_dat->spi_cfg);
-        spi_pnd = false;
-    }
-}
+    /* 原为 pi32 的 asm("csync")(流水线/写缓冲同步) */
+    ui_lcd_memory_barrier();
 
-int __spi_dma_send(hw_spi_dev spi, void *buf, u32 len, u8 wait)
-{
-    int err = 0;
-
-    if (!wait || spi_pnd) {
-        spi_dma_wait_finish();
-    }
-    spi_dma_set_addr_for_isr(lcd_dat->spi_cfg, buf, len, 0);
-    spi_pnd = true;
-    /* 原为 pi32 的 asm("csync")(流水线/写缓冲同步)。这里换成 HAL 的
-     * 内存屏障 —— 确保上面对 DMA 寄存器和显存的写在继续之前已生效。
-     * 放进 HAL 而不是直接写 __DSB(), 是为了不把 CMSIS 依赖带进框架代码。 */
-    ui_hal_memory_barrier();
-
-    if (wait) {
-        spi_dma_wait_finish();
-    }
-
-    return err;
+    return (int)ui_lcd_write_block((const u8 *)buf, len, wait);
 }
 
 void spi_dma_send_map(u8 *map, u32 size)
@@ -753,7 +748,7 @@ void spi_dma_send_map(u8 *map, u32 size)
     int err = 0;
 
     if (lcd_dat) {
-        err = __spi_dma_send(lcd_dat->spi_cfg, map, size, 0);
+        err = __spi_dma_send(map, size, 0);
     }
 
     if (err < 0) {
@@ -764,33 +759,31 @@ void spi_dma_send_map(u8 *map, u32 size)
 void spi_dma_send_byte(u8 dat)
 {
     int err = 0;
-    u32 _dat __attribute__((aligned(4))) = 0;
+    u32 _dat ALIGNED(4) = 0;
 
     ((u8 *)(&_dat))[0] = dat;
 
     if (lcd_dat) {
-        err = __spi_dma_send(lcd_dat->spi_cfg, &_dat, 1, 1);
+        err = __spi_dma_send(&_dat, 1, 1);
     }
 
     if (err < 0) {
         lcd_e("spi dma send byte timeout\n");
     }
 }
-static void spi_init(int spi_cfg)
+/** 建立屏用到的全部硬件: 控制脚 + SPI + DMA。幂等
+ * @note 原名 spi_init(int spi_cfg) —— 那个参数一路传到 shim 就被丢弃,
+ *       真正的 SPI 实例选择在 board/ui_board_stm32f4.h。去掉参数后,
+ *       "改哪里能换 SPI" 就只有一个答案。
+ * @note 中断注册(原 LCD_SPI_INTERRUPT_ENABLE 分支的 request_irq)也去掉了:
+ *       DMA 完成中断由 HAL 在 ui_lcd_init() 里自己配好并常开。 */
+static void lcd_hw_init(void)
 {
-    int err;
-    // spi gpio init
-
-    err = spi_open(spi_cfg, get_hw_spi_config(spi_cfg));
-    if (err < 0) {
-        lcd_e("open spi falid\n");
+    if (ui_lcd_init() < 0) {
+        lcd_e("ui_lcd_init failed\n");
+        return;
     }
-    y_printf("spi open succ\n");
-#if LCD_SPI_INTERRUPT_ENABLE
-    // 配置中断优先级，中断函数
-    /* spi_set_ie(spi_cfg, 1); */
-    request_irq(IRQ_SPI_IDX, 3, spi_isr, 0);
-#endif
+    y_printf("ui lcd hw init succ\n");
 }
 static void lcd_spi_write_cmd(u8 data)
 {
@@ -862,15 +855,15 @@ static void lcd_spi_dev_init(void *p)
     __this->param		= __this->lcd->param;	// 获取LCD参数配置
     lcd_dat = (struct lcd_platform_data *)cfg->private_data;
     ASSERT(lcd_dat, "Error! spi io not config");
-    printf("spi pin rest:%d, cs:%d, rs:%d, spi:%d\n", lcd_dat->pin_reset, lcd_dat->pin_cs, lcd_dat->pin_dc, lcd_dat->spi_cfg);
+    /* 【顺序修正】先建硬件再写电平。原代码是先 gpio_set_mode() 写三个脚,
+     * 后调 spi_init() —— 而把引脚配成推挽输出恰好就在 spi_init() 里面,
+     * 那三次写是打在未配置的脚上(无效)。之后 port 层的引脚初始化又置了
+     * 一次空闲电平, 所以侥幸正确。现在顺序理顺了。 */
+    lcd_hw_init();
 
-    if (lcd_dat->pin_reset != -1) {
-        gpio_set_mode((u32)lcd_dat->pin_reset / 16, BIT(lcd_dat->pin_reset % 16), 1);
-    }
-    gpio_set_mode((u32)lcd_dat->pin_cs / 16, BIT(lcd_dat->pin_cs % 16), 1);
-    gpio_set_mode((u32)lcd_dat->pin_dc / 16, BIT(lcd_dat->pin_dc % 16), 1);
-
-    spi_init(lcd_dat->spi_cfg);
+    ui_lcd_rst(1);
+    ui_lcd_cs(1);
+    ui_lcd_dc(1);
 
     lcd_reset(); /* lcd复位 */
 
@@ -884,8 +877,8 @@ static int lcd_spi_set_draw_area(u16 xs, u16 xe, u16 ys, u16 ye)
         return 0;
     }
     is_lcd_busy = 1;
-    spi_set_ie(lcd_dat->spi_cfg, 0);
-    spi_dma_wait_finish();
+    /* 原有 spi_set_ie(spi_cfg, 0) 已删: DMA 中断由 HAL 自己管, 框架不再开关它 */
+    ui_lcd_wait_done();
 
     lcd_spi_write_cmd(0x2A);
     lcd_spi_write_data(xs >> 8);
@@ -947,11 +940,15 @@ static int lcd_spi_clear_screen(u16 color)
             remain -= draw_line;
             y += draw_line;
         }
-        spi_dma_wait_finish();
+        ui_lcd_wait_done();
     } else if (__this->param->in_format == LCD_COLOR_MONO) {
         lcd_spi_set_draw_area(0, -1, 0, -1);
         memset(line_buffer, 0x00, __this->param->lcd_width * __this->param->lcd_height / 8);
         lcd_spi_write_map((char *)line_buffer, __this->param->lcd_width * __this->param->lcd_height / 8);
+        /* write_map 是异步的(wait=0), 而下面立即 free(line_buffer) ——
+         * 不等完 DMA 就把源内存还给堆, 会推出垃圾或碰上重分配。
+         * 原代码只在 RGB565 分支等了, MONO 分支漏了。 */
+        ui_lcd_wait_done();
     } else {
         ASSERT(0, "the color_format %d not support yet!", __this->param->in_format);
     }
@@ -996,7 +993,7 @@ static void oled_spi_clear_screen(u32 color)
         lcd_spi_write_cmd(0x10);
         lcd_cs_l();
         lcd_rs_h();
-        spi_dma_send(lcd_dat->spi_cfg, buf, __this->param->lcd_width);
+        ui_lcd_write_block(buf, __this->param->lcd_width, 1);
         lcd_cs_h();
     }
 }
@@ -1015,7 +1012,7 @@ static void oled_spi_draw(u8 *buf, u32 len, u8 wait)
 
         lcd_cs_l();
         lcd_rs_h();
-        spi_dma_send(lcd_dat->spi_cfg, buf, __this->param->lcd_width);
+        ui_lcd_write_block(buf, __this->param->lcd_width, 1);
         lcd_cs_h();
         buf += __this->param->lcd_width;
     }

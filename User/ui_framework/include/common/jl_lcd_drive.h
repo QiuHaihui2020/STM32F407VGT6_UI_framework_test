@@ -104,46 +104,45 @@ enum LCD_IF {
 #define SPI_4WIRE_RGB565_1T8B     LCD_CONFIG(SPI_MODE | SPI_WIRE4, FORMAT_RGB565, PIXEL_1P2T | PIXEL_1T8B)
 
 
-/* ---- 板级 SPI / 引脚配置 --------------------------------------------
- * 原厂 hw_spi_dev 是 SPI 控制器编号。STM32 侧引脚与 SPI 实例都固定在
- * port/ui_port_config.h, 这里的字段只是为了让框架代码原样编过, 运行时
- * 真正生效的是 ui_port_config.h。 */
-typedef int hw_spi_dev;
+/* ---- 屏的板级配置 -------------------------------------------------
+ * 【引脚字段已全部删除】。
+ *
+ * 框架不再持有任何引脚: 控制线通过 ui_lcd_cs()/dc()/rst()/bl()/
+ * power() 这几个语义函数拉高拉低, "CS 接在 PB6" 只写在
+ * port/board/ui_board_pins.h 里, 只有 port/lcd/ui_lcd_<mcu>.c 读得到。
+ *
+ * 原厂这里有过下面这些东西, 本移植已全部去除:
+ *
+ *   pin_reset/cs/dc/en/bl/te   引脚编号。框架拿着它们去调 gpio_set_mode(),
+ *                              等于让 UI 层知道接线。现在改接线不波及框架。
+ *
+ *   hw_spi_dev / spi_cfg       SPI 控制器编号。一路传到底就被丢掉, 真值在
+ *                              board/ui_board_stm32f4.h。留着只会让人以为
+ *                              改它就能换 SPI。
+ *
+ *   NO_CONFIG_PORT (-1)        "引脚未配置"的第二种标记。框架里 -1 和 0 两种
+ *                              写法混用, 判断散在十几处, 漏一处就是去操作一个
+ *                              不存在的引脚。现在这类判断只在 port 内部一处。
+ *
+ *   IO_PORT_SPILT(x)           把引脚号拆成 (port, bitmask) 两个参数的宏。配上
+ *                              框架里另一套 (pin/16, BIT(pin%16)) 写法, 同一个函数有
+ *                              两种调用约定, 只能靠"第二参是否为 0"去猜。
+ *
+ *   PORT_HIGHZ / PORT_INPUT_PULLUP_10K / PORT_INPUT_PULLDOWN_10K
+ *                              杰理 gpio_set_mode() 复用第三参表示输入模式的约定。
+ *                              新接口读 TE 是独立的 ui_lcd_te_read()。
+ *
+ * 结构体本身保留: 框架的 ui_devices_cfg.private_data 机制还在用它做
+ * "屏配置已就位"的非空检查, 且 MCU 屏 / RGB 屏 那两条通路将来启用时
+ * 仍需要一个搾放屏参的地方。
+ */
 
-/** 引脚"未配置"的标记值。框架用 `pin == NO_CONFIG_PORT` 判断跳过 */
-#define NO_CONFIG_PORT      (-1)
-
-/** 原厂把引脚编号打包成 port*16+pin, IO_PORT_SPILT 再拆回两个参数。
- * 本移植的 gpio_set_mode 只认抽象引脚号, 拆包后第二个参数忽略 */
-#define IO_PORT_SPILT(x)    (x), 0
-
-/* 原厂 gpio_set_mode 的输入模式常量。点阵屏只在读 TE 脚时用到,
- * 本移植无 TE 脚, 留定义让代码编过 */
-#define PORT_HIGHZ                  0
-#define PORT_INPUT_PULLUP_10K       1
-#define PORT_INPUT_PULLDOWN_10K     2
-
-/** lcd_ui_api.c 用这对宏定义板级引脚配置实例 */
+/** lcd_ui_api.c 用这对宏定义板级配置实例 */
 #define LCD_SPI_PLATFORM_DATA_BEGIN(data)     const struct lcd_platform_data data = {
 #define LCD_SPI__PLATFORM_DATA_END()     };
 
 struct lcd_platform_data {
-    u32 pin_reset;
-    u32 pin_cs;
-    u32 pin_dc;
-    u32 pin_en;
-    u32 pin_bl;
-    u32 pin_te;
-    hw_spi_dev spi_cfg;
-    struct mcu_pins {
-        u32 pin_wr;
-        u32 pin_rd;
-    } mcu_pins;
-    struct rgb_pins {
-        u32 pin_hsync;
-        u32 pin_vsync;
-        u32 pin_den;
-    } rgb_pins;
+    /** 屏驱私有参数。本移植不用, 置 NULL */
     const void *spi_pdata;
 };
 

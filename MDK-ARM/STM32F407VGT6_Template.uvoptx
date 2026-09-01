@@ -1497,7 +1497,7 @@
   </Group>
 
   <Group>
-    <GroupName>UI/common</GroupName>
+    <GroupName>UI/liba/common</GroupName>
     <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
@@ -1509,7 +1509,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\common\jl_ascii.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\common\jl_ascii.c</PathWithFileName>
       <FilenameWithoutPath>jl_ascii.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1521,7 +1521,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\common\jl_crc.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\common\jl_crc.c</PathWithFileName>
       <FilenameWithoutPath>jl_crc.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1533,7 +1533,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\common\jl_debug.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\common\jl_debug.c</PathWithFileName>
       <FilenameWithoutPath>jl_debug.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1545,7 +1545,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\common\ui_config.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\common\ui_config.c</PathWithFileName>
       <FilenameWithoutPath>ui_config.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1577,7 +1577,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\ui_port_registry.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\config\ui_port_registry.c</PathWithFileName>
       <FilenameWithoutPath>ui_port_registry.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1589,8 +1589,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\ui_port_shim.c</PathWithFileName>
-      <FilenameWithoutPath>ui_port_shim.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\common\ui_port_stubs.c</PathWithFileName>
+      <FilenameWithoutPath>ui_port_stubs.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1601,31 +1601,31 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\ui_port_stubs.c</PathWithFileName>
-      <FilenameWithoutPath>ui_port_stubs.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>16</GroupNumber>
-      <FileNumber>92</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\hal\ui_hal_stm32f4.c</PathWithFileName>
-      <FilenameWithoutPath>ui_hal_stm32f4.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\port\lcd\ui_lcd_stm32f4.c</PathWithFileName>
+      <FilenameWithoutPath>ui_lcd_stm32f4.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
   </Group>
 
   <Group>
-    <GroupName>UI/platform</GroupName>
+    <GroupName>UI/lcd_drive/middle</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>17</GroupNumber>
+      <FileNumber>92</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\lcd_drive\middle\lcd_ui_api.c</PathWithFileName>
+      <FilenameWithoutPath>lcd_ui_api.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
     <File>
       <GroupNumber>17</GroupNumber>
       <FileNumber>93</FileNumber>
@@ -1633,8 +1633,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\platform\lcd_ui_api.c</PathWithFileName>
-      <FilenameWithoutPath>lcd_ui_api.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\lcd_drive\middle\ui_platform.c</PathWithFileName>
+      <FilenameWithoutPath>ui_platform.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1645,8 +1645,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\platform\ui_platform.c</PathWithFileName>
-      <FilenameWithoutPath>ui_platform.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\lcd_drive\middle\ui_pushScreen_manager.c</PathWithFileName>
+      <FilenameWithoutPath>ui_pushScreen_manager.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1657,8 +1657,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\platform\ui_pushScreen_manager.c</PathWithFileName>
-      <FilenameWithoutPath>ui_pushScreen_manager.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\lcd_drive\middle\ui_resources_manager.c</PathWithFileName>
+      <FilenameWithoutPath>ui_resources_manager.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1669,19 +1669,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\platform\ui_resources_manager.c</PathWithFileName>
-      <FilenameWithoutPath>ui_resources_manager.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>17</GroupNumber>
-      <FileNumber>97</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\platform\ui_synthesis_oled.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\lcd_drive\middle\ui_synthesis_oled.c</PathWithFileName>
       <FilenameWithoutPath>ui_synthesis_oled.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1696,7 +1684,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>18</GroupNumber>
-      <FileNumber>98</FileNumber>
+      <FileNumber>97</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -1709,11 +1697,23 @@
   </Group>
 
   <Group>
-    <GroupName>UI/ui_dot</GroupName>
+    <GroupName>UI/liba/ui_dot</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>19</GroupNumber>
+      <FileNumber>98</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\layer.c</PathWithFileName>
+      <FilenameWithoutPath>layer.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
     <File>
       <GroupNumber>19</GroupNumber>
       <FileNumber>99</FileNumber>
@@ -1721,8 +1721,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\layer.c</PathWithFileName>
-      <FilenameWithoutPath>layer.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\layout.c</PathWithFileName>
+      <FilenameWithoutPath>layout.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1733,8 +1733,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\layout.c</PathWithFileName>
-      <FilenameWithoutPath>layout.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\lyrics.c</PathWithFileName>
+      <FilenameWithoutPath>lyrics.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1745,8 +1745,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\lyrics.c</PathWithFileName>
-      <FilenameWithoutPath>lyrics.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_battery.c</PathWithFileName>
+      <FilenameWithoutPath>ui_battery.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1757,8 +1757,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_battery.c</PathWithFileName>
-      <FilenameWithoutPath>ui_battery.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_core_api.c</PathWithFileName>
+      <FilenameWithoutPath>ui_core_api.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1769,8 +1769,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_core_api.c</PathWithFileName>
-      <FilenameWithoutPath>ui_core_api.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_core_dot.c</PathWithFileName>
+      <FilenameWithoutPath>ui_core_dot.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1781,8 +1781,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_core_dot.c</PathWithFileName>
-      <FilenameWithoutPath>ui_core_dot.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_grid.c</PathWithFileName>
+      <FilenameWithoutPath>ui_grid.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1793,8 +1793,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_grid.c</PathWithFileName>
-      <FilenameWithoutPath>ui_grid.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_number.c</PathWithFileName>
+      <FilenameWithoutPath>ui_number.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1805,8 +1805,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_number.c</PathWithFileName>
-      <FilenameWithoutPath>ui_number.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_p.c</PathWithFileName>
+      <FilenameWithoutPath>ui_p.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1817,8 +1817,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_p.c</PathWithFileName>
-      <FilenameWithoutPath>ui_p.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_pic.c</PathWithFileName>
+      <FilenameWithoutPath>ui_pic.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1829,8 +1829,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_pic.c</PathWithFileName>
-      <FilenameWithoutPath>ui_pic.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_rotate.c</PathWithFileName>
+      <FilenameWithoutPath>ui_rotate.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1841,8 +1841,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_rotate.c</PathWithFileName>
-      <FilenameWithoutPath>ui_rotate.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_slider.c</PathWithFileName>
+      <FilenameWithoutPath>ui_slider.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1853,8 +1853,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_slider.c</PathWithFileName>
-      <FilenameWithoutPath>ui_slider.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_slider_vert.c</PathWithFileName>
+      <FilenameWithoutPath>ui_slider_vert.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1865,8 +1865,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_slider_vert.c</PathWithFileName>
-      <FilenameWithoutPath>ui_slider_vert.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_text.c</PathWithFileName>
+      <FilenameWithoutPath>ui_text.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1877,8 +1877,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_text.c</PathWithFileName>
-      <FilenameWithoutPath>ui_text.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\ui_time.c</PathWithFileName>
+      <FilenameWithoutPath>ui_time.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1889,19 +1889,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\ui_time.c</PathWithFileName>
-      <FilenameWithoutPath>ui_time.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>19</GroupNumber>
-      <FileNumber>114</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_dot\window.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\ui_dot\window.c</PathWithFileName>
       <FilenameWithoutPath>window.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -1909,11 +1897,23 @@
   </Group>
 
   <Group>
-    <GroupName>UI/font</GroupName>
+    <GroupName>UI/liba/font</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>20</GroupNumber>
+      <FileNumber>114</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_ascii.c</PathWithFileName>
+      <FilenameWithoutPath>font_ascii.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
     <File>
       <GroupNumber>20</GroupNumber>
       <FileNumber>115</FileNumber>
@@ -1921,8 +1921,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_ascii.c</PathWithFileName>
-      <FilenameWithoutPath>font_ascii.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_big5.c</PathWithFileName>
+      <FilenameWithoutPath>font_big5.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1933,8 +1933,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_big5.c</PathWithFileName>
-      <FilenameWithoutPath>font_big5.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_gbk.c</PathWithFileName>
+      <FilenameWithoutPath>font_gbk.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1945,8 +1945,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_gbk.c</PathWithFileName>
-      <FilenameWithoutPath>font_gbk.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_ksc.c</PathWithFileName>
+      <FilenameWithoutPath>font_ksc.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1957,8 +1957,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_ksc.c</PathWithFileName>
-      <FilenameWithoutPath>font_ksc.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_other_language.c</PathWithFileName>
+      <FilenameWithoutPath>font_other_language.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1969,8 +1969,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_other_language.c</PathWithFileName>
-      <FilenameWithoutPath>font_other_language.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_sdfs.c</PathWithFileName>
+      <FilenameWithoutPath>font_sdfs.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1981,8 +1981,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_sdfs.c</PathWithFileName>
-      <FilenameWithoutPath>font_sdfs.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_sjis.c</PathWithFileName>
+      <FilenameWithoutPath>font_sjis.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1993,8 +1993,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_sjis.c</PathWithFileName>
-      <FilenameWithoutPath>font_sjis.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\font\font_textout.c</PathWithFileName>
+      <FilenameWithoutPath>font_textout.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2005,19 +2005,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\font_textout.c</PathWithFileName>
-      <FilenameWithoutPath>font_textout.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>20</GroupNumber>
-      <FileNumber>123</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\font\utf8_2_unicode.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\font\utf8_2_unicode.c</PathWithFileName>
       <FilenameWithoutPath>utf8_2_unicode.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -2025,11 +2013,23 @@
   </Group>
 
   <Group>
-    <GroupName>UI/ui_draw</GroupName>
+    <GroupName>UI/liba/ui_draw</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>21</GroupNumber>
+      <FileNumber>123</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\liba\ui_draw\image_process.c</PathWithFileName>
+      <FilenameWithoutPath>image_process.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
     <File>
       <GroupNumber>21</GroupNumber>
       <FileNumber>124</FileNumber>
@@ -2037,19 +2037,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_draw\image_process.c</PathWithFileName>
-      <FilenameWithoutPath>image_process.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>21</GroupNumber>
-      <FileNumber>125</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\ui_draw\ui_circle.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\ui_draw\ui_circle.c</PathWithFileName>
       <FilenameWithoutPath>ui_circle.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -2057,11 +2045,23 @@
   </Group>
 
   <Group>
-    <GroupName>UI/res</GroupName>
+    <GroupName>UI/liba/res</GroupName>
     <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>125</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\liba\res\ascii.c</PathWithFileName>
+      <FilenameWithoutPath>ascii.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
     <File>
       <GroupNumber>22</GroupNumber>
       <FileNumber>126</FileNumber>
@@ -2069,8 +2069,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\res\ascii.c</PathWithFileName>
-      <FilenameWithoutPath>ascii.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\res\mem_var.c</PathWithFileName>
+      <FilenameWithoutPath>mem_var.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2081,8 +2081,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\res\mem_var.c</PathWithFileName>
-      <FilenameWithoutPath>mem_var.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\res\quicklz.c</PathWithFileName>
+      <FilenameWithoutPath>quicklz.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2093,8 +2093,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\res\quicklz.c</PathWithFileName>
-      <FilenameWithoutPath>quicklz.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\liba\res\resfile.c</PathWithFileName>
+      <FilenameWithoutPath>resfile.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -2105,19 +2105,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\res\resfile.c</PathWithFileName>
-      <FilenameWithoutPath>resfile.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>22</GroupNumber>
-      <FileNumber>130</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\res\rle.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\liba\res\rle.c</PathWithFileName>
       <FilenameWithoutPath>rle.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>

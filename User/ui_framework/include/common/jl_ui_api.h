@@ -37,7 +37,7 @@ struct touch_event {
 /** 板级配置实例, 定义在 port/ui_port_registry.c */
 extern const struct ui_devices_cfg ui_cfg_data;
 
-/* ---- 主要 API(实现在 platform/lcd_ui_api.c) ------------------------- */
+/* ---- 主要 API(实现在 middle/lcd_ui_api.c) ------------------------- */
 int  lcd_ui_init(void *arg);
 int  ui_show_main(int id);
 int  ui_hide_main(int id);

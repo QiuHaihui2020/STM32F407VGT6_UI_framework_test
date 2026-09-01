@@ -32,12 +32,12 @@ INCLUDES += \
 # ---- 平台适配层 ------------------------------------------------------------
 # UI 任务/消息队列、推屏调度、资源管理、单色绘制原语
 c_SRC_FILES += \
-	apps/common/ui/ui_framework/platform/lcd_ui_api.c \
-	apps/common/ui/ui_framework/platform/ui_platform.c \
-	apps/common/ui/ui_framework/platform/ui_pushScreen_manager.c \
-	apps/common/ui/ui_framework/platform/ui_resources_manager.c \
-	apps/common/ui/ui_framework/platform/ui_synthesis_oled.c \
-	apps/common/ui/ui_framework/platform/watch_bgp.c
+	apps/common/ui/ui_framework/middle/lcd_ui_api.c \
+	apps/common/ui/ui_framework/middle/ui_platform.c \
+	apps/common/ui/ui_framework/middle/ui_pushScreen_manager.c \
+	apps/common/ui/ui_framework/middle/ui_resources_manager.c \
+	apps/common/ui/ui_framework/middle/ui_synthesis_oled.c \
+	apps/common/ui/ui_framework/middle/watch_bgp.c
 
 
 # ---- 屏驱 ------------------------------------------------------------------
@@ -95,7 +95,7 @@ c_SRC_FILES += \
 
 
 # ---- ui_cpu/ —— BR27 的 IMD【硬件推屏】驱动, 本工程不编译 ------------------
-# 本工程 OLED 点阵屏走 SPI DMA(platform/ui_pushScreen_manager.c +
+# 本工程 OLED 点阵屏走 SPI DMA(middle/ui_pushScreen_manager.c +
 # lcd_drive/oled_spi_ssd1306_128x64.c), 所有 imd_* 调用点都在 #if 0 或
 # #if (TCFG_SPI_LCD_ENABLE) 里, 实测最终固件【0 处 IMD 寄存器访问】。
 #
@@ -105,7 +105,7 @@ c_SRC_FILES += \
 #   而它们烧机测不出, 等价性证明是唯一的正确性保障。不列进来则不影响校验:
 #   objs/%.c.o 是通用模式规则, 仍可单独 make 出 .o 来比对。
 #
-# 改回彩屏时: 去掉下面三行的注释, 并去掉 platform/ui_platform.c 里
+# 改回彩屏时: 去掉下面三行的注释, 并去掉 middle/ui_platform.c 里
 # imd_wait() 外面那个 #if (TCFG_SPI_LCD_ENABLE)。
 # c_SRC_FILES += \
 # 	apps/common/ui/ui_framework/ui_cpu/imd.c \

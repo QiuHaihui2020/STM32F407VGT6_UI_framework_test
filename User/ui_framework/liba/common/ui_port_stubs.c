@@ -11,59 +11,8 @@
  * 还有原厂【自己就缺定义】的几个符号也在这里补上, 见文件末尾。
  */
 #include "jl_typedef.h"
-/* 打开本文件的分级日志。jl_debug.h 的 log_* 是靠这几个宏开关的,
- * 不定义就是空实现 —— port 层是上板排查的关键路径, 必须留着。 */
-#define LOG_INFO_ENABLE
-#define LOG_DEBUG_ENABLE
-#define LOG_ERROR_ENABLE
-#include "jl_debug.h"
 #include "jl_app_stub.h"
-#include "jl_fs.h"
-#include "ui_port_config.h"
 
-/* ==================================================================== *
- *  一、背光 / 亮度 / 关机
- * ==================================================================== */
-
-/** 背光超时时长(秒)。0 = 不自动熄灭。
- * SSD1306 自发光且无背光引脚, 熄屏靠面板命令(entersleep), 这里返回 0
- * 表示"不做自动熄屏", 由应用自己决定何时调 ui_backlight_close()。 */
-u16 get_backlight_time(void)
-{
-    return 0;
-}
-
-void set_backlight_time(u16 time)
-{
-    /* 原厂写进掉电保存区(VM)。本移植没有参数存储, 忽略。
-     * 需要可配时在这里接自己的参数区。 */
-    (void)time;
-}
-
-/** 亮度。OLED 可以用 0x81 对比度命令调, 但框架这条路径只在
- * TCFG_BACKLIGHT_PWM_MODE != 0 时才走, 本移植是 0。 */
-u16 get_backlight_brightness(void)
-{
-    return 100;
-}
-
-void set_backlight_brightness(u16 brightness)
-{
-    (void)brightness;
-}
-
-int get_light_level(void)
-{
-    return 4;   /* 原厂档位 0~4, 取最高 */
-}
-
-void sys_enter_soft_poweroff(void *priv)
-{
-    /* 自动关机功能(TCFG_UI_SHUT_DOWN_TIME)在本移植里是关的(=0),
-     * 所以这里到不了。留个实现避免将来打开时链接失败。 */
-    (void)priv;
-    log_info("ui: 收到软关机请求, 本移植未实现\r\n");
-}
 
 
 /* ==================================================================== *

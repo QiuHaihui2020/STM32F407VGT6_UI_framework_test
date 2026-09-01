@@ -38,7 +38,7 @@
  * 框架的并发开文件情况(实测最少 6 个常驻):
  *     .res 图片资源      res_file1  (res/resfile.c)
  *     .str 字符串图片    str_file1  (res/resfile.c)
- *     .sty 窗口布局      ui_file1   (platform/ui_resources_manager.c)
+ *     .sty 窗口布局      ui_file1   (middle/ui_resources_manager.c)
  *     ASCII 字库         file       (res/ascii.c)
  *     中文字库 .PIX/.TAB font/font_gbk.c 各持一个
  * 再留点余量给资源管理器的临时探测, 取 8。

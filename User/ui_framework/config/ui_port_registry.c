@@ -105,7 +105,7 @@ const struct ui_style_info *const g_ui_style_table[] = {
  *  res/resfile.c 用它把"工程号 pj_id"映射到一套资源文件路径, 供
  *  ui_load_res_by_pj_id / ui_load_sty_by_pj_id 查找。
  *
- *  原厂定义在 platform/watch_bgp.c 里(彩屏手表的多套表盘各占一个 pj_id)。
+ *  原厂定义在杰理 SDK 的 platform/watch_bgp.c 里(彩屏手表的多套表盘各占一个 pj_id)。
  *  该文件是彩屏表盘管理, 点阵屏用不到, 已从工程移除, 表挪到这里 ——
  *  它本质就是一张注册表, 和上面两张放一起。
  *
@@ -123,7 +123,7 @@ struct ui_load_info ui_load_info_table[] = {
 /* ==================================================================== *
  *  四、推屏接口注册表
  *
- *  由 platform/ui_pushScreen_manager.c 用 REGISTER_LCD_INTERFACE(lcd)
+ *  由 middle/ui_pushScreen_manager.c 用 REGISTER_LCD_INTERFACE(lcd)
  *  定义, 一个工程只会有一个生效(其余被 #if 排除)。
  * ==================================================================== */
 

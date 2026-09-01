@@ -32,7 +32,7 @@
 
 /** 风格名。
  *
- * ⚠ 必须是 JL, 不能改成 jl02 之类 —— 它要和 platform/ui_resources_manager.c
+ * ⚠ 必须是 JL, 不能改成 jl02 之类 —— 它要和 middle/ui_resources_manager.c
  *   传给 ui_core_set_style() 的字符串【逐字相同】, 而那个字符串是从资源
  *   文件名推导的:
  *
@@ -77,7 +77,7 @@
 #define ID_WINDOW_SINK          (-1)
 #endif
 
-/* platform/lcd_ui_api.c 直接引用了 ID_WINDOW_VMENU(判断"当前是否在竖向菜单")。
+/* middle/lcd_ui_api.c 直接引用了 ID_WINDOW_VMENU(判断"当前是否在竖向菜单")。
  * ui_128_64_JL02 里没有独立的竖向菜单页, 用 (-1) 表示不存在 —— 那处判断
  * 恒不成立, 与 703 点阵屏配置的行为一致。 */
 #ifndef ID_WINDOW_VMENU

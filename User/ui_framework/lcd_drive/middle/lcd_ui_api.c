@@ -47,14 +47,11 @@ enum {
 
 #if TCFG_UI_ENABLE
 #if (TCFG_SPI_LCD_ENABLE || TCFG_LCD_OLED_ENABLE)
+/* 引脚与 SPI 实例【不在这里配】—— 看 port/board/ui_board_pins.h。
+ * 框架不持有引脚, 只调 ui_lcd_cs()/dc()/rst() 拉高拉低。
+ * 本实例保留是因为框架的 ui_devices_cfg.private_data 机制要一个非空指针。 */
 LCD_SPI_PLATFORM_DATA_BEGIN(lcd_spi_data)
-    .pin_reset	= TCFG_LCD_PIN_RESET,
-    .pin_cs		= TCFG_LCD_PIN_CS,
-    .pin_bl		= TCFG_LCD_PIN_BL,
-    .pin_dc		= TCFG_LCD_PIN_DC,
-    .pin_en		= TCFG_LCD_PIN_EN,
-    .pin_te		= TCFG_LCD_PIN_TE,
-    .spi_cfg = TCFG_TFT_LCD_DEV_SPI_HW_NUM,
+    .spi_pdata = NULL,
 LCD_SPI__PLATFORM_DATA_END()
 
 const struct ui_devices_cfg ui_cfg_data = {
