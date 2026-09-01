@@ -4,7 +4,7 @@
  *
  * 合并了原厂 interface/utils/debug.h(分级日志宏) 与
  * interface/system/generic/cpu.h(ASSERT) 两处, 只保留框架真正用到的。
- * 实现在 port/ui_port_log.c, 最终落到工程 RTT/log_debug.h 的串口打印。
+ * 实现在 common/ui_port_log.c, 最终落到工程 RTT/log_debug.h 的串口打印。
  *
  * @note 有意【不】叫 debug.h —— 避免和别处同名头相互抢占。
  */
@@ -60,6 +60,8 @@
  */
 void log_print(u32 level, const char *tag, const char *format, ...);
 
+void log_put_buf(const uint8_t *buf, u32 len);
+
 /* 十六进制转储【有意不另立接口】: 工程 RTT/log_debug.h 已有 put_buf() 宏
  * (同样是 %02X + 每 16 字节换行), 下面的 *_hexdump 直接转发过去。
  * 上面已经 include 了 log_debug.h, 所以 put_buf 在这里可用。 */
@@ -100,7 +102,7 @@ void log_print(u32 level, const char *tag, const char *format, ...);
 
 #ifdef LOG_DEBUG_ENABLE
 #define log_debug(fmt, ...)     log_print(__LOG_DEBUG, NULL, LOG_TAG fmt, ##__VA_ARGS__)
-#define log_debug_hexdump(x, y) put_buf((x), (y))
+#define log_debug_hexdump(x, y) log_put_buf((x), (y))
 #else
 #define log_debug(...)
 #define log_debug_hexdump(x, y)
@@ -109,7 +111,7 @@ void log_print(u32 level, const char *tag, const char *format, ...);
 #ifdef LOG_ERROR_ENABLE
 #define log_warn(fmt, ...)      log_print(__LOG_WARN,  NULL, "<warning>:" LOG_TAG fmt, ##__VA_ARGS__)
 #define log_error(fmt, ...)     log_print(__LOG_ERROR, NULL, "<error>:"   LOG_TAG fmt, ##__VA_ARGS__)
-#define log_error_hexdump(x, y) put_buf((x), (y))
+#define log_error_hexdump(x, y) log_put_buf((x), (y))
 #else
 #define log_warn(...)
 #define log_error(...)
@@ -117,7 +119,7 @@ void log_print(u32 level, const char *tag, const char *format, ...);
 #endif
 
 #ifdef LOG_DUMP_ENABLE
-#define log_info_hexdump(x, y)  put_buf((x), (y))
+#define log_info_hexdump(x, y)  log_put_buf((x), (y))
 #else
 #define log_info_hexdump(...)
 #endif
@@ -138,7 +140,7 @@ void log_print(u32 level, const char *tag, const char *format, ...);
 
 /* ---- 断言 -----------------------------------------------------------
  * config_asser 为真 = 断言失败时打印详情;
- * cpu_assert 是最终落点, 由 port/ui_port_log.c 决定停机还是继续。
+ * cpu_assert 是最终落点, 由 common/ui_port_log.c 决定停机还是继续。
  *
  * 保持原厂两级结构(而不是直接 while(1)), 因为框架里有 161 处 ASSERT,
  * 其中不少是"参数不该为空但为空了也能降级运行"的软断言。 */

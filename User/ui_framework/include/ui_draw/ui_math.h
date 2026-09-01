@@ -1,5 +1,5 @@
-#ifndef __JL_MATH_H__
-#define __JL_MATH_H__
+#ifndef __UI_MATH_H__
+#define __UI_MATH_H__
 
 #include "jl_typedef.h"
 
@@ -8,6 +8,7 @@ typedef struct {
     u16 f;
 } sqrt_res_t;
 
+#define AT_UI_RAM             //AT(.ui_ram)
 #define MATH_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MATH_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MATH_ABS(x) ((x) > 0 ? (x) : (-(x)))

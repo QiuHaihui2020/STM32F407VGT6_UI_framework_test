@@ -11,16 +11,14 @@
  *   - cpu_assert() : 框架 ASSERT 的语义与工程 configASSERT 不同 ——
  *                    config_asser 为假时只记录不停机, 所以不能直接用前者。
  *
- * 十六进制转储不在这里实现: 工程 log_debug.h 已有 put_buf() 宏,
- * jl_debug.h 的 *_hexdump 直接转发过去(见那边注释)。
+ *   - log_put_buf(): jl_debug.h 里 *_hexdump 的落点。没有直接复用工程
+ *                    log_debug.h 的 put_buf 宏, 理由见 jl_debug.h 里
+ *                    该声明的注释(宏展开位置 + NULL 判空)。
  */
 #include "jl_debug.h"
 #include "ui_port_config.h"
 #include <stdarg.h>
-
-/* 工程自己的打印宏。本文件是唯一把两套日志接在一起的地方,
- * 所以只有这里会同时包含 jl_debug.h 与 log_debug.h */
-#include "log_debug.h"
+#include "stdio.h"
 
 /** 断言开关。
  * 为真 = 断言失败时打印文件/行号后停机(调试用);
@@ -81,3 +79,18 @@ void cpu_assert(char *file, int line, bool condition, char *cond_str)
         /* 让看门狗把设备复位, 而不是死在这里没有任何反应 */
     }
 }
+
+void log_put_buf(const uint8_t *buf, uint32_t len)
+{
+    if (buf && len > 0) {
+        printf(RTT_CTRL_TEXT_BRIGHT_WHITE);
+        for (uint32_t i = 0; i < len; i++) {
+            if (i % 16 == 0) {
+                printf("\n");
+            }
+            printf("%02X ", buf[i]);
+        }
+        printf("\n");
+    }
+}
+

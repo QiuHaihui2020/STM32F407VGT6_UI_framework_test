@@ -66,12 +66,6 @@
 #define _NORETURN_      __attribute__((noreturn))
 #define _NAKED_         __attribute__((naked))
 
-/** 原厂把 UI 热代码摆进片内 RAM 段 .ui_ram 提速。
- * F407 从 Flash 取指有 ART 加速, 且改分散加载会污染工程, 故留空。
- * 若后续要提速: 在 .sct 里加 RAM 执行区, 再把本宏改回 AT(.ui_ram) */
-#ifndef AT_UI_RAM
-#define AT_UI_RAM
-#endif
 
 /* ---- 布尔 / 空指针 -------------------------------------------------- */
 #undef  FALSE

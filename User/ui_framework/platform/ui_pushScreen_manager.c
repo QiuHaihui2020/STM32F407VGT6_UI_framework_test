@@ -55,27 +55,6 @@
 #define PUSH_BY_SPI     1
 #define LCD_PUSHSCREEN_MODE     PUSH_BY_SPI
 
-#if 0
-/**********************************************************
- * 通过CPU判断有没有硬件推屏接口
- * 如果CPU有IMD模块，则默认使用IMD模块推屏
- * 如果CPU没有IMD模块，则默认使用硬件SPI推屏
- ***********************************************************/
-#if ((defined CONFIG_CPU_BR27) || (defined CONFIG_CPU_BR28) || (defined CONFIG_CPU_BR29))
-#define ui_draw				imd_draw
-#define ui_write_cmd		imd_write_cmd
-#define ui_set_area			imd_set_draw_area
-#define ui_clear_screen		imd_clear_screen
-
-#else
-#define ui_draw				spi_lcd_draw
-#define ui_write_cmd		spi_lcd_write_cmd
-#define ui_set_area			spi_lcd_set_draw_area
-#define ui_clear_screen		spi_lcd_clear_screen
-
-#endif
-#endif
-
 
 
 /* 推屏功能测试，将根据指定规则进行刷屏测试 */
@@ -206,23 +185,7 @@ static void lcd_reset()
  */
 void lcd_mcpwm_init()
 {
-#if (TCFG_BACKLIGHT_PWM_MODE == 2)
-    extern void mcpwm_init(struct pwm_platform_data * arg);
-    lcd_pwm_p_data.aligned_mode = MCPWM_EDGE_ALIGNED;         //边沿对齐
-    lcd_pwm_p_data.ch = MCPWM_CH0;                        //通道
-    lcd_pwm_p_data.frequency = 10000;                           //Hz
-    lcd_pwm_p_data.duty = 10000;                                //占空比
-    lcd_pwm_p_data.h_pin = lcd_dat->pin_bl;                     //任意引脚
-    lcd_pwm_p_data.l_pin = -1;                                  //任意引脚,不需要就填-1
-    lcd_pwm_p_data.complementary_en = 1;                        //两个引脚的波形, 0: 同步,  1: 互补，互补波形的占空比体现在H引脚上
 
-    lcd_pwm_p_data.detect_port = -1;
-    lcd_pwm_p_data.edge = MCPWM_EDGE_DEFAULT;
-    lcd_pwm_p_data.irq_cb = NULL;
-    lcd_pwm_p_data.irq_priority = 1;
-
-    mcpwm_init(&lcd_pwm_p_data);
-#endif
 }
 
 int lcd_drv_backlight_ctrl(u8 on)
@@ -231,31 +194,11 @@ int lcd_drv_backlight_ctrl(u8 on)
         __this->lcd->backlight_ctrl(on);
     } else if (lcd_dat->pin_bl != -1) {
 #if (TCFG_BACKLIGHT_PWM_MODE == 0)
-        gpio_set_mode(IO_PORT_SPILT(lcd_dat->pin_bl), on);
+
 #elif (TCFG_BACKLIGHT_PWM_MODE == 1)
-        //注意：duty不能大于prd，并且prd和duty是非标准非线性的，建议用示波器看着来调
-        extern int pwm_led_output_clk(u8 gpio, u8 prd, u8 duty);
-        if (on) {
-            extern int get_light_level();
-            u32 light_level = (get_light_level() + 1) * 2;
-            if (light_level > 10) {
-                light_level = 10;
-            }
-            pwm_led_output_clk(lcd_dat->pin_bl, 10, light_level);
-        } else {
-            pwm_led_output_clk(lcd_dat->pin_bl, 10, 0);
-        }
+
 #elif (TCFG_BACKLIGHT_PWM_MODE == 2)
-        if (on) {
-            extern int get_light_level();
-            u32 pwm_duty = (get_light_level() + 1) * 2 * 1000;
-            if (pwm_duty > 10000) {
-                pwm_duty = 10000;
-            }
-            mcpwm_set_duty(lcd_pwm_p_data.pwm_ch_num, pwm_duty);
-        } else {
-            mcpwm_set_duty(lcd_pwm_p_data.pwm_ch_num, 0);
-        }
+
 #endif
     } else {
         backlight_status = false;
@@ -1020,11 +963,32 @@ static int lcd_spi_clear_screen(u16 color)
 /**************** 使用spi接口推屏所用接口 ********************/
 
 /**************** OLED屏所用接口 ********************/
+/**
+ * @brief 整屏填充单色(点阵屏通路)
+ * @param color 只取低 8 位, 0x00=全灭 0xff=全亮; 一次发一整行(page)
+ *
+ * @note buf 为什么是 static 而不是局部数组:
+ *       1) 它是 DMA 的源地址。当前 spi_dma_send() 是同步的(发完才返回),
+ *          栈上数组【碰巧】安全; 一旦哪天换成异步 DMA, 函数返回后栈帧
+ *          被覆盖, DMA 就搬走垃圾数据 —— 这类问题只在上板时偶发。
+ *       2) STM32F407 的 CCM RAM(0x10000000) 【DMA 访问不到】。UI 任务栈
+ *          若分配在 CCM(F407 工程为省 SRAM 的常见做法), 栈上 buf 根本推
+ *          不出去。static 落在 .bss/SRAM1, 无此坑。
+ *       3) 省 128 字节栈 —— UI 任务栈 4KB 还要递归重绘控件树, 不算宽裕。
+ *
+ *       单例无重入风险: clear_screen 只由 ui_platform.c 在 UI 任务里调。
+ */
 static void oled_spi_clear_screen(u32 color)
 {
-    /* 128 * 64 bit */
-    u8 buf[128] = {0};  //根据点阵屏宽度改变
-    memset(&buf, (color & 0xff), 128);  //color为0x00或0xff
+    /* 一整行的行缓冲。尺寸跟随 ui_port_config.h 的屏宽, 不再写死 128 */
+    static u8 buf[UI_PORT_LCD_WIDTH] ALIGNED(4);
+
+    /* 屏驱 param_t 里的 lcd_width 与配置头是同一个真值源(见 lcd_drive/)。
+     * 万一有人只改了屏驱没改配置头, 这里挡住越界 DMA 而不是发出垃圾 */
+    ASSERT(__this->param->lcd_width <= sizeof(buf),
+           "lcd_width %d > UI_PORT_LCD_WIDTH %d", __this->param->lcd_width, (int)sizeof(buf));
+
+    memset(buf, (color & 0xff), sizeof(buf));  //color为0x00或0xff
     for (int i = 0; i < __this->param->lcd_height / 8; i++) {
         lcd_spi_write_cmd(0xb0 + i);
         lcd_spi_write_cmd(0x00);

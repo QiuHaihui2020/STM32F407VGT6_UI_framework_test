@@ -29,14 +29,21 @@
 
 
 
+/* 屏参唯一真值源在 port/ui_port_config.h 的 UI_PORT_LCD_WIDTH/HEIGHT。
+ * 这里只做语义分层的推导, 换屏时【只改那一处】:
+ *   LCD_*       物理分辨率
+ *   SCR_*       显示区域, 本屏整屏可见, 与物理分辨率相同
+ *   LCD_BLOCK_* 一次推屏的块大小, BUF_NUM=1 走整帧推送, 故等于整屏
+ * 原先这里是三组 128/64 字面量, 与 ui_port_config.h 各写一份,
+ * 改屏时漏改任一处都是运行期花屏/越界, 编译期查不出来。 */
 #define SCR_X 0
 #define SCR_Y 0
-#define SCR_W 128
-#define SCR_H 64
-#define LCD_W 128
-#define LCD_H 64
-#define LCD_BLOCK_W 128
-#define LCD_BLOCK_H 64
+#define LCD_W UI_PORT_LCD_WIDTH
+#define LCD_H UI_PORT_LCD_HEIGHT
+#define SCR_W LCD_W
+#define SCR_H LCD_H
+#define LCD_BLOCK_W LCD_W
+#define LCD_BLOCK_H LCD_H
 #define BUF_NUM 1  //单buf整帧推屏
 
 /*
@@ -97,7 +104,7 @@ struct imd_param param_t = {
     .drv_type	= IMD_DRV_SPI,
 
     .buffer_num  = BUF_NUM,
-    .buffer_size = LCD_BLOCK_W * LCD_BLOCK_H / 8,
+    .buffer_size = UI_PORT_LCD_BUF_SIZE,   /* == LCD_BLOCK_W * LCD_BLOCK_H / 8 */
     .fps = 60,
 
     .spi = {

@@ -27,7 +27,7 @@
 
 #include "jl_typedef.h"
 #include "jl_rect.h"
-#include "jl_math.h"
+#include "ui_math.h"
 #include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
 
 /* 以下三个类型原厂在 ui_draw/ui_circle.h 里, 字段序列与 DWARF 逐项核对过 */

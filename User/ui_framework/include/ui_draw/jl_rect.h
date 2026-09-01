@@ -3,7 +3,7 @@
 
 #include "jl_typedef.h"
 
-
+#define AT_UI_RAM             //AT(.ui_ram)
 
 struct position {
     int x;

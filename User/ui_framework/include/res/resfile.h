@@ -3,30 +3,18 @@
 
 #include "jl_typedef.h"
 #include "jl_fs.h"
-#include "jl_fs.h"
-// resfile共用文件句柄
-#if (defined(CONFIG_CPU_BR23) && defined(CONFIG_APP_WATCH))
+
+
 #define RESFILE_COMMON_HDL_EN		0
-#else
-#define RESFILE_COMMON_HDL_EN		0
-#endif
 
 #define FILE_TYPE_JPEG 	5
-/* AT_UI_RAM 已由 jl_typedef.h 统一给出(本移植是空宏), 这里不再重复定义 */
+#define AT_UI_RAM             //AT(.ui_ram)
 
 extern int JLUI_TYPE_AND_VERSION;
 
 
 //图像数据格式
 enum {
-#if ((defined CONFIG_CPU_BR23) || (defined CONFIG_CPU_BR27) || (defined CONFIG_APP_SOUNDBOX))
-    PIXEL_FMT_L1,
-    PIXEL_FMT_AL44,
-    PIXEL_FMT_AL88,
-    PIXEL_FMT_RGB565,
-    PIXEL_FMT_ARGB8565,
-    PIXEL_FMT_MAX,
-#else
     PIXEL_FMT_ARGB8888,
     PIXEL_FMT_RGB888,
     PIXEL_FMT_RGB565,
@@ -40,7 +28,6 @@ enum {
     PIXEL_FMT_SOLID,
     PIXEL_FMT_JPEG,
     PIXEL_FMT_UNKNOW,
-#endif
 };
 
 // #define EXTERN_PATH "storage/nor_ui/C/res/"

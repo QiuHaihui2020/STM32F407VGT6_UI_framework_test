@@ -5,7 +5,7 @@
 
 【什么时候要跑】
   CubeMX 重新生成代码之后。本工程 ProjectManager.TargetToolchain = MDK-ARM,
-  CubeMX 会重写 MDK-ARM/*.uvprojx, 把这里加的 7 个 UI 分组和 5 条头文件路径
+  CubeMX 会重写 MDK-ARM/*.uvprojx, 把这里加的 8 个 UI 分组和 7 条头文件路径
   全部冲掉 —— 表现是编译报一堆 "file not found" 或链接缺一大片 UI 符号。
   重跑本脚本即可恢复。
 
@@ -23,6 +23,7 @@ UIDIR = os.path.join(ROOT, 'User', 'ui_framework')
 
 # Keil 分组 -> 该组下的源文件目录(相对 ui_framework)
 GROUPS = [
+    ('UI/common',    ['common']),
     ('UI/port',      ['port', 'port/hal']),
     ('UI/platform',  ['platform']),
     ('UI/lcd_drive', ['lcd_drive']),
@@ -36,6 +37,8 @@ GROUPS = [
 # 用正斜杠, 与工程里已有的那批写法保持一致。
 INCLUDES = [
     '../User/ui_framework/include',
+    '../User/ui_framework/include/common',
+    '../User/ui_framework/common',
     '../User/ui_framework/include/ui/cpu/br27',
     '../User/ui_framework/compat',
     '../User/ui_framework/port',

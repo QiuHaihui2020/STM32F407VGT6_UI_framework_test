@@ -142,22 +142,3 @@ void spi_clear_pending(hw_spi_dev spi)
 {
     (void)spi;
 }
-
-
-/* ==================================================================== *
- *  背光 PWM
- *
- *  SSD1306 自发光无背光, TCFG_BACKLIGHT_PWM_MODE = 0 走纯 GPIO 分支,
- *  下面两个编译上要有, 运行时到不了。
- * ==================================================================== */
-
-void mcpwm_init(struct mcpwm_config *arg)
-{
-    (void)arg;
-}
-
-void mcpwm_set_duty(u8 ch, u32 duty)
-{
-    (void)ch;
-    (void)duty;
-}

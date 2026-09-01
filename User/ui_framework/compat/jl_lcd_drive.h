@@ -24,11 +24,15 @@
 #if (SPI_LCD_DEBUG_ENABLE == 0)
 #define lcd_d(...)
 #define lcd_w(...)
-#define lcd_e(fmt, ...) printf("[LCD ERROR]: " fmt, ##__VA_ARGS__)
+#define lcd_e(fmt, ...)	printf("[LCD ERROR]: "fmt, ##__VA_ARGS__)
+#elif (SPI_LCD_DEBUG_ENABLE == 1)
+#define lcd_d(...)
+#define lcd_w(fmt, ...)	printf("[LCD WARNING]: "fmt, ##__VA_ARGS__)
+#define lcd_e(fmt, ...)	printf("[LCD ERROR]: "fmt, ##__VA_ARGS__)
 #else
-#define lcd_d(fmt, ...) printf("[LCD DEBUG]: " fmt, ##__VA_ARGS__)
-#define lcd_w(fmt, ...) printf("[LCD WARNING]: " fmt, ##__VA_ARGS__)
-#define lcd_e(fmt, ...) printf("[LCD ERROR]: " fmt, ##__VA_ARGS__)
+#define lcd_d(fmt, ...)	printf("[LCD DEBUG]: "fmt, ##__VA_ARGS__)
+#define lcd_w(fmt, ...)	printf("[LCD WARNING]: "fmt, ##__VA_ARGS__)
+#define lcd_e(fmt, ...)	printf("[LCD ERROR]: "fmt, ##__VA_ARGS__)
 #endif
 
 
@@ -53,6 +57,8 @@
 #define REGFLAG_CONFIRM     ((REGFLAG_CONFIRM_FLAG >> 24) & 0xff), ((REGFLAG_CONFIRM_FLAG >> 16) & 0xff), \
                             ((REGFLAG_CONFIRM_FLAG >> 8) & 0xff),  (REGFLAG_CONFIRM_FLAG & 0xff)
 
+// 两毫秒延时
+extern void delay_2ms(int cnt);
 #define delay2ms(t)         delay_2ms(t)
 
 

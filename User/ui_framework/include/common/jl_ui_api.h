@@ -41,6 +41,7 @@ extern const struct ui_devices_cfg ui_cfg_data;
 int  lcd_ui_init(void *arg);
 int  ui_show_main(int id);
 int  ui_hide_main(int id);
+
 int  ui_hide_curr_main(void);
 int  ui_server_msg_post(const char *msg, ...);
 int  ui_touch_msg_post(struct touch_event *event);
@@ -50,6 +51,7 @@ void key_ui_takeover(u8 on);
 int  key_is_ui_takeover(void);
 void ui_backlight_open(u8 recover_cur_page);
 void ui_backlight_close(void);
+
 void ui_touch_timer_delete(void);
 void ui_touch_timer_start(void);
 void ui_auto_shut_down_modify(void);
@@ -62,6 +64,9 @@ typedef enum {
     SLIDE_MODE_NOT_RIGHT_FIRST,
     SLIDE_MODE_NOT_LOOP,
 } CARD_SLIDE_MODE;
+
+
+extern const struct ui_devices_cfg ui_cfg_data;
 
 /* ---- 应用层统一入口宏 ----------------------------------------------- */
 #if (TCFG_UI_ENABLE)

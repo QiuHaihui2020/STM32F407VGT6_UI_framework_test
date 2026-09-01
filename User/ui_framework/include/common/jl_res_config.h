@@ -32,7 +32,7 @@
 /** 表盘功能: 多套 watch 表盘 + 表盘升级, 只适用于彩屏手表。
  * 点阵屏开启会去加载不存在的 watch 资源并访问已废弃接口 */
 #define UI_WATCH_RES_ENABLE     0
-#define UI_UPGRADE_RES_ENABLE   0
+#define UI_UPGRADE_RES_ENABLE   1
 
 /* UI_USED_DOUBLE_BUFFER 有意【不】在这里定义 —— 它是移植配置项,
  * 统一放在 ui_port_config.h, 避免两处定义打架 */

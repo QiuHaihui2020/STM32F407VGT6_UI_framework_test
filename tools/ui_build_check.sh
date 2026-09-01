@@ -9,6 +9,7 @@ mkdir -p "$OUT"
 
 INC="
 -I$ROOT/User/ui_framework/include
+-I$ROOT/User/ui_framework/include/common
 -I$ROOT/User/ui_framework/include/ui/cpu/br27
 -I$ROOT/User/ui_framework/compat
 -I$ROOT/User/ui_framework/port

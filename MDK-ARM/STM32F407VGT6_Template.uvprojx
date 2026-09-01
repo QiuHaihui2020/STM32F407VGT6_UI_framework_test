@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,USE_USBD_COMPOSITE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal;../User/ui_framework/include/common;../User/ui_framework/common;..\User\ui_framework\include\ui_draw</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2858,22 +2858,37 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>UI/common</GroupName>
+          <Files>
+            <File>
+              <FileName>jl_ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>jl_crc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_crc.c</FilePath>
+            </File>
+            <File>
+              <FileName>jl_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\ui_config.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>UI/port</GroupName>
           <Files>
             <File>
               <FileName>ui_port_fs_fatfs.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
-            </File>
-            <File>
-              <FileName>ui_port_log.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_log.c</FilePath>
-            </File>
-            <File>
-              <FileName>ui_port_misc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_misc.c</FilePath>
             </File>
             <File>
               <FileName>ui_port_registry.c</FileName>
@@ -3452,7 +3467,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,RAM_DEBUG=1,USE_USBD_COMPOSITE1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/compat;../User/ui_framework/port;../User/ui_framework/port/hal;../User/ui_framework/include/common;../User/ui_framework/common</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -4285,22 +4300,37 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>UI/common</GroupName>
+          <Files>
+            <File>
+              <FileName>jl_ascii.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_ascii.c</FilePath>
+            </File>
+            <File>
+              <FileName>jl_crc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_crc.c</FilePath>
+            </File>
+            <File>
+              <FileName>jl_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\jl_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\common\ui_config.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>UI/port</GroupName>
           <Files>
             <File>
               <FileName>ui_port_fs_fatfs.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
-            </File>
-            <File>
-              <FileName>ui_port_log.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_log.c</FilePath>
-            </File>
-            <File>
-              <FileName>ui_port_misc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_misc.c</FilePath>
             </File>
             <File>
               <FileName>ui_port_registry.c</FileName>
