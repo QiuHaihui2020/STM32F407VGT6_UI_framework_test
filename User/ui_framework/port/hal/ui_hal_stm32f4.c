@@ -183,13 +183,8 @@ int32_t ui_hal_spi_send_block(const uint8_t *buf, uint32_t len, uint8_t is_wait)
 
 void ui_hal_spi_wait_done(void)
 {
-    uint32_t tickstart;
+    uint32_t tickstart = HAL_GetTick();
 
-    if (!s_is_dma_busy) {
-        return;
-    }
-
-    tickstart = HAL_GetTick();
     while (s_is_dma_busy) {
         wdt_clear();
         /* 超时兜底: 屏没接 / DMA 配错时不能把 UI 任务永久卡死,
@@ -197,6 +192,20 @@ void ui_hal_spi_wait_done(void)
         if ((HAL_GetTick() - tickstart) > UI_PORT_SPI_TIMEOUT_MS) {
             HAL_SPI_DMAStop(&hspi3);
             s_is_dma_busy = 0;
+            break;
+        }
+    }
+
+    /*
+     * 【为什么还要等 TXE/BSY】DMA 的传输完成中断是在"最后一字节被写进 SPI
+     * 数据寄存器"时触发的, 此刻移位寄存器里还有最多两字节尚未发上线。
+     * 调用方 oled_spi_draw() 紧跟着就拉高 CS —— 那两字节会被整片丢掉,
+     * 表现为每页右边少 1~2 列。所以必须等到 TXE 置起且 BSY 清零。
+     */
+    while ((__HAL_SPI_GET_FLAG(&hspi3, SPI_FLAG_TXE) == RESET) ||
+           (__HAL_SPI_GET_FLAG(&hspi3, SPI_FLAG_BSY) != RESET)) {
+        wdt_clear();
+        if ((HAL_GetTick() - tickstart) > UI_PORT_SPI_TIMEOUT_MS) {
             break;
         }
     }

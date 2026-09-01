@@ -227,7 +227,19 @@ static int jlui_put_draw_context(struct draw_context *dc)
 #endif
 #endif
         } else if (dc->data_format == DC_DATA_FORMAT_MONO) {
-            __this->lcd->draw(dc->buf, __this->info.width * __this->info.height / 8, wait);
+            u32 mono_len = __this->info.width * __this->info.height / 8;
+#if UI_PORT_PUSH_TRACE
+            /* 上板排查用: 区分 "没推屏" / "推了但 buffer 全 0" / "推了且有内容" */
+            u32 nz = 0;
+            for (u32 i = 0; i < mono_len; i++) {
+                if (dc->buf[i]) {
+                    nz++;
+                }
+            }
+            printf("[push] len=%d nonzero=%d wait=%d buf=%p\n",
+                   (int)mono_len, (int)nz, wait, dc->buf);
+#endif
+            __this->lcd->draw(dc->buf, mono_len, wait);
         }
     }
 

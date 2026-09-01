@@ -32,7 +32,9 @@
  * @note 未配置的引脚(UI_HAL_PIN_NONE 或 -1)静默忽略。框架里有些地方拿
  *       `!= -1` 判断、有些拿 `!= NO_CONFIG_PORT`, 两种都能被兜住。
  */
-void gpio_set_mode(u32 pin, u32 unused, u32 value);
+/* 两套调用约定: (pin, 0, value) 与 (pin/16, BIT(pin%16), value),
+ * 实现里按第二参是否为 0 区分, 详见 ui_port_shim.c */
+void gpio_set_mode(u32 port_or_pin, u32 bit_mask, u32 value);
 
 /** 读引脚电平。本移植无 TE 脚, 恒返回 0 */
 int gpio_read(u32 pin);

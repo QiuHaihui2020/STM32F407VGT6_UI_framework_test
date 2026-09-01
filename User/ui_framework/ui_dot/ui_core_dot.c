@@ -40,6 +40,7 @@
 #include "ui/ui_core.h"
 #include "jl_rect.h"
 #include "jl_debug.h"    /* ASSERT / config_asser: 原厂靠别处间接带入 */
+#include "ui_port_config.h"   /* UI_PORT_PUSH_TRACE: 上板排查开关 */
 
 /* 应用层没注册 handler 时的兜底; ui_core_set_default_handler 往里填回调 */
 struct element_event_handler dumy_handler;
@@ -1750,18 +1751,36 @@ int _ui_core_show(struct element *elm)
 
     ui_core_get_dc(elm);
 
+#if UI_PORT_PUSH_TRACE
+    printf("[show] enter id=0x%x parent_is_root=%d\n",
+           elm->id, (elm->parent == &root));
+#endif
+
     if (elm->parent == &root) {
         elm = ui_core_get_next_elm(elm);
         if (!elm) {
+#if UI_PORT_PUSH_TRACE
+            /* window 底下没有 layer -> 什么都不会画, 且返回值被 window.c 忽略 */
+            printf("[show] BAIL: window has no child layer\n");
+#endif
             return -EINVAL;
         }
+#if UI_PORT_PUSH_TRACE
+        printf("[show] descend to id=0x%x\n", elm->id);
+#endif
     }
 
     if (elm->dc->buf_num != 1) {
+#if UI_PORT_PUSH_TRACE
+        printf("[show] BAIL: buf_num=%d != 1\n", elm->dc->buf_num);
+#endif
         return 0;
     }
 
     if (elm->parent == &root) {
+#if UI_PORT_PUSH_TRACE
+        printf("[show] BAIL: elm still root child\n");
+#endif
         return 0;
     }
 
@@ -1812,6 +1831,11 @@ int _ui_core_show(struct element *elm)
 
     elm->dc->need_draw = r;
     memset(&elm->dc->disp, 0, sizeof(struct rect));
+
+#if UI_PORT_PUSH_TRACE
+    printf("[show] need_draw [%d,%d,%d,%d] align c=%d r=%d\n",
+           r.left, r.top, r.width, r.height, col_align, row_align);
+#endif
 
     while (elm->dc->need_draw.top + elm->dc->need_draw.height >
            elm->dc->disp.top + elm->dc->disp.height) {

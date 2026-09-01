@@ -21,9 +21,33 @@
  *  GPIO
  * ==================================================================== */
 
-void gpio_set_mode(u32 pin, u32 unused, u32 value)
+void gpio_set_mode(u32 port_or_pin, u32 bit_mask, u32 value)
 {
-    (void)unused;   /* 原厂第二参是位掩码, 见 jl_lcd_drive.h 的 IO_PORT_SPILT */
+    u32 pin;
+
+    /*
+     * 框架里 gpio_set_mode 有【两套调用约定】, 必须都认:
+     *
+     *   A) IO_PORT_SPILT(pin) 展开成 `(pin), 0`, 即
+     *      gpio_set_mode(pin, 0, value) —— 第一参【就是引脚号】。
+     *      lcd_reset() / lcd_bl_ctrl() / lcd_cs_ctrl() 走这条。
+     *
+     *   B) gpio_set_mode(pin / 16, BIT(pin % 16), value) —— 第一参是
+     *      【端口号】, 引脚编号藏在第二参的位掩码里。
+     *      lcd_cs_l/h()、lcd_rs_l/h()、lcd_spi_dev_init() 走这条。
+     *
+     * 两者可无歧义区分: A 的第二参恒为字面 0, B 的恒为某个 BIT(n) 非 0。
+     *
+     * 【为什么 B 必须单独处理】本移植的引脚号是 ui_hal_pin_t 枚举(1..4,
+     * 都小于 16), 走 B 时 pin / 16 恒等于 0。若按 A 解释, 第一参 0 正好
+     * 撞上 UI_HAL_PIN_NONE, CS 与 DC 的每一次翻转都会被整条跳过 ——
+     * 面板收不到命令/数据的区分, 表现是【全黑且不报任何错】。
+     */
+    if (bit_mask != 0) {
+        pin = (port_or_pin * 16U) + (u32)__builtin_ctz(bit_mask);
+    } else {
+        pin = port_or_pin;
+    }
 
     /* 框架里判"引脚未配置"有两种写法: `== NO_CONFIG_PORT`(-1) 和 `!= -1`,
      * 而 ui_port_config.h 给未接的脚填的是 UI_HAL_PIN_NONE(0)。
