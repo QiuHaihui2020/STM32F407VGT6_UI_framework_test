@@ -8,7 +8,7 @@
  *
  * 【谁在用】res.a 里 UI 依赖最重的一块。驱动层 ui_resources_manager.c /
  *   ui_synthesis_oled.c 用 open_resfile / open_image_by_id / br23_read_image_data
- *   / res_f* 一族; 已还原的框架代码 ui_draw/image_process.c 用
+ *   / res_f* 一族; 已还原的框架代码 liba/ui_draw/image_process.c 用
  *   br23_read_image_data / read_palette / select_resfile。
  *
  * 【无需行号锁定】本模块【没有任何 ASSERT】(declare 区无 cpu_assert),

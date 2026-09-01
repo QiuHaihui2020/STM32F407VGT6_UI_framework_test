@@ -3,8 +3,8 @@
  * @brief   点阵屏 UI 框架 —— 移植配置总入口
  *
  * 本文件承担原厂 SDK 里 app_config.h + board_config.h 两者的角色。
- * compat/app_config.h 只是转发到这里, 让框架源码里的
- * #include "app_config.h" 原样可用。
+ * 原先还有一个 compat/app_config.h 转发到这里, 让框架源码里的
+ * #include "app_config.h" 原样可用; 现已不需要(全工程零处 include)。
  *
  * 改板子 / 改屏 / 改 MCU 时, 优先只改这个文件。
  */
@@ -12,9 +12,9 @@
 #define __UI_PORT_CONFIG_H__
 
 /* 本文件【不再 include 任何硬件相关头】。引脚与外设完全封在 port 里:
- *   port/ui_lcd_if.h            框架看得到的唯一硬件边界(纯语义函数)
- *   port/board/ui_board_pins.h  接线     —— 只有 port/lcd/ 下的实现读得到
- *   port/board/ui_board_*.h     外设实例 —— 同上 */
+ *   port/bsp/ui_lcd_if.h            框架看得到的唯一硬件边界(纯语义函数)
+ *   port/bsp/stm32f4/ui_board_pins.h  接线     —— 只有 port/lcd/ 下的实现读得到
+ *   port/bsp/stm32f4/ui_board_*.h     外设实例 —— 同上 */
 
 /* ========================================================================
  * 一、功能裁剪开关(对应原厂 app_config.h 的 TCFG_*)
@@ -71,7 +71,6 @@
 #define UI_PORT_LCD_HEIGHT              64
 /** 单色屏一帧显存字节数: 1bpp, 每 8 行打包成一个 page */
 #define UI_PORT_LCD_BUF_SIZE            (UI_PORT_LCD_WIDTH * UI_PORT_LCD_HEIGHT / 8)
-#define UI_PORT_LCD_PAGE_NUM            (UI_PORT_LCD_HEIGHT / 8)
 
 
 /* ========================================================================
@@ -80,7 +79,10 @@
 
 #define UI_PORT_TASK_NAME               "ui"
 /* 框架递归重绘控件树 + 字模取模, 栈需求偏大。原厂给的是 1024 字(4KB),
- * 这里按 FreeRTOS 的"字"为单位配置, 见 port/ui_port_os.c 的注册表 */
+ * 这里按 FreeRTOS 的"字"为单位配置。
+ * ⚠ 本节三个宏当前【零处使用】: UI 任务实际由工程的
+ *   FreeRTOS/task_manager.c 建立, 栈深/优先级写在那边。这几个留着只作
+ *   文档 —— 要真正生效得把 task_manager 里的建任务参数改成引用它们。 */
 #define UI_PORT_TASK_STACK_WORDS        1024
 #define UI_PORT_TASK_PRIORITY           4
 #define UI_PORT_TASK_QSIZE              32
@@ -89,10 +91,10 @@
 /* ========================================================================
  * 四、硬件
  *
- * 【本节已空】—— 引脚、SPI 实例、DMA 通路全部移到 port/board/ 下。
+ * 【本节已空】—— 引脚、SPI 实例、DMA 通路全部移到 port/bsp/ 下。
  *
  * 原先这里写的是 GPIOB / GPIO_PIN_6 / DMA1_Stream5 这些【STM32 HAL 符号】,
- * 而本文件被 ui_dot/、common/、middle/ 都 include 了 —— 等于让 MCU 无关的
+ * 而本文件被 liba/ui_dot/、liba/common/、lcd_drive/middle/ 都 include 了 —— 等于让 MCU 无关的
  * 核心层看见了 STM32。后来改成引脚 token 转发(TCFG_LCD_PIN_*), 虽然不再有
  * 厂商符号, 但框架仍然"知道有引脚这回事"、还要懂 token 的编码约定。
  *
@@ -117,7 +119,7 @@
  *
  * 框架不是直接用这两个宏, 而是自己拼 "子目录/文件名", 例如
  * ui_resources_manager.c 里写的是 RES_PATH"JL/JL.res" 和 FONT_PATH"ascii.res"
- * (见 compat/jl_res_config.h 的 RES_PATH / FONT_PATH)。
+ * (见 include/common/jl_res_config.h 的 RES_PATH / FONT_PATH)。
  *
  * ⚠ 所以 UI_PORT_RES_ROOT 是【盘根】, 不能再多一层目录 ——
  *   写成 "0:/ui" 会让路径变成 0:/ui/JL/JL.res, 与盘上的 0:/JL/JL.res 对不上,
@@ -128,10 +130,54 @@
 #define UI_PORT_FONT_ROOT               "0:/font"
 
 /* ========================================================================
- * 六、上板排查开关
+ * 五半、资源读取后端
+ *
+ * 存储层分两半(见 port/res/ui_res_backend.h):
+ *   liba/res/ui_res_core.c    介质无关 —— 句柄池/校验/seek 换算/挂载幂等
+ *   port/res/ui_res_<介质>.c 介质相关 —— 只实现 8 个函数
+ *
+ * 换文件系统: 改这里的宏 + 在 Keil 工程里换成对应的后端 .c。
  * ======================================================================== */
 
-/** 打印文件系统实际目录树。见 compat/jl_fs.h 的 ui_fs_dump_tree() */
+#define UI_RES_BACKEND_FATFS        1   /**< 资源放在 FATFS 卷上 */
+/* #define UI_RES_BACKEND_RAWFLASH  1 */ /**< 裸 flash + 打包索引(尚未实现) */
+
+
+/* ========================================================================
+ * 六、功能关闭开关
+ * ======================================================================== */
+
+/**
+ * 歌词时间标签【直存 flash】。本移植不需要, 固定为 0。
+ *
+ * 这是原厂为"长歌词文件"做的优化: 把解析好的时间标签索引写回
+ * norflash, 下次直接读索引而不用重新解析整个文件。它依赖三个
+ * 前提, 本移植一个都不成立:
+ *
+ *   1) 要能拿到文件在 flash 上的物理地址。原厂靠 vfs 的起始簇号
+ *      (resfile_attrs.sclust)换算; FATFS 不对外暴露簇号, 本移植恒填 0。
+ *   2) 要能直接擦写那块 flash。本移植资源在 FATFS 卷上, 绕过文件系统
+ *      去擦扇区会直接写坏卷。
+ *   3) 要能把 flash 地址当指针解引用(XIP 内存映射)。杰理的 norflash
+ *      挂在可寻址总线上; 本移植的资源盘拿不到线性地址。
+ *
+ * 置 0 后 port 侧的四个存根(sfc_erase / sfc_write / sdfile_*)一律返回
+ * 【失败】, 歌词模块会在第一个擦除就干净放弃, 改走每次重新解析 ——
+ * 功能上只是慢一点, 不会出错。
+ *
+ * ☠ 不能把这四个符号直接删掉: liba/ui_dot/lyrics.c 里 extern 了它们,
+ *   而那个文件受等价性锁保护改不得。现在链接器看到歌词零调用,
+ *   会把 lyrics.o 连同这几个存根整个丢弃(已验: 42 个 section 全被移除),
+ *   所以留着它们【不占任何 code】。
+ */
+#define UI_PORT_LYRICS_FLASH_SAVE_ENABLE    0
+
+
+/* ========================================================================
+ * 七、上板排查开关
+ * ======================================================================== */
+
+/** 打印文件系统实际目录树。见 include/common/jl_fs.h 的 ui_fs_dump_tree() */
 #define UI_PORT_FS_DUMP_TREE            1
 
 /** 推屏跟踪。每推一帧打一行 len / 非零字节数, 用来区分三种"黑屏":

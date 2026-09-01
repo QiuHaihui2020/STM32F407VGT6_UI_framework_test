@@ -12,7 +12,7 @@
  * │   project.bin -> tools/JL/JL.sty       窗口/控件布局               │
  * │   result.bin  -> tools/JL/JL.res       图片资源                    │
  * │   result.str  -> tools/JL/JL.str       字符串图片                  │
- * │   ename.h     -> port/style_jl02.h     ★ 全部控件/窗口 ID          │
+ * │   ename.h     -> include/common/style_jl02.h     ★ 全部控件/窗口 ID          │
  * │                                                                    │
  * │ 所以【style_jl02.h 是自动生成的, 不要手改】——                      │
  * │ 每次用工具改界面都会被覆盖。要改的是本文件的映射。                  │
@@ -20,7 +20,7 @@
  *
  * ID 是工具算出来的哈希(如 PAGE_1 = 0x420001), 不是顺序编号。
  * 其中高 3 位是"资源工程号 pj_id"((id >> 29) & 0x7), 本工程只有一套
- * JL 资源, 所有 ID 的高 3 位都是 0 —— 详见 port/ui_port_registry.c 第三节。
+ * JL 资源, 所有 ID 的高 3 位都是 0 —— 详见 config/ui_port_registry.c 第三节。
  */
 #ifndef __UI_STYLE_H__
 #define __UI_STYLE_H__
@@ -32,7 +32,7 @@
 
 /** 风格名。
  *
- * ⚠ 必须是 JL, 不能改成 jl02 之类 —— 它要和 middle/ui_resources_manager.c
+ * ⚠ 必须是 JL, 不能改成 jl02 之类 —— 它要和 lcd_drive/middle/ui_resources_manager.c
  *   传给 ui_core_set_style() 的字符串【逐字相同】, 而那个字符串是从资源
  *   文件名推导的:
  *
@@ -77,7 +77,7 @@
 #define ID_WINDOW_SINK          (-1)
 #endif
 
-/* middle/lcd_ui_api.c 直接引用了 ID_WINDOW_VMENU(判断"当前是否在竖向菜单")。
+/* lcd_drive/middle/lcd_ui_api.c 直接引用了 ID_WINDOW_VMENU(判断"当前是否在竖向菜单")。
  * ui_128_64_JL02 里没有独立的竖向菜单页, 用 (-1) 表示不存在 —— 那处判断
  * 恒不成立, 与 703 点阵屏配置的行为一致。 */
 #ifndef ID_WINDOW_VMENU

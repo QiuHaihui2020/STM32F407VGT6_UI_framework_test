@@ -8,7 +8,7 @@
  *
  * 【谁在用】UI 侧用得最广的 res.a 接口之一:
  *     驱动层 ui_synthesis_oled.c;
- *     已还原的框架代码 ui_dot/ui_rotate.c 与 ui_draw/image_process.c。
+ *     已还原的框架代码 liba/ui_dot/ui_rotate.c 与 liba/ui_draw/image_process.c。
  *
  * 【行号锁定】两处 ASSERT(0) 必须落在原始行号 44 / 67。函数体由
  *   cpu/br27/tools/ui_reimpl/gen_rle.py 按绝对行号拼出, 空行不要随意增删;

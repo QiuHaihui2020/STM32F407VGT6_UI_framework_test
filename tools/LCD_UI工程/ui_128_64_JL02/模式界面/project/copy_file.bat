@@ -5,7 +5,7 @@ rem  Copies the generated files into the STM32 project.
 rem
 rem  NOTE: keep this file ASCII-only. cmd.exe reads .bat in the system ANSI
 rem  codepage; UTF-8 comments get mis-decoded and break parsing.
-rem  Chinese explanation lives in User/ui_framework/port/ui_style.h.
+rem  Chinese explanation lives in User\ui_framework\include\common\ui_style.h.
 rem
 rem  This script sits in:
 rem    STM32F407VGT6_Template\tools\LCD_UI...\ui_128_64_JL02\...\project\
@@ -13,19 +13,23 @@ rem  Going up:  ..(x1) ..(x2) ..(x3)=tools  ..(x4)  ..(x5)=STM32F407VGT6_Templat
 rem
 rem  Differences from the original JL703 version (different tree layout):
 rem    resources : tools\ui_resource\        ->  tools\JL\
-rem    id header : apps\soundbox\include\ui\ ->  User\ui_framework\port\
+rem    id header : apps\soundbox\include\ui\ ->  User\ui_framework\include\common\
 rem                             style_JL02.h                 style_jl02.h
+rem
+rem  History: the id header used to land in User\ui_framework\port\ . The tree
+rem  was reorganised (port\ now holds only MCU/FS porting code, all framework
+rem  headers moved under include\ ), so it goes to include\common\ now.
 rem ===========================================================================
 
 set RES_DIR=..\..\..\..\JL
-set PORT_DIR=..\..\..\..\..\User\ui_framework\port
+set HDR_DIR=..\..\..\..\..\User\ui_framework\include\common
 
 if not exist "%RES_DIR%\" (
     echo [copy_file] ERROR: resource dir not found: %RES_DIR%
     goto :fail
 )
-if not exist "%PORT_DIR%\" (
-    echo [copy_file] ERROR: port dir not found: %PORT_DIR%
+if not exist "%HDR_DIR%\" (
+    echo [copy_file] ERROR: header dir not found: %HDR_DIR%
     goto :fail
 )
 
@@ -44,16 +48,16 @@ echo [copy_file] resources -^> %RES_DIR%
 
 rem ---- control / window id header ------------------------------------------
 rem  ename.h holds the hashed ids (PAGE_0..PAGE_10 and every control).
-rem  port\ui_style.h includes it and maps them to ID_WINDOW_* names.
+rem  include\common\ui_style.h includes it and maps them to ID_WINDOW_* names.
 rem  GENERATED FILE - do not edit by hand.
-copy /Y ".\ename.h" "%PORT_DIR%\style_jl02.h" > nul
+copy /Y ".\ename.h" "%HDR_DIR%\style_jl02.h" > nul
 if errorlevel 1 goto :fail
-echo [copy_file] id header -^> %PORT_DIR%\style_jl02.h
+echo [copy_file] id header -^> %HDR_DIR%\style_jl02.h
 
 echo [copy_file] done.
 echo [copy_file] NOTE: resources are staged in tools\JL\ ; they still need to
 echo [copy_file]       be placed on the internal-flash FATFS disk. Target path
-echo [copy_file]       is UI_PORT_RES_ROOT in port\ui_port_config.h.
+echo [copy_file]       is UI_PORT_RES_ROOT in config\ui_port_config.h.
 exit /b 0
 
 :fail

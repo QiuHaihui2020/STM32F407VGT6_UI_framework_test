@@ -49,7 +49,7 @@
  * armclang(AC6) 是 clang 前端, GNU 属性全部可用。
  *
  * SEC/sec/AT 在原厂用于把代码数据摆进指定段, 配合 GNU ld 的段收集做
- * 控件注册表。STM32 侧注册表已改为显式表(port/ui_port_registry.c),
+ * 控件注册表。STM32 侧注册表已改为显式表(config/ui_port_registry.c),
  * 因此这些宏【有意留空】—— 保留段属性只会迫使 Keil 分散加载文件跟着改,
  * 反而不利于再移植。 */
 #define SEC(x)
@@ -144,7 +144,7 @@
 #define container_of(ptr, type, memb) \
     ((type *)((char *)(ptr) - offsetof(type, memb)))
 
-/** 资源缓存指纹用的哈希。实现在 port/ui_port_misc.c */
+/** 资源缓存指纹用的哈希。实现在 liba/common/jl_ascii.c */
 u32 JBHash(const void *data, int len);
 
 #endif /* __JL_TYPEDEF_H__ */

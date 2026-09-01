@@ -2,7 +2,7 @@
  * @file    jl_app_stub.h
  * @brief   原厂应用侧头文件的占位替代
  *
- * 框架的 middle/ 几个文件 include 了 703 音箱工程的应用侧头:
+ * 框架的 lcd_drive/middle/ 几个文件 include 了 703 音箱工程的应用侧头:
  *   app_main.h / app_task.h / key_event_deal.h / dev_manager.h /
  *   rcsp_task.h / btstack/avctp_user.h / lua/lua.h / clock_cfg.h /
  *   ui/ui_page_switch.h / ui/ui_sys_param.h
@@ -10,7 +10,7 @@
  * 与 UI 显示无关, 在本移植里【一律不实现】。
  *
  * 本文件只给出框架编译期确实要用到的那几个声明。真正被调用到的运行期
- * 实现放在 port/ui_port_stubs.c, 全部是安全的空动作 / 返回失败。
+ * 实现放在 liba/common/ui_port_stubs.c, 全部是安全的空动作 / 返回失败。
  */
 #ifndef __JL_APP_STUB_H__
 #define __JL_APP_STUB_H__

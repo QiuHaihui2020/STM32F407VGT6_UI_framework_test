@@ -3,7 +3,7 @@
  * @brief   板级外设资源 —— 用 MCU 的哪套 SPI / DMA / 中断
  *
  * 本文件【含 STM32 HAL 符号】(DMA1_Stream5 / DMA_CHANNEL_0 ...), 所以
- * 只允许 port/hal/ui_hal_stm32f4.c 一个文件 include。框架层若引到它,
+ * 只允许 port/bsp/stm32f4/ui_lcd_stm32f4.c 一个文件 include。框架层若引到它,
  * 就等于让 MCU 符号漏进了 MCU 无关的代码 —— 换芯片时会编不过。
  *
  * 换 MCU 时: 本文件整份重写(连文件名一起), 引脚表 ui_board_pins.h

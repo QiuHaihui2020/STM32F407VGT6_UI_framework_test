@@ -71,7 +71,7 @@ static struct lcd_platform_data *lcd_dat = NULL;
 /* 原有 `struct mcpwm_config lcd_pwm_p_data;` 已删除: 该类型来自杰理的
  * asm/mcpwm.h(移植期由 port/ui_port.h 仿造), 而全工程【零处使用】——
  * TCFG_BACKLIGHT_PWM_MODE=0 走纯 GPIO, mcpwm_init/set_duty 连实现都没有。
- * 需要 PWM 调背光时, 在 port/ui_lcd_if.h 里加 ui_lcd_backlight_set() 更直接。 */
+ * 需要 PWM 调背光时, 在 port/bsp/ui_lcd_if.h 里加 ui_lcd_backlight_set() 更直接。 */
 
 
 // 推屏管理模块私有参数，读写命令、数据需要根据不同屏幕配置，因此需根据屏幕类型设置
@@ -89,7 +89,7 @@ static struct ui_push_screen_var push_screen = {0};
 
 /*
  * 控制线。本文件【不知道任何引脚】—— 只说"把这条线拉高/拉低",
- * 接在哪个端口哪一位写在 port/board/ui_board_pins.h 里。
+ * 接在哪个端口哪一位写在 port/bsp/stm32f4/ui_board_pins.h 里。
  *
  * 原厂这几个函数里是 `gpio_set_mode(lcd_dat->pin_cs / 16,
  * BIT(lcd_dat->pin_cs % 16), val)` —— 框架既持有引脚编号、又要自己把它
@@ -369,7 +369,7 @@ int lcd_drv_init(void *p)
     lcd_dat = (struct lcd_platform_data *)cfg->private_data;
     ASSERT(lcd_dat, "Error! spi io not config");
 
-    /* 引脚已不在本层可见, 要看实际接线去 port/board/ui_board_pins.h */
+    /* 引脚已不在本层可见, 要看实际接线去 port/bsp/stm32f4/ui_board_pins.h */
     log_debug("lcd drv init, type:%d\n", __this->lcd_type);
 
     /* 给屏供电。没接使能脚时这是空操作 */
@@ -650,7 +650,7 @@ int lcd_sleep_ctrl(u8 enter)
  *********************************************************************************************************
  */
 
-/* lcd_get_hdl() 已移到 port/ui_port_registry.c ——
+/* lcd_get_hdl() 已移到 config/ui_port_registry.c ——
  * 原实现遍历链接器收集的 .lcd_if_info 段, 移植后改为显式注册表,
  * 与控件/风格两张表放在同一个文件里便于对照。 */
 

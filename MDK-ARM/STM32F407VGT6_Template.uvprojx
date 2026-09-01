@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,USE_USBD_COMPOSITE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/config;../User/ui_framework/port;../User/ui_framework/port/board;../User/ui_framework/include/common;../User/ui_framework/liba/common;..\User\ui_framework\include\ui_draw</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/config;../User/ui_framework/include;../User/ui_framework/include/common;../User/ui_framework/include/font;../User/ui_framework/include/res;../User/ui_framework/include/ui;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/include/ui/cpu/br27/asm;../User/ui_framework/include/ui_draw;../User/ui_framework/include/ui_vm;../User/ui_framework/port/bsp;../User/ui_framework/port/bsp/stm32f4;../User/ui_framework/port/res;../User/ui_framework/port/rtos</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2886,9 +2886,9 @@
           <GroupName>UI/port</GroupName>
           <Files>
             <File>
-              <FileName>ui_port_fs_fatfs.c</FileName>
+              <FileName>ui_res_fatfs.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
+              <FilePath>..\User\ui_framework\port\res\fatfs\ui_res_fatfs.c</FilePath>
             </File>
             <File>
               <FileName>ui_port_registry.c</FileName>
@@ -2903,7 +2903,7 @@
             <File>
               <FileName>ui_lcd_stm32f4.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\lcd\ui_lcd_stm32f4.c</FilePath>
+              <FilePath>..\User\ui_framework\port\bsp\stm32f4\ui_lcd_stm32f4.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3124,6 +3124,11 @@
               <FileName>rle.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\ui_framework\liba\res\rle.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_res_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\liba\res\ui_res_core.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3462,7 +3467,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx,RAM_DEBUG=1,USE_USBD_COMPOSITE1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/include;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/config;../User/ui_framework/port;../User/ui_framework/port/board;../User/ui_framework/include/common;../User/ui_framework/liba/common</IncludePath>
+              <IncludePath>../Core/Inc;../FATFS/Target;../FATFS/App;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Middlewares/Third_Party/FatFs/src;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../User/lcd;../RTT;../FreeRTOS;../FreeRTOS/include;../User/key;../USB_DEVICE/App;../USB_DEVICE/Target;../Middlewares/ST/STM32_USB_Device_Library/Core/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/AUDIO/Inc;../User/test;../FreeRTOS/port/GCC/ARM_CM4F;../Middlewares/ST/STM32_USB_Device_Library/Class/MSC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/COMPOSITE/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CompositeBuilder/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/MIDI/Inc;../Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc;../User/fs;../User/apps;../User/led;../User/ui_framework/config;../User/ui_framework/include;../User/ui_framework/include/common;../User/ui_framework/include/font;../User/ui_framework/include/res;../User/ui_framework/include/ui;../User/ui_framework/include/ui/cpu/br27;../User/ui_framework/include/ui/cpu/br27/asm;../User/ui_framework/include/ui_draw;../User/ui_framework/include/ui_vm;../User/ui_framework/port/bsp;../User/ui_framework/port/bsp/stm32f4;../User/ui_framework/port/res;../User/ui_framework/port/rtos</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -4323,9 +4328,9 @@
           <GroupName>UI/port</GroupName>
           <Files>
             <File>
-              <FileName>ui_port_fs_fatfs.c</FileName>
+              <FileName>ui_res_fatfs.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\ui_port_fs_fatfs.c</FilePath>
+              <FilePath>..\User\ui_framework\port\res\fatfs\ui_res_fatfs.c</FilePath>
             </File>
             <File>
               <FileName>ui_port_registry.c</FileName>
@@ -4340,7 +4345,7 @@
             <File>
               <FileName>ui_lcd_stm32f4.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\User\ui_framework\port\lcd\ui_lcd_stm32f4.c</FilePath>
+              <FilePath>..\User\ui_framework\port\bsp\stm32f4\ui_lcd_stm32f4.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -4561,6 +4566,11 @@
               <FileName>rle.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\User\ui_framework\liba\res\rle.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_res_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\User\ui_framework\liba\res\ui_res_core.c</FilePath>
             </File>
           </Files>
         </Group>

@@ -47,7 +47,7 @@ enum {
 
 #if TCFG_UI_ENABLE
 #if (TCFG_SPI_LCD_ENABLE || TCFG_LCD_OLED_ENABLE)
-/* 引脚与 SPI 实例【不在这里配】—— 看 port/board/ui_board_pins.h。
+/* 引脚与 SPI 实例【不在这里配】—— 看 port/bsp/stm32f4/ui_board_pins.h。
  * 框架不持有引脚, 只调 ui_lcd_cs()/dc()/rst() 拉高拉低。
  * 本实例保留是因为框架的 ui_devices_cfg.private_data 机制要一个非空指针。 */
 LCD_SPI_PLATFORM_DATA_BEGIN(lcd_spi_data)
@@ -1443,7 +1443,7 @@ int lcd_ui_init(void *arg)
      *
      * ⚠ 因此 lcd_ui_init() 【不校验资源是否存在】: 资源缺失时它照样返回
      *   成功, 问题推迟到真正打开资源时才暴露(表现为界面空白)。
-     *   排查"屏幕全黑"时看 port/ui_port_fs_fatfs.c 里 resfile_open 的
+     *   排查"屏幕全黑"时看 liba/res/ui_res_core.c 里 resfile_open 的
      *   debug 日志, 别被这里的成功返回误导。 */
     log_info("ui: start opening resource\n");
 

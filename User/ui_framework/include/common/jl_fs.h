@@ -5,9 +5,20 @@
  * 框架读 .res / .str / .sty 资源和 .PIX / .TAB 字库, 全部只经过本文件
  * 声明的这套接口。没有第二层封装。
  *
- * 移植到别的文件系统时:
- *   复制 port/ui_port_fs_fatfs.c 改名, 实现下面全部函数即可。
- *   框架源码、其余 compat/ 与 port/ 文件都不需要动。
+ * 存储层已拆成两半, 本文件声明的接口由前者实现:
+ *   liba/res/ui_res_core.c      介质无关 —— 句柄池 / 句柄校验 / 参数检查 /
+ *                               seek 的 whence 换算与越界判断 / 挂载幂等
+ *   port/res/ui_res_fatfs.c     介质相关 —— 只实现 8 个后端函数
+ *
+ * 所以换文件系统【不是重写本接口】: 照 ui_res_fatfs.c 写一个新后端
+ * (实代码 ~100 行), 在 port/res/ui_res_backend.h 的 CTX_SIZE 表里加一行,
+ * 改 config/ui_port_config.h 的 UI_RES_BACKEND_* 宏。core 与框架都不动。
+ *
+ * 接口面已按【实际调用】收敛过 —— 原先还有 resfile_get_pos /
+ * resfile_get_name / resfile_write / fread_fast / fseek_fast 五个, 全工程
+ * 零调用, 却让每个移植者都要白写一遍(get_name 还要在句柄里存一份
+ * 文件名, 8 个句柄白占 128 字节 RAM)。真需要写入能力时再加, 到时
+ * 只有一个调用方, 接口形状反而能按真实需求定。
  *
  * @note 接口名沿用杰理的 resfile_* / mount, 是为了让框架 39 个 .c 的调用点
  *       一行都不用改 —— 这些名字本身就是一套通用的只读文件 API,
@@ -57,7 +68,7 @@ int ui_fs_mount(void);
  * @brief 打印文件系统上的实际目录树(排查用)
  *
  * "资源找不到 / 界面全黑" 是上板阶段最常见的问题, 原因基本都是路径对不上。
- * 把盘上实际内容打出来, 和 port/ui_port_config.h 里的 UI_PORT_RES_ROOT /
+ * 把盘上实际内容打出来, 和 config/ui_port_config.h 里的 UI_PORT_RES_ROOT /
  * UI_PORT_FONT_ROOT 一对照就清楚了。ui_fs_mount() 成功后会自动调一次。
  *
  * @note 关掉它: 在 ui_port_config.h 里 #define UI_PORT_FS_DUMP_TREE 0
@@ -92,36 +103,16 @@ int resfile_seek(RESFILE *fp, u32 offset, u32 fromwhere);
 int resfile_get_len(RESFILE *fp);
 
 /**
- * @brief 取当前读写指针位置
- * @return >=0 为位置; <0 见 enum resfile_err_code
- */
-int resfile_get_pos(RESFILE *fp);
-
-/**
  * @brief 取文件属性
  * @return 0 成功; <0 见 enum resfile_err_code
  */
 int resfile_get_attrs(RESFILE *fp, struct resfile_attrs *attrs);
 
 /**
- * @brief 取文件名
- * @return 0 成功; <0 见 enum resfile_err_code
- */
-int resfile_get_name(RESFILE *fp, void *name, u32 len);
-
-/**
  * @brief 关闭
  * @return 0 成功; <0 见 enum resfile_err_code
  */
 int resfile_close(RESFILE *fp);
-
-/**
- * @brief 写入。仅歌词功能会把解析后的索引写回, 只读实现可直接返回
- *        RESFILE_ERR_OPS_NO_SUPPORT —— 框架会如实向上报错, 不会拿脏数据跑
- * @return >=0 为实际写入字节数; <0 见 enum resfile_err_code
- */
-int resfile_write(RESFILE *fp, void *buf, u32 len);
-
 
 /* ==================================================================== *
  *  兼容用的零碎项
@@ -147,19 +138,22 @@ struct vfs_attr {
     struct sys_time acc_time;
 };
 
-/** 表盘背景功能(watch_bgp.c)专用。点阵屏下 UI_WATCH_RES_ENABLE=0,
- * 这两个的调用点被整块编译掉, 留声明只为再打开时能报出明确错误 */
-int fread_fast(void *fp, void *buf, u32 len);
-int fseek_fast(void *fp, u32 offset, int fromwhere);
 
 /* ---- 歌词索引回写用的 flash 直存 ------------------------------------
- * 只有 ui_dot/lyrics.c 用。本移植把资源放在 FATFS 上, 不做 flash 直存,
- * 因此 port 层实现为: 地址换算恒等映射, 擦写恒返回失败。
- * 不需要歌词功能时无需关心。 */
+ * 【本移植不支持】—— 开关在 config/ui_port_config.h 的
+ * UI_PORT_LYRICS_FLASH_SAVE_ENABLE, 默认 0, 存根实现在
+ * liba/common/ui_port_stubs.c。
+ *
+ * 全工程只有 liba/ui_dot/lyrics.c 用它们, 而歌词模块目前零调用方,
+ * 链接器会把 lyrics.o 连这两个存根整个丢弃(实测 42 个 section 全被移除),
+ * 所以声明留在这里不占任何空间。
+ *
+ * ☠ 声明不能删: lyrics.c 经本文件拿到它们, 而那个文件受等价性锁
+ *   保护改不得 —— 删了就是隐式声明错误。 */
 u32 sdfile_cpu_addr2flash_addr(u32 addr);
 u32 sdfile_flash_addr2cpu_addr(u32 addr);
-/* sfc_erase / sfc_write 有意不在这里声明: ui_dot/lyrics.c 自己 extern 了
+/* sfc_erase / sfc_write 有意不在这里声明: liba/ui_dot/lyrics.c 自己 extern 了
  * 它们, 且签名与本文件其它接口风格不同(返回 u8/u32)。在两处声明会冲突,
- * 以调用方的声明为准, 实现见 port/ui_port_stubs.c */
+ * 以调用方的声明为准, 实现见 liba/common/ui_port_stubs.c */
 
 #endif /* __JL_FS_H__ */

@@ -84,7 +84,7 @@ const LANG_TABLE *lange_info_table = NULL;
  * ui/res_config.h 的 FONT_PATH 宏 —— 换平台后资源根目录一变, 这一处就对不上,
  * 表现为 "打不开 flash/res/font/F_ASCII.PIX (FR_NO_PATH)" + InitFont failed,
  * 而 .res/.str/.sty 却都能正常打开(它们走的是 RES_PATH 宏), 很容易看漏。
- * 现在统一走 FONT_PATH, 只在 port/ui_port_config.h 一处配置。
+ * 现在统一走 FONT_PATH, 只在 config/ui_port_config.h 一处配置。
  */
 const struct font_info font_info_table[] = {
     {

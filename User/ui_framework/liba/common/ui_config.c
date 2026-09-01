@@ -2,8 +2,8 @@
  * @file    ui_port_misc.c
  * @brief   UI 框架杂项 —— 框架要求由移植侧提供的散装符号
  *
- * @note CRC16 系列已移到 common/jl_crc.c, ASCII_* 与 JBHash 已移到
- *       common/jl_ascii.c —— 那两个是从原厂 bitcode 还原的库代码,
+ * @note CRC16 系列已移到 liba/common/jl_crc.c, ASCII_* 与 JBHash 已移到
+ *       liba/common/jl_ascii.c —— 那两个是从原厂 bitcode 还原的库代码,
  *       不属于本工程的移植胶水, 所以不放在 port/ 下。
  */
 #include "jl_typedef.h"

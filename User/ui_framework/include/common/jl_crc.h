@@ -1,6 +1,6 @@
 /**
  * @file    jl_crc.h
- * @brief   杰理 crc.h 的等价声明。实现在 common/jl_crc.c
+ * @brief   杰理 crc.h 的等价声明。实现在 liba/common/jl_crc.c
  */
 #ifndef __JL_CRC_H__
 #define __JL_CRC_H__

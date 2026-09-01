@@ -1565,8 +1565,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\ui_port_fs_fatfs.c</PathWithFileName>
-      <FilenameWithoutPath>ui_port_fs_fatfs.c</FilenameWithoutPath>
+      <PathWithFileName>..\User\ui_framework\port\res\fatfs\ui_res_fatfs.c</PathWithFileName>
+      <FilenameWithoutPath>ui_res_fatfs.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -1601,7 +1601,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\User\ui_framework\port\lcd\ui_lcd_stm32f4.c</PathWithFileName>
+      <PathWithFileName>..\User\ui_framework\port\bsp\stm32f4\ui_lcd_stm32f4.c</PathWithFileName>
       <FilenameWithoutPath>ui_lcd_stm32f4.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -2046,7 +2046,7 @@
 
   <Group>
     <GroupName>UI/liba/res</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
@@ -2107,6 +2107,18 @@
       <bDave2>0</bDave2>
       <PathWithFileName>..\User\ui_framework\liba\res\rle.c</PathWithFileName>
       <FilenameWithoutPath>rle.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>22</GroupNumber>
+      <FileNumber>130</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\User\ui_framework\liba\res\ui_res_core.c</PathWithFileName>
+      <FilenameWithoutPath>ui_res_core.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

@@ -448,7 +448,7 @@ struct ui_style_info {
  * UI 风格注册表
  *
  * 与控件注册表同理, 原厂的 .ui_style 段收集改成显式表(见 control.h 的
- * 说明)。表本体在 port/ui_port_registry.c。
+ * 说明)。表本体在 config/ui_port_registry.c。
  *
  * 一套"风格"= 一组 (窗口/控件 id -> 事件回调) 的映射。ui_core_set_style()
  * 按名字选中一套, 把它的 handler 表边界装进 elm_event_handler_begin/end,

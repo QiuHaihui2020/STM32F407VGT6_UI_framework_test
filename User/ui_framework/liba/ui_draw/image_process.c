@@ -46,7 +46,7 @@ int read_palette(int prj_id, RESFILE *specfile, struct image_file *f, u8 *data, 
  *   · 混合结果同样交换后返回。
  * 本文件第 833 行传进来的实参就是按这个约定预先交换过的。
  *
- * 【不能复用点阵屏那份】: ui_framework/middle/ui_synthesis_oled.c 里有个
+ * 【不能复用点阵屏那份】: ui_framework/lcd_drive/middle/ui_synthesis_oled.c 里有个
  * 同名 static 函数, 但它只处理 alpha==0、且返回【未交换】的 backcolor ——
  * 把它的 static 去掉来顶替会静默产生错误像素。
  *
@@ -932,7 +932,7 @@ void draw_image(struct image_file *file, struct image_decode_var *var)
  *     · 彩屏配置下由 apps/common/ui/interface/ui_synthesis_manager.c:564 提供
  *       (非 static), 而整个文件包在 #if (TCFG_SPI_LCD_ENABLE) 里;
  *     · 本工程 TCFG_SPI_LCD_ENABLE = 0, 那份实现被整个编译掉;
- *     · 点阵屏侧 ui_framework/middle/ui_synthesis_oled.c:373 虽然有同名函数,
+ *     · 点阵屏侧 ui_framework/lcd_drive/middle/ui_synthesis_oled.c:373 虽然有同名函数,
  *       但它是 static, 而且【语义不同】——
  *         彩屏版: 处理 alpha==255 与 alpha==0 两种早退, 且早退时返回的是
  *                 【字节交换后】的颜色;

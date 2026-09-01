@@ -4,7 +4,7 @@
  *
  * 合并了原厂 interface/utils/debug.h(分级日志宏) 与
  * interface/system/generic/cpu.h(ASSERT) 两处, 只保留框架真正用到的。
- * 实现在 common/ui_port_log.c, 最终落到工程 RTT/log_debug.h 的串口打印。
+ * 实现在 liba/common/jl_debug.c, 最终落到工程 RTT/log_debug.h 的串口打印。
  *
  * @note 有意【不】叫 debug.h —— 避免和别处同名头相互抢占。
  */
@@ -140,7 +140,7 @@ void log_put_buf(const uint8_t *buf, u32 len);
 
 /* ---- 断言 -----------------------------------------------------------
  * config_asser 为真 = 断言失败时打印详情;
- * cpu_assert 是最终落点, 由 common/ui_port_log.c 决定停机还是继续。
+ * cpu_assert 是最终落点, 由 liba/common/jl_debug.c 决定停机还是继续。
  *
  * 保持原厂两级结构(而不是直接 while(1)), 因为框架里有 161 处 ASSERT,
  * 其中不少是"参数不该为空但为空了也能降级运行"的软断言。 */

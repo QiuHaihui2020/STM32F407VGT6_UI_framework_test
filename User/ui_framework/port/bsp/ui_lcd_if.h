@@ -12,7 +12,7 @@
  *              -> ui_lcd_cs / dc / rst / bl / power / te_read
  *
  * 【框架不知道任何引脚】: 没有引脚号、没有端口号、没有引脚句柄类型, 也没有
- * SPI 控制器编号。"CS 接在 PB6" 这件事只写在 port/board/ui_board_pins.h 里,
+ * SPI 控制器编号。"CS 接在 PB6" 这件事只写在 port/bsp/stm32f4/ui_board_pins.h 里,
  * 只有 port/lcd/ui_lcd_<mcu>.c 读得到它。所以改接线、换 SPI、换 MCU 都
  * 波及不到框架的任何一行。
  *
@@ -22,7 +22,7 @@
  *   1. 复制 lcd/ui_lcd_stm32f4.c 为 lcd/ui_lcd_<你的芯片>.c, 实现下面全部函数
  *   2. 复制 board/ui_board_stm32f4.h 为 board/ui_board_<你的芯片>.h, 填外设实例
  *   3. 在 board/ui_board_pins.h 里改接线
- *   框架源码、compat/、port/ 其余文件【一个字都不用动】。
+ *   框架源码、include/、port/ 其余文件【一个字都不用动】。
  *
  * @note 为什么是一组直接函数而不是回调结构体: 本层是单实例(一块屏一条
  *       总线), 直接调用可让编译器内联, 且避开了 LTO 下函数指针同一性的坑。

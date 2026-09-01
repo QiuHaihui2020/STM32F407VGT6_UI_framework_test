@@ -47,8 +47,8 @@ extern const struct control_ops control_ops_CTRL_TYPE_GRID;
  * 全部参与编译的控件。顺序不重要(按 type 查表), 但保持与
  * include/ui/control.h 里 CTRL_TYPE_* 的定义顺序一致便于核对。
  *
- * @note 这 9 项对应 ui_dot/ 下 9 处 REGISTER_CONTROL_OPS。
- *       CTRL_TYPE_WINDOW 由 ui_dot/window.c 提供但【没有】用
+ * @note 这 9 项对应 liba/ui_dot/ 下 9 处 REGISTER_CONTROL_OPS。
+ *       CTRL_TYPE_WINDOW 由 liba/ui_dot/window.c 提供但【没有】用
  *       REGISTER_CONTROL_OPS 注册 —— 窗口是控件树的根, 由
  *       window_show() 直接创建, 不走 get_control_ops_by_type,
  *       所以不列进表里。
@@ -102,7 +102,7 @@ const struct ui_style_info *const g_ui_style_table[] = {
 /* ==================================================================== *
  *  三、资源工程(project)表
  *
- *  res/resfile.c 用它把"工程号 pj_id"映射到一套资源文件路径, 供
+ *  liba/res/resfile.c 用它把"工程号 pj_id"映射到一套资源文件路径, 供
  *  ui_load_res_by_pj_id / ui_load_sty_by_pj_id 查找。
  *
  *  原厂定义在杰理 SDK 的 platform/watch_bgp.c 里(彩屏手表的多套表盘各占一个 pj_id)。
@@ -123,7 +123,7 @@ struct ui_load_info ui_load_info_table[] = {
 /* ==================================================================== *
  *  四、推屏接口注册表
  *
- *  由 middle/ui_pushScreen_manager.c 用 REGISTER_LCD_INTERFACE(lcd)
+ *  由 lcd_drive/middle/ui_pushScreen_manager.c 用 REGISTER_LCD_INTERFACE(lcd)
  *  定义, 一个工程只会有一个生效(其余被 #if 排除)。
  * ==================================================================== */
 

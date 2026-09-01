@@ -15,7 +15,7 @@
  *   CRC-16/XMODEM, 所以本移植只保留【软件路径】, 不再判中断上下文,
  *   也就不需要互斥锁 —— 软件版是纯函数, 本身可重入。
  *
- * 【为什么必须一致】res/resfile.c 的 open_image_by_id 拿
+ * 【为什么必须一致】liba/res/resfile.c 的 open_image_by_id 拿
  *   CRC16(&res_pic.data_crc, sizeof(res_pic) - 2) 与文件里的 head_crc 比,
  *   算法不同则每张图都加载失败, 表现为界面整块空白。
  */

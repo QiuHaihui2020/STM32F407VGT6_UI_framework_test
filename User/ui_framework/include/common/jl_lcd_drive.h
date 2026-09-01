@@ -109,7 +109,7 @@ enum LCD_IF {
  *
  * 框架不再持有任何引脚: 控制线通过 ui_lcd_cs()/dc()/rst()/bl()/
  * power() 这几个语义函数拉高拉低, "CS 接在 PB6" 只写在
- * port/board/ui_board_pins.h 里, 只有 port/lcd/ui_lcd_<mcu>.c 读得到。
+ * port/bsp/stm32f4/ui_board_pins.h 里, 只有 port/lcd/ui_lcd_<mcu>.c 读得到。
  *
  * 原厂这里有过下面这些东西, 本移植已全部去除:
  *
@@ -171,7 +171,7 @@ extern struct _lcd_drive lcd_drive;
 
 /* ---- 推屏接口 -------------------------------------------------------
  * 原厂用链接脚本收集 .lcd_if_info 段得到 lcd_interface_begin/end。
- * 本移植改成【显式注册表】(见 port/ui_port_registry.c) —— armlink 没有
+ * 本移植改成【显式注册表】(见 config/ui_port_registry.c) —— armlink 没有
  * GNU ld 的 PROVIDE, 而且段收集漏了是"界面整块不显示"的静默故障。 */
 struct lcd_info {
     u16 width;
@@ -209,7 +209,7 @@ struct lcd_interface {
 #define REGISTER_LCD_INTERFACE(name) \
     const struct lcd_interface name
 
-/** 取推屏接口句柄。实现在 port/ui_port_registry.c */
+/** 取推屏接口句柄。实现在 config/ui_port_registry.c */
 struct lcd_interface *lcd_get_hdl(void);
 
 /** 背光 / 休眠状态查询, 实现在 ui_pushScreen_manager.c */

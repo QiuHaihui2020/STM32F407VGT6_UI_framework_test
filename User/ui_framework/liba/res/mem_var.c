@@ -7,7 +7,7 @@
  *     原始路径: btsdk/lib/utils/ui/resource/mem_var.c
  *
  * 【谁在用】应用层 lcd_ui_api.c 调 mem_var_init; 驱动层 ui_resources_manager.c
- *   调 add/get/search; 已还原的框架代码 ui_dot/ui_core_api.c 调 mem_var_free。
+ *   调 add/get/search; 已还原的框架代码 liba/ui_dot/ui_core_api.c 调 mem_var_free。
  *
  * 【缓存键】(index, type, id, page, prj) 五个 u32 放进一个临时数组, 算出 CRC16
  *   与一个逐字节累加的 checksum 作为快速比对用的粗筛值。

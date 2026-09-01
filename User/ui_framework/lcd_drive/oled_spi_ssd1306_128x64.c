@@ -29,13 +29,13 @@
  * 与 delay_2ms —— 全在 jl_lcd_drive.h 里。
  * 【不再 include port/ui_port.h】: 那份头里是仿造的杰理 gpio_/spi_/mcpwm_
  * 声明, 本屏驱一个都没用 —— 它只提供命令表和 sleep/wakeup 回调,
- * 推屏由 middle/ui_pushScreen_manager.c 经 ui_lcd_* 完成。 */
+ * 推屏由 lcd_drive/middle/ui_pushScreen_manager.c 经 ui_lcd_* 完成。 */
 #include "jl_lcd_drive.h"
 #include "jl_ui_api.h"
 
 
 
-/* 屏参唯一真值源在 port/ui_port_config.h 的 UI_PORT_LCD_WIDTH/HEIGHT。
+/* 屏参唯一真值源在 config/ui_port_config.h 的 UI_PORT_LCD_WIDTH/HEIGHT。
  * 这里只做语义分层的推导, 换屏时【只改那一处】:
  *   LCD_*       物理分辨率
  *   SCR_*       显示区域, 本屏整屏可见, 与物理分辨率相同

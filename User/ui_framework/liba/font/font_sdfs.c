@@ -49,7 +49,7 @@ int font_sd_fseek(RESFILE *fp, u8 seek_mode, u32 offset)
  *       的结果。原框架特意保留了那次多余的 fclose, 理由是"resfile_* 闭源,
  *       无从确认 resfile_close 是否已关掉底层句柄"。
  *
- *       【本移植已去掉那次 fclose】: resfile_* 现在由 port/ui_port_fs_fatfs.c
+ *       【本移植已去掉那次 fclose】: resfile_* 现在由 liba/res/ui_res_core.c
  *       实现, 不再是黑盒 —— resfile_close() 已经 f_close 并释放了句柄池槽位。
  *       再调一次 stdio 的 fclose() 会把"指向句柄池结构体的指针"当 FILE* 用,
  *       是明确的未定义行为(且返回值也不再有意义)。歧义消失, 保留反而是错的。
@@ -70,7 +70,7 @@ int font_sd_fclose(RESFILE *fp)
  *                  · 若它只管上面一层 -> 去掉 fclose 就会【泄漏句柄】。
  *                原库这么写且实机长期运行没暴露问题, 说明当前组合是可工作的。
  *                在拿到 resfile 层实现之前, 贸然去掉一次比留着更危险。
- *                (同类判断: res_fseek 的返回值也是故意不判, 见 res/ascii.c。)
+ *                (同类判断: res_fseek 的返回值也是故意不判, 见 liba/res/ascii.c。)
  *   [保留] 2 —— font_sd_fopen 的形参 arg 未使用。它是为了匹配 font 模块的
  *                fopen 回调原型, 本来就该留着。
  *

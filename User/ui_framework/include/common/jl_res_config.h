@@ -2,7 +2,7 @@
  * @file    jl_res_config.h
  * @brief   资源文件路径配置
  *
- * 路径根从 port/ui_port_config.h 的 UI_PORT_RES_ROOT 派生, 改存放位置
+ * 路径根从 config/ui_port_config.h 的 UI_PORT_RES_ROOT 派生, 改存放位置
  * 只需要改那一处。
  */
 #ifndef __JL_RES_CONFIG_H__
