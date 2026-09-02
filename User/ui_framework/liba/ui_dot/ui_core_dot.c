@@ -47,13 +47,10 @@ struct element_event_handler dumy_handler;
 
 struct ui_platform_api *platform_api;
 
-/* 由 ui_core_set_style 从 .ui_style 段里选出的那一段 handler 表边界 */
 /* 前置声明: 定义在本文件靠后(2489 行), 但 1909 行就调用了它。
  * 原厂靠 C89 的隐式声明糊过去, C99 起是告警 + 默认 int 返回类型。 */
 int ui_core_redraw_old(void *_elm);
 
-struct element_event_handler *elm_event_handler_begin;
-struct element_event_handler *elm_event_handler_end;
 
 /*
  * 延后执行队列: ui_core_show 之类在"正在绘制"时被调用, 就把请求挂进 handl.entry
@@ -299,24 +296,43 @@ int ui_core_open_platform_device(struct draw_context *dc, void *device)
 }
 
 /*
- * 按名字在风格注册表里找一套 UI 风格, 把它的 handler 表边界装到
- * elm_event_handler_begin/end —— 之后 element_event_handler_for_id 就在
- * 这个区间里按 id 查表。
+ * 按 id 在所有已登记的页面回调表里查 —— 表本体见 config/ui_port_registry.c
+ * 的 g_ui_handler_table, 每个页面一张。
+ *
+ * 原厂是在链接器拼出来的那一整段 handler 里 p++ 单层遍历; 本移植改成
+ * "先遍历页面表, 再遍历表内条目"的双层, 语义一致(全表按 id 找第一个命中)。
+ *
+ * @note 表都很短(一页十来项), 线性查即可; 控件创建时查一次并把结果存进
+ *       xxx->handler, 不在按键/绘制热路径上。
  */
-int ui_core_set_style(const char *style)
+const struct element_event_handler *element_event_handler_for_id(u32 id)
 {
-    /* 原为遍历 .ui_style 段; 移植后改为查显式注册表, 见 ui_core.h */
-    const struct ui_style_info *const *pp;
+    const struct ui_handler_group *const *pp;
+    const struct element_event_handler *p;
 
-    for (pp = g_ui_style_table; *pp != NULL; pp++) {
-        if (!strcmp((*pp)->name, style)) {
-            elm_event_handler_begin = (*pp)->begin;
-            elm_event_handler_end   = (*pp)->end;
-            return 0;
+    for (pp = g_ui_handler_table; *pp != NULL; pp++) {
+        for (p = (*pp)->begin; p < (*pp)->end; p++) {
+            if (p->id == (int)id) {
+                return p;
+            }
         }
     }
 
-    return -EINVAL;
+    return NULL;
+}
+
+/*
+ * 原厂在这里按名字从 .ui_style 段里选一套风格, 把它的 handler 表边界装进
+ * elm_event_handler_begin/end。本移植去掉了"风格"这一层: 只有一套资源,
+ * g_ui_handler_table 里所有页面的表全部生效, 不需要按名字选。
+ *
+ * 保留函数是因为 ui_resources_manager.c 会拿资源文件名调它。返回恒 0 ——
+ * 顺带消掉了原来"资源文件名与 STYLE_NAME 对不上 -> 整屏静默无响应"那类 bug。
+ */
+int ui_core_set_style(const char *style)
+{
+    printf("ui style: %s\n", style ? style : "(null)");
+    return 0;
 }
 
 /*

@@ -428,75 +428,66 @@ struct janimation {
 };
 
 
-extern struct element_event_handler *elm_event_handler_begin;
-extern struct element_event_handler *elm_event_handler_end;
-
-
-/* 原厂的 REGISTER_UI_EVENT_HANDLER 系列宏已删除。
- * 它们靠 sec(.elm_event_handler_<style>) 段收集把散落的 handler 对象排到
- * 一起。本移植 sec() 是空宏, 留着这些宏会"编译通过但注册不上" ——
- * 正是最难查的那类静默故障。请改用下面的 UI_STYLE_HANDLERS_BEGIN/END。
- */
-
-struct ui_style_info {
-    const char *name;
-    struct element_event_handler *begin;
-    struct element_event_handler *end;
-};
-
 /* ====================================================================
- * UI 风格注册表
+ * 事件回调注册表 —— (窗口/控件 id -> ontouch/onkey/onchange) 的映射
  *
- * 与控件注册表同理, 原厂的 .ui_style 段收集改成显式表(见 control.h 的
- * 说明)。表本体在 config/ui_port_registry.c。
+ * 【与原厂的差异】
+ * 原厂是每个 handler 一个 sec(.elm_event_handler_<style>) 对象, 靠链接
+ * 脚本(sdk.ld 的 KEEP(*(.elm_event_handler_JL)))拼成连续一段, 并给出
+ * elm_event_handler_begin_JL / _end_JL 两个边界符号; 再由
+ * REGISTER_UI_STYLE 把这对边界包成 ui_style_info 扔进 .ui_style 段,
+ * ui_core_set_style() 按名字选中其中一套。
  *
- * 一套"风格"= 一组 (窗口/控件 id -> 事件回调) 的映射。ui_core_set_style()
- * 按名字选中一套, 把它的 handler 表边界装进 elm_event_handler_begin/end,
- * 之后 element_event_handler_for_id() 就在这个区间里按 id 查。
+ * 本移植 sec() 是空宏(jl_typedef.h), armlink 也没有那类段边界符号, 所以
+ * 照抄原厂宏会"编译过、链接过、就是注册不上" —— 界面画得出来但一个按键
+ * 都不响应, 是最难查的那类静默故障。因此 REGISTER_UI_EVENT_HANDLER /
+ * REGISTER_UI_STYLE 已删除, 改成下面这套显式表。
+ *
+ * 【本移植的做法】一页一张表, 表本体在 config/ui_port_registry.c
+ *   ui_action/<页面>_action.c   定义本页的 ui_handlers_<页面>
+ *   config/ui_port_registry.c   g_ui_handler_table 登记所有页面的表
+ *
+ * 与 control.h 的 g_control_ops_table 同构: 漏登记是【编译期未定义符号】,
+ * 不是运行期静默失效。
+ *
+ * 【"风格"概念已去掉】原厂靠风格名在多套表里选一套, 本工程只有一套资源,
+ * 所有页面的表全部生效, 所以 ui_core_set_style() 退化成一句日志 ——
+ * 顺带消掉了"资源文件名与 STYLE_NAME 对不上导致整屏无响应"那类 bug。
  * ==================================================================== */
 
-/** 全部已注册风格, 以 .name == NULL 结尾 */
-extern const struct ui_style_info *const g_ui_style_table[];
+/** 一个页面(或一组控件)的事件回调表 */
+struct ui_handler_group {
+    const struct element_event_handler *begin;
+    const struct element_event_handler *end;
+};
+
+/** 全部已登记的回调表, 以 NULL 结尾。表本体在 config/ui_port_registry.c */
+extern const struct ui_handler_group *const g_ui_handler_table[];
+
+/*
+ * 页面侧怎么写(ui_action/<页面>_action.c, 就是普通 C, 没有宏):
+ *
+ *     static const struct element_event_handler music_handlers[] = {
+ *         { .id = ID_WINDOW_MUSIC, .onchange = music_win_onchange, },
+ *         { .id = MUSIC_LAYOUT,    .onkey    = music_layout_onkey, },
+ *     };
+ *
+ *     const struct ui_handler_group ui_handlers_music = {
+ *         .begin = music_handlers,
+ *         .end   = music_handlers + ARRAY_SIZE(music_handlers),
+ *     };
+ *
+ * 然后去 config/ui_port_registry.c 的 g_ui_handler_table 里加一行
+ * &ui_handlers_music。名字写错就是链接期未定义符号, 不会静默失效。
+ */
 
 /**
- * @brief 定义一套风格的事件处理表
- *
- * 用法(在风格 .c 里):
- *     UI_STYLE_HANDLERS_BEGIN(jl02)
- *         { .id = ID_WINDOW_BT,    .ontouch = bt_ontouch,    },
- *         { .id = ID_WINDOW_MUSIC, .onchange = music_change, },
- *     UI_STYLE_HANDLERS_END(jl02)
- *
- * 原厂是每个 handler 一个 sec(.elm_event_handler_<style>) 对象, 靠链接器
- * 排到一起。这里改成一个真数组 —— begin/end 天然连续, 所以
- * element_event_handler_for_id() 的 p++ 遍历不用改。
+ * @brief 按 id 找事件回调
+ * @return 找到返回回调表项; 没有为该 id 注册回调则返回 NULL(调用方判空)
+ * @note 实现在 liba/ui_dot/ui_core_dot.c。原为头文件里的 static inline,
+ *       改成真函数是因为现在是双层遍历, 19 个调用点各内联一份不划算。
  */
-#define UI_STYLE_HANDLERS_BEGIN(style_name) \
-    struct element_event_handler elm_event_handler_##style_name[] = {
-
-#define UI_STYLE_HANDLERS_END(style_name) \
-    }; \
-    const struct ui_style_info ui_style_##style_name = { \
-        .name  = #style_name, \
-        .begin = elm_event_handler_##style_name, \
-        .end   = elm_event_handler_##style_name \
-                 + (sizeof(elm_event_handler_##style_name) \
-                    / sizeof(elm_event_handler_##style_name[0])), \
-    };
-
-
-static inline struct element_event_handler *element_event_handler_for_id(u32 id)
-{
-    struct element_event_handler *p;
-
-    for (p = elm_event_handler_begin; p < elm_event_handler_end; p++) {
-        if (p->id == id) {
-            return p;
-        }
-    }
-
-    return NULL;
-}
+const struct element_event_handler *element_event_handler_for_id(u32 id);
 
 
 

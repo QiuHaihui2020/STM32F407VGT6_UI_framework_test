@@ -30,7 +30,7 @@ extern const struct window_info *window_table;
 
 /* REGISTER_WINDOW_EVENT_HANDLER 已随 REGISTER_UI_EVENT_HANDLER 一起删除,
  * 原因见 ui_core.h 里的说明。窗口的事件回调现在写进
- * UI_STYLE_HANDLERS_BEGIN/END 的数组里, 与其它控件一视同仁。 */
+ * ui_action/ 下那张 ui_handlers_<页面> 表里, 与其它控件一视同仁。 */
 
 
 int window_show(int);

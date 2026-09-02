@@ -32,20 +32,15 @@
 
 /** 风格名。
  *
- * ⚠ 必须是 JL, 不能改成 jl02 之类 —— 它要和 lcd_drive/middle/ui_resources_manager.c
- *   传给 ui_core_set_style() 的字符串【逐字相同】, 而那个字符串是从资源
- *   文件名推导的:
+ * 703 靠它在多套 handler 表里选一套: 宏展开后会拼出段名
+ * .elm_event_handler_JL, 再由 REGISTER_UI_STYLE(STYLE_NAME) 把段边界
+ * 包成 ui_style_info; ui_core_set_style() 拿资源文件名推出的 "JL"
+ * 去匹配。对不上就整屏不响应, 且编译链接全过 —— 典型静默故障。
  *
- *       strcpy(style_name, "JL.sty");
- *       style_name[6 - 4] = 0;          // 去掉 ".sty" -> "JL"
- *       ui_core_set_style(style_name);  // 传 "JL"
- *
- *   对不上的后果: ui_core_set_style 返回 -EINVAL,
- *   elm_event_handler_begin/end 保持为 NULL,
- *   所有控件都查不到事件回调 —— 界面画得出来但完全不响应。
- *
- *   703 的 apps/soundbox/ui/lcd/STYLE_SOUNDBOX 下那几个 action 源文件里,
- *   也都是 #define STYLE_NAME JL。
+ * 本移植已去掉"风格"这一层: 事件回调改成一页一张表, 全部登记在
+ * config/ui_port_registry.c 的 g_ui_handler_table 里并同时生效
+ * (见 include/ui/ui_core.h 的说明), ui_core_set_style() 退化成一句日志。
+ * 所以这个宏现在只是个注释性的存在, 改了也不会有任何后果。
  */
 #define STYLE_NAME      JL
 
@@ -60,9 +55,9 @@
  * (框架对 -1 的处理是不显示, 不会当成合法 id 去查资源)。
  * ====================================================================== */
 
-#define ID_WINDOW_MAIN          PAGE_0      /* 主界面 */
-#define ID_WINDOW_BT            PAGE_1      /* 蓝牙 */
-#define ID_WINDOW_FM            PAGE_2      /* 收音 */
+#define ID_WINDOW_MAIN          PAGE_2      /* 系统页面 */
+#define ID_WINDOW_BT            PAGE_0      /* 蓝牙 */
+#define ID_WINDOW_MUSIC         PAGE_1      /* 音乐 */
 
 /* ui_128_64_JL02 工程没画这两页; 保留 703 的写法, 将来工具里加了页面
  * 就会自动生效(PAGE_11/PAGE_12 一旦被生成出来, 这里就用真值) */

@@ -2,7 +2,7 @@ Debug Information
 
 /===================>Head<===========================\
 || version: 604672221
-|| date: 周一 8月 31 14:47:02 2026
+|| date: 周三 9月 2 09:57:38 2026
 || ptr: 16
 || total size: 24414
 \====================================================/
@@ -14,8 +14,8 @@ Debug Information
 || prop size: 68
 || project rotate: 0  [(0-0),(1-90),(2-180),(3-270)]
 || offset prop_len  t_ptr  t_size   crc       crc       crc
-||   54      1166      107c      13e      44b8      7a5      ec06
-||   11ba      215a      30b2      262      2aba      a70d      4da2
+||   54      1166      107c      13e      148a      7a5      ec06
+||   11ba      215a      30b2      262      5a84      a70d      4da2
 ||   3314      2c9e      5c54      35e      373d      84d9      616e
 \====================================================/
 
@@ -48,13 +48,13 @@ FF  FF  00  64  FF  FF  00  64  98  0E  00  00  9C  0E  00  00
 00  00  00  00  FF  FF  00  64  FF  FF  00  64  30  0E  00  00 
 34  0E  00  00  0A  00  01  60  00  FF  FF  FF  A7  E9  0A  00 
 E4  0D  00  00  6E  6F  6E  65  00  00  00  00  00  FF  FF  FF 
-6D  3A  73  2F  00  00  00  00  08  16  A9  07  B8  B3  F3  00 
+6D  3A  73  2F  00  00  00  00  74  9C  3C  05  B8  B3  F3  00 
 FF  FF  00  64  FF  FF  00  64  12  00  13  00  14  00  15  00 
 16  00  17  00  18  00  19  00  1A  00  1B  00  1C  00  FF  FF 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
 08  0E  00  00  0A  00  01  60  00  FF  FF  FF  2E  D3  0A  00 
 BC  0D  00  00  6E  6F  6E  65  00  00  00  00  00  FF  FF  FF 
-6D  3A  73  2F  00  00  00  00  10  29  A9  07  B8  B3  F3  00 
+6D  3A  73  2F  00  00  00  00  78  AF  3C  05  B8  B3  F3  00 
 FF  FF  00  64  FF  FF  00  64  12  00  13  00  14  00  15  00 
 16  00  17  00  18  00  19  00  1A  00  1B  00  1C  00  FF  FF 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
@@ -64,7 +64,7 @@ E0  0D  00  00  08  00  01  24  00  FF  FF  FF  86  28  08  00
 37  0A  08  00  5C  0D  00  00  00  FF  00  00  00  00  FF  FF 
 80  0D  00  00  00  00  00  00  88  0D  00  00  0F  00  01  60 
 00  FF  FF  FF  0F  25  0F  00  34  0D  00  00  6E  6F  6E  65 
-00  00  00  00  25  30  32  64  00  00  00  00  94  D2  B1  07 
+00  00  00  00  25  30  32  64  00  00  00  00  94  A5  2E  05 
 B8  B3  F3  00  FF  FF  00  64  FF  FF  00  64  1E  00  1F  00 
 20  00  21  00  22  00  23  00  24  00  25  00  26  00  27  00 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
@@ -314,13 +314,13 @@ A4  00  A8  00  AC  00  8C  00  90  00  94  00  74  00  78  00
 01  1C  01  FF  FF  FF  09  99  49  00  A8  1D  00  00  CC  1D 
 00  00  00  00  00  00  DC  1D  00  00  0F  00  01  60  01  FF 
 FF  FF  A4  86  4F  00  80  1D  00  00  6E  6F  6E  65  00  00 
-00  00  25  30  34  64  2F  00  00  00  AC  4F  B0  07  B8  B3 
+00  00  25  30  34  64  2F  00  00  00  44  93  2A  05  B8  B3 
 F3  00  FF  FF  FF  64  FF  FF  FF  64  1E  00  1F  00  20  00 
 21  00  22  00  23  00  24  00  25  00  26  00  27  00  FF  FF 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
 FF  FF  FF  FF  FF  FF  A4  1D  00  00  0F  00  01  60  01  FF 
 FF  FF  76  41  4F  00  58  1D  00  00  6E  6F  6E  65  00  00 
-00  00  25  30  34  64  00  00  00  00  BC  5F  B0  07  B8  B3 
+00  00  25  30  34  64  00  00  00  00  54  A3  2A  05  B8  B3 
 F3  00  FF  FF  FF  64  FF  FF  FF  64  1E  00  1F  00  20  00 
 21  00  22  00  23  00  24  00  25  00  26  00  27  00  FF  FF 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
@@ -333,13 +333,13 @@ FF  FF  40  1D  00  00  00  00  00  00  54  1D  00  00  08  00
 00  00  00  FF  00  00  00  00  FF  FF  D0  1C  00  00  00  00 
 00  00  E4  1C  00  00  0A  00  01  60  01  FF  FF  FF  2C  9E 
 4A  00  84  1C  00  00  6E  6F  6E  65  00  00  00  00  00  FF 
-FF  FF  6D  3A  73  2F  00  00  00  00  58  A3  B0  07  B8  B3 
+FF  FF  6D  3A  73  2F  00  00  00  00  F0  E6  2A  05  B8  B3 
 F3  00  FF  FF  00  64  FF  FF  00  64  1E  00  1F  00  20  00 
 21  00  22  00  23  00  24  00  25  00  26  00  27  00  28  00 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
 FF  FF  A8  1C  00  00  0A  00  01  60  01  FF  FF  FF  D2  C1 
 4A  00  5C  1C  00  00  6E  6F  6E  65  00  00  00  00  00  FF 
-FF  FF  6D  3A  73  00  03  00  00  00  34  B6  B0  07  B8  B3 
+FF  FF  6D  3A  73  00  03  00  00  00  CC  F9  2A  05  B8  B3 
 F3  00  FF  FF  00  64  FF  FF  00  64  1E  00  1F  00  20  00 
 21  00  22  00  23  00  24  00  25  00  26  00  27  00  28  00 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 
@@ -442,7 +442,7 @@ FF  FF  44  16  00  00  00  00  00  00  50  16  00  00  0C  00
 48  00  04  15  00  00  00  FF  00  00  00  00  FF  FF  28  15 
 00  00  00  00  00  00  30  15  00  00  0F  00  01  60  01  FF 
 FF  FF  6B  73  4F  00  DC  14  00  00  6E  6F  6E  65  00  00 
-00  00  25  30  32  64  00  00  00  00  60  F5  AC  07  B8  B3 
+00  00  25  30  32  64  00  00  00  00  48  C3  28  05  B8  B3 
 F3  00  FF  FF  00  64  FF  FF  00  64  2A  00  2B  00  2C  00 
 2D  00  2E  00  2F  00  30  00  31  00  32  00  33  00  FF  FF 
 FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF  FF 

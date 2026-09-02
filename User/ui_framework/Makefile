@@ -151,6 +151,16 @@ c_SRC_FILES += \
 	$(UI_FW)/config/ui_port_registry.c
 
 
+# ---- 页面事件响应(风格层) ----------------------------------------------
+# 一个页面一个文件, 对应 703 的 apps/soundbox/ui/lcd/STYLE_SOUNDBOX/。
+# 每个页面定义自己的 ui_handlers_<页面> 表, 再到
+# config/ui_port_registry.c 的 g_ui_handler_table 里登记一行。
+c_SRC_FILES += \
+	$(UI_FW)/ui_action/music_action.c \
+	$(UI_FW)/ui_action/bt_action.c \
+	$(UI_FW)/ui_action/system_action.c
+
+
 # ---- 屏硬件: 控制线拉高拉低 + SPI 数据通道 ---------------------------------
 # 接口在 port/bsp/ui_lcd_if.h(MCU 无关), 板级接线与实现在 port/bsp/<mcu>/。
 # 换 MCU: 照 ui_lcd_stm32f4.c 写一个 ui_lcd_<芯片>.c, 换掉下面这一行。

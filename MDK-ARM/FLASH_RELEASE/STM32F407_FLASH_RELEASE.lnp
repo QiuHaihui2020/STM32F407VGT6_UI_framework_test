@@ -72,11 +72,11 @@
 ".\flash_release\jl_ascii.o"
 ".\flash_release\jl_crc.o"
 ".\flash_release\jl_debug.o"
-".\flash_release\ui_config.o"
 ".\flash_release\ui_res_fatfs.o"
 ".\flash_release\ui_port_registry.o"
 ".\flash_release\ui_port_stubs.o"
 ".\flash_release\ui_lcd_stm32f4.o"
+".\flash_release\ui_config.o"
 ".\flash_release\lcd_ui_api.o"
 ".\flash_release\ui_platform.o"
 ".\flash_release\ui_pushscreen_manager.o"
@@ -116,6 +116,9 @@
 ".\flash_release\resfile.o"
 ".\flash_release\rle.o"
 ".\flash_release\ui_res_core.o"
+".\flash_release\music_action.o"
+".\flash_release\bt_action.o"
+".\flash_release\system_action.o"
 --library_type=microlib --strict --scatter ".\FLASH_RELEASE\STM32F407_FLASH_RELEASE.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

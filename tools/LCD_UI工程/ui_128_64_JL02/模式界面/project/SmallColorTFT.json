@@ -1,7 +1,7 @@
 {
     "-name": "SmallColorTFT",
     "-type": "project",
-    "activePage": 2,
+    "activePage": 0,
     "lang_excel": "../../../UITools/多国语言_128_64.xls",
     "language": [
     ],
@@ -10,25 +10,25 @@
             "-class": "ScenesScreen",
             "-name": "ScenesScreen",
             "-type": "page",
-            "caption": "页面_1",
+            "caption": "页面_0",
             "layer": [
                 {
                     "-class": "NewLayer",
-                    "-name": "图层_13",
+                    "-name": "图层_0",
                     "-type": "NewLayer",
                     "caption": "图层",
                     "icon": "config/images/layer.ico",
                     "layout": [
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_14",
+                            "-name": "布局_1",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "电池电量_15",
+                                    "-name": "电池电量_2",
                                     "-type": "Battery",
                                     "caption": "电池电量",
                                     "icon": "config/images/POR_dark4.png",
@@ -256,7 +256,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_16",
+                                    "-name": "文字_3",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -497,7 +497,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_17",
+                                    "-name": "图片_4",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -745,7 +745,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_18",
+                                    "-name": "文字_5",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -985,7 +985,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_19",
+                                    "-name": "图片_6",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -1237,7 +1237,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_20",
+                                    "-name": "文字_7",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -1477,7 +1477,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "时间_21",
+                                    "-name": "时间_8",
                                     "-type": "Time",
                                     "caption": "时间",
                                     "icon": "",
@@ -1751,7 +1751,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "时间_22",
+                                    "-name": "时间_9",
                                     "-type": "Time",
                                     "caption": "时间",
                                     "icon": "",
@@ -2025,7 +2025,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_23",
+                                    "-name": "图片_10",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -2472,14 +2472,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_24",
+                            "-name": "布局_11",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_25",
+                                    "-name": "图片_12",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -2726,7 +2726,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "数字_26",
+                                    "-name": "数字_13",
                                     "-type": "number",
                                     "caption": "数字",
                                     "icon": "",
@@ -3140,14 +3140,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_27",
+                            "-name": "布局_14",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_28",
+                                    "-name": "文字_15",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -3395,14 +3395,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_30",
+                                            "-name": "布局_17",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_31",
+                                                    "-name": "图片_18",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -3650,7 +3650,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_32",
+                                                    "-name": "文字_19",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -4091,14 +4091,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_33",
+                                            "-name": "布局_20",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_34",
+                                                    "-name": "图片_21",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -4346,7 +4346,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_35",
+                                                    "-name": "文字_22",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -5212,14 +5212,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_36",
+                            "-name": "布局_23",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_37",
+                                    "-name": "文字_24",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -5467,14 +5467,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_39",
+                                            "-name": "布局_26",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_40",
+                                                    "-name": "图片_27",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -5722,7 +5722,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_41",
+                                                    "-name": "文字_28",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -6163,14 +6163,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_42",
+                                            "-name": "布局_29",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_43",
+                                                    "-name": "图片_30",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -6418,7 +6418,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_44",
+                                                    "-name": "文字_31",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -6859,14 +6859,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_45",
+                                            "-name": "布局_32",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_46",
+                                                    "-name": "图片_33",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -7114,7 +7114,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_47",
+                                                    "-name": "文字_34",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -7555,14 +7555,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_48",
+                                            "-name": "布局_35",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_49",
+                                                    "-name": "图片_36",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -7810,7 +7810,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_50",
+                                                    "-name": "文字_37",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -8251,14 +8251,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_51",
+                                            "-name": "布局_38",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_52",
+                                                    "-name": "图片_39",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -8506,7 +8506,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_53",
+                                                    "-name": "文字_40",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -8947,14 +8947,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_54",
+                                            "-name": "布局_41",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_55",
+                                                    "-name": "图片_42",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -9202,7 +9202,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_56",
+                                                    "-name": "文字_43",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -9643,14 +9643,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_57",
+                                            "-name": "布局_44",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_58",
+                                                    "-name": "图片_45",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -9898,7 +9898,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_59",
+                                                    "-name": "文字_46",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -10764,14 +10764,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_60",
+                            "-name": "布局_47",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_61",
+                                    "-name": "文字_48",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -11433,25 +11433,25 @@
             "-class": "ScenesScreen",
             "-name": "ScenesScreen",
             "-type": "page",
-            "caption": "页面_4",
+            "caption": "页面_1",
             "layer": [
                 {
                     "-class": "NewLayer",
-                    "-name": "图层_134",
+                    "-name": "图层_49",
                     "-type": "NewLayer",
                     "caption": "图层",
                     "icon": "config/images/layer.ico",
                     "layout": [
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_135",
+                            "-name": "布局_50",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "电池电量_136",
+                                    "-name": "电池电量_51",
                                     "-type": "Battery",
                                     "caption": "电池电量",
                                     "icon": "config/images/POR_dark4.png",
@@ -11679,7 +11679,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "数字_137",
+                                    "-name": "数字_52",
                                     "-type": "number",
                                     "caption": "数字",
                                     "icon": "",
@@ -11893,7 +11893,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "数字_138",
+                                    "-name": "数字_53",
                                     "-type": "number",
                                     "caption": "数字",
                                     "icon": "",
@@ -12107,7 +12107,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_139",
+                                    "-name": "图片_54",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -12360,7 +12360,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_140",
+                                    "-name": "图片_55",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -12609,7 +12609,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_141",
+                                    "-name": "图片_56",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -12861,7 +12861,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "时间_142",
+                                    "-name": "时间_57",
                                     "-type": "Time",
                                     "caption": "时间",
                                     "icon": "",
@@ -13135,7 +13135,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "时间_143",
+                                    "-name": "时间_58",
                                     "-type": "Time",
                                     "caption": "时间",
                                     "icon": "",
@@ -13409,7 +13409,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_144",
+                                    "-name": "文字_59",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -13649,7 +13649,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_145",
+                                    "-name": "文字_60",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -13889,7 +13889,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_146",
+                                    "-name": "文字_61",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -14129,7 +14129,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_147",
+                                    "-name": "图片_62",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -14577,14 +14577,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_148",
+                            "-name": "布局_63",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_149",
+                                    "-name": "文字_64",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -14832,14 +14832,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_151",
+                                            "-name": "布局_66",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_152",
+                                                    "-name": "图片_67",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -15087,7 +15087,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_153",
+                                                    "-name": "文字_68",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -15528,14 +15528,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_154",
+                                            "-name": "布局_69",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_155",
+                                                    "-name": "图片_70",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -15783,7 +15783,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_156",
+                                                    "-name": "文字_71",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -16224,14 +16224,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_157",
+                                            "-name": "布局_72",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_158",
+                                                    "-name": "图片_73",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -16479,7 +16479,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_159",
+                                                    "-name": "文字_74",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -16920,14 +16920,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_160",
+                                            "-name": "布局_75",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_161",
+                                                    "-name": "图片_76",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -17175,7 +17175,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_162",
+                                                    "-name": "文字_77",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -18041,14 +18041,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_163",
+                            "-name": "布局_78",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_164",
+                                    "-name": "文字_79",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -18296,14 +18296,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_166",
+                                            "-name": "布局_81",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_167",
+                                                    "-name": "图片_82",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -18551,7 +18551,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_168",
+                                                    "-name": "文字_83",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -18992,14 +18992,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_169",
+                                            "-name": "布局_84",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_170",
+                                                    "-name": "图片_85",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -19247,7 +19247,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_171",
+                                                    "-name": "文字_86",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -19688,14 +19688,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_172",
+                                            "-name": "布局_87",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_173",
+                                                    "-name": "图片_88",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -19943,7 +19943,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_174",
+                                                    "-name": "文字_89",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -20384,14 +20384,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_175",
+                                            "-name": "布局_90",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_176",
+                                                    "-name": "图片_91",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -20639,7 +20639,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_177",
+                                                    "-name": "文字_92",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -21080,14 +21080,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_178",
+                                            "-name": "布局_93",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_179",
+                                                    "-name": "图片_94",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -21335,7 +21335,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_180",
+                                                    "-name": "文字_95",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -21776,14 +21776,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_181",
+                                            "-name": "布局_96",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_182",
+                                                    "-name": "图片_97",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -22031,7 +22031,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_183",
+                                                    "-name": "文字_98",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -22472,14 +22472,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_184",
+                                            "-name": "布局_99",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_185",
+                                                    "-name": "图片_100",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -22727,7 +22727,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_186",
+                                                    "-name": "文字_101",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -23593,14 +23593,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_187",
+                            "-name": "布局_102",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_188",
+                                    "-name": "图片_103",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -23847,7 +23847,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "数字_189",
+                                    "-name": "数字_104",
                                     "-type": "number",
                                     "caption": "数字",
                                     "icon": "",
@@ -24261,7 +24261,7 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_190",
+                            "-name": "布局_105",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
@@ -24275,14 +24275,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_192",
+                                            "-name": "布局_107",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_193",
+                                                    "-name": "图片_108",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -24530,7 +24530,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_194",
+                                                    "-name": "文字_109",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -24970,14 +24970,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_195",
+                                            "-name": "布局_110",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_196",
+                                                    "-name": "图片_111",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -25225,7 +25225,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_197",
+                                                    "-name": "文字_112",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -25665,14 +25665,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_198",
+                                            "-name": "布局_113",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_199",
+                                                    "-name": "图片_114",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -25920,7 +25920,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_200",
+                                                    "-name": "文字_115",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -26360,14 +26360,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_201",
+                                            "-name": "布局_116",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_202",
+                                                    "-name": "图片_117",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -26615,7 +26615,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_203",
+                                                    "-name": "文字_118",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -27280,14 +27280,14 @@
                                 },
                                 {
                                     "-class": "NewLayout",
-                                    "-name": "vslider_204",
+                                    "-name": "vslider_119",
                                     "-type": "NewLayout",
                                     "caption": "vslider",
                                     "icon": "config/slider.png",
                                     "layout": [
                                         {
                                             "-class": "NewFrame",
-                                            "-name": "vslider_right_pic_205",
+                                            "-name": "vslider_right_pic_120",
                                             "-type": "ImageList",
                                             "caption": "vslider_right_pic",
                                             "icon": "config/images/page_white_vector.png",
@@ -27397,7 +27397,7 @@
                                         },
                                         {
                                             "-class": "NewFrame",
-                                            "-name": "vslider_left_pic_206",
+                                            "-name": "vslider_left_pic_121",
                                             "-type": "ImageList",
                                             "caption": "vslider_left_pic",
                                             "icon": "config/images/page_white_vector.png",
@@ -27507,7 +27507,7 @@
                                         },
                                         {
                                             "-class": "NewFrame",
-                                            "-name": "vslider_pic_207",
+                                            "-name": "vslider_pic_122",
                                             "-type": "ImageList",
                                             "caption": "vslider_pic",
                                             "icon": "config/images/page_white_vector.png",
@@ -27617,7 +27617,7 @@
                                         },
                                         {
                                             "-class": "NewFrame",
-                                            "-name": "图片_208",
+                                            "-name": "图片_123",
                                             "-type": "ImageList",
                                             "caption": "图片",
                                             "icon": "config/images/page_white_vector.png",
@@ -28176,14 +28176,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_209",
+                            "-name": "布局_124",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_210",
+                                    "-name": "文字_125",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -28431,14 +28431,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_212",
+                                            "-name": "布局_127",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_213",
+                                                    "-name": "图片_128",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -28686,7 +28686,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_214",
+                                                    "-name": "文字_129",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -29127,14 +29127,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_215",
+                                            "-name": "布局_130",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_216",
+                                                    "-name": "图片_131",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -29382,7 +29382,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_217",
+                                                    "-name": "文字_132",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -29823,14 +29823,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_218",
+                                            "-name": "布局_133",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_219",
+                                                    "-name": "图片_134",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -30078,7 +30078,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_220",
+                                                    "-name": "文字_135",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -30519,14 +30519,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_221",
+                                            "-name": "布局_136",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_222",
+                                                    "-name": "图片_137",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -30774,7 +30774,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_223",
+                                                    "-name": "文字_138",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -31215,14 +31215,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_224",
+                                            "-name": "布局_139",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_225",
+                                                    "-name": "图片_140",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -31470,7 +31470,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_226",
+                                                    "-name": "文字_141",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -31911,14 +31911,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_227",
+                                            "-name": "布局_142",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_228",
+                                                    "-name": "图片_143",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -32166,7 +32166,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_229",
+                                                    "-name": "文字_144",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -33254,25 +33254,25 @@
             "-class": "ScenesScreen",
             "-name": "ScenesScreen",
             "-type": "page",
-            "caption": "页面_7",
+            "caption": "页面_2",
             "layer": [
                 {
                     "-class": "NewLayer",
-                    "-name": "图层_236",
+                    "-name": "图层_145",
                     "-type": "NewLayer",
                     "caption": "图层",
                     "icon": "config/images/layer.ico",
                     "layout": [
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_237",
+                            "-name": "布局_146",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_238",
+                                    "-name": "文字_147",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -33520,14 +33520,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_240",
+                                            "-name": "布局_149",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_241",
+                                                    "-name": "文字_150",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -33768,7 +33768,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_242",
+                                                    "-name": "文字_151",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -34208,14 +34208,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_243",
+                                            "-name": "布局_152",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_244",
+                                                    "-name": "文字_153",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -34456,7 +34456,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_245",
+                                                    "-name": "文字_154",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -35321,14 +35321,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_246",
+                            "-name": "布局_155",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_247",
+                                    "-name": "文字_156",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -35576,14 +35576,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_249",
+                                            "-name": "布局_158",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_250",
+                                                    "-name": "图片_159",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -35831,7 +35831,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_251",
+                                                    "-name": "文字_160",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -36272,14 +36272,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_252",
+                                            "-name": "布局_161",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_253",
+                                                    "-name": "图片_162",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -36527,7 +36527,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_254",
+                                                    "-name": "文字_163",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -36968,14 +36968,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_255",
+                                            "-name": "布局_164",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_256",
+                                                    "-name": "图片_165",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -37223,7 +37223,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_257",
+                                                    "-name": "文字_166",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -37664,14 +37664,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_258",
+                                            "-name": "布局_167",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_259",
+                                                    "-name": "图片_168",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -37919,7 +37919,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_260",
+                                                    "-name": "文字_169",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -38360,14 +38360,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_261",
+                                            "-name": "布局_170",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_262",
+                                                    "-name": "图片_171",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -38615,7 +38615,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_263",
+                                                    "-name": "文字_172",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -39056,14 +39056,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_264",
+                                            "-name": "布局_173",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_265",
+                                                    "-name": "图片_174",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -39311,7 +39311,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_266",
+                                                    "-name": "文字_175",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -40177,14 +40177,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_267",
+                            "-name": "布局_176",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_268",
+                                    "-name": "文字_177",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -40425,7 +40425,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "图片_269",
+                                    "-name": "图片_178",
                                     "-type": "ImageList",
                                     "caption": "图片",
                                     "icon": "config/images/page_white_vector.png",
@@ -40872,14 +40872,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_270",
+                            "-name": "布局_179",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_271",
+                                    "-name": "文字_180",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -41127,14 +41127,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_273",
+                                            "-name": "布局_182",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_274",
+                                                    "-name": "图片_183",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -41382,7 +41382,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_275",
+                                                    "-name": "文字_184",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -41823,14 +41823,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_276",
+                                            "-name": "布局_185",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_277",
+                                                    "-name": "图片_186",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -42078,7 +42078,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_278",
+                                                    "-name": "文字_187",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -42519,14 +42519,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_279",
+                                            "-name": "布局_188",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_280",
+                                                    "-name": "图片_189",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -42774,7 +42774,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_281",
+                                                    "-name": "文字_190",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -43215,14 +43215,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_282",
+                                            "-name": "布局_191",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_283",
+                                                    "-name": "图片_192",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -43470,7 +43470,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_284",
+                                                    "-name": "文字_193",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -44336,14 +44336,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_285",
+                            "-name": "布局_194",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "电池电量_286",
+                                    "-name": "电池电量_195",
                                     "-type": "Battery",
                                     "caption": "电池电量",
                                     "icon": "config/images/POR_dark4.png",
@@ -44571,7 +44571,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_287",
+                                    "-name": "文字_196",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -44819,14 +44819,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_289",
+                                            "-name": "布局_198",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_290",
+                                                    "-name": "图片_199",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -45074,7 +45074,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_291",
+                                                    "-name": "文字_200",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -45515,14 +45515,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_292",
+                                            "-name": "布局_201",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_293",
+                                                    "-name": "图片_202",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -45770,7 +45770,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_294",
+                                                    "-name": "文字_203",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -46211,14 +46211,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_295",
+                                            "-name": "布局_204",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_296",
+                                                    "-name": "图片_205",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -46466,7 +46466,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_297",
+                                                    "-name": "文字_206",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -46907,14 +46907,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_298",
+                                            "-name": "布局_207",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_299",
+                                                    "-name": "图片_208",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -47162,7 +47162,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_300",
+                                                    "-name": "文字_209",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -47603,14 +47603,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_301",
+                                            "-name": "布局_210",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_302",
+                                                    "-name": "图片_211",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -47858,7 +47858,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_303",
+                                                    "-name": "文字_212",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -48724,14 +48724,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_304",
+                            "-name": "布局_213",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_305",
+                                    "-name": "文字_214",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -48979,14 +48979,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_307",
+                                            "-name": "布局_216",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_308",
+                                                    "-name": "图片_217",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -49234,7 +49234,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_309",
+                                                    "-name": "文字_218",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -49675,14 +49675,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_310",
+                                            "-name": "布局_219",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_311",
+                                                    "-name": "图片_220",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -49930,7 +49930,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_312",
+                                                    "-name": "文字_221",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -50371,14 +50371,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_313",
+                                            "-name": "布局_222",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_314",
+                                                    "-name": "图片_223",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -50626,7 +50626,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_315",
+                                                    "-name": "文字_224",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -51067,14 +51067,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_316",
+                                            "-name": "布局_225",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_317",
+                                                    "-name": "图片_226",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -51322,7 +51322,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_318",
+                                                    "-name": "文字_227",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -51988,7 +51988,7 @@
                                 },
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_319",
+                                    "-name": "文字_228",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -52429,14 +52429,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_320",
+                            "-name": "布局_229",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_321",
+                                    "-name": "文字_230",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -52684,14 +52684,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_323",
+                                            "-name": "布局_232",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_324",
+                                                    "-name": "图片_233",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -52939,7 +52939,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_325",
+                                                    "-name": "文字_234",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -53380,14 +53380,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_326",
+                                            "-name": "布局_235",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_327",
+                                                    "-name": "图片_236",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -53635,7 +53635,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_328",
+                                                    "-name": "文字_237",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -54076,14 +54076,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_329",
+                                            "-name": "布局_238",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_330",
+                                                    "-name": "图片_239",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -54331,7 +54331,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_331",
+                                                    "-name": "文字_240",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -55197,14 +55197,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_332",
+                            "-name": "布局_241",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_333",
+                                    "-name": "文字_242",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -55452,14 +55452,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_335",
+                                            "-name": "布局_244",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_336",
+                                                    "-name": "图片_245",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -55707,7 +55707,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_337",
+                                                    "-name": "文字_246",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -56148,14 +56148,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_338",
+                                            "-name": "布局_247",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_339",
+                                                    "-name": "图片_248",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -56403,7 +56403,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_340",
+                                                    "-name": "文字_249",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -56844,14 +56844,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_341",
+                                            "-name": "布局_250",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_342",
+                                                    "-name": "图片_251",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -57099,7 +57099,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_343",
+                                                    "-name": "文字_252",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -57540,14 +57540,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_344",
+                                            "-name": "布局_253",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_345",
+                                                    "-name": "图片_254",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -57795,7 +57795,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_346",
+                                                    "-name": "文字_255",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -58236,14 +58236,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_347",
+                                            "-name": "布局_256",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_348",
+                                                    "-name": "图片_257",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -58491,7 +58491,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_349",
+                                                    "-name": "文字_258",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -58932,14 +58932,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_350",
+                                            "-name": "布局_259",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_351",
+                                                    "-name": "图片_260",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -59187,7 +59187,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_352",
+                                                    "-name": "文字_261",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -60053,14 +60053,14 @@
                         },
                         {
                             "-class": "NewLayout",
-                            "-name": "布局_353",
+                            "-name": "布局_262",
                             "-type": "NewLayout",
                             "caption": "布局",
                             "icon": "config/images/layout.ico",
                             "layout": [
                                 {
                                     "-class": "NewFrame",
-                                    "-name": "文字_354",
+                                    "-name": "文字_263",
                                     "-type": "Text",
                                     "caption": "文字",
                                     "icon": "",
@@ -60308,14 +60308,14 @@
                                     "listwidget": [
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_356",
+                                            "-name": "布局_265",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_357",
+                                                    "-name": "图片_266",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -60563,7 +60563,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_358",
+                                                    "-name": "文字_267",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -61004,14 +61004,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_359",
+                                            "-name": "布局_268",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_360",
+                                                    "-name": "图片_269",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -61259,7 +61259,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_361",
+                                                    "-name": "文字_270",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -61700,14 +61700,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_362",
+                                            "-name": "布局_271",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_363",
+                                                    "-name": "图片_272",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -61955,7 +61955,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_364",
+                                                    "-name": "文字_273",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",
@@ -62396,14 +62396,14 @@
                                         },
                                         {
                                             "-class": "NewLayout",
-                                            "-name": "布局_365",
+                                            "-name": "布局_274",
                                             "-type": "NewLayout",
                                             "caption": "布局",
                                             "icon": "config/images/layout.ico",
                                             "layout": [
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "图片_366",
+                                                    "-name": "图片_275",
                                                     "-type": "ImageList",
                                                     "caption": "图片",
                                                     "icon": "config/images/page_white_vector.png",
@@ -62651,7 +62651,7 @@
                                                 },
                                                 {
                                                     "-class": "NewFrame",
-                                                    "-name": "文字_367",
+                                                    "-name": "文字_276",
                                                     "-type": "Text",
                                                     "caption": "文字",
                                                     "icon": "",

@@ -80,21 +80,27 @@ const struct control_ops *get_control_ops_by_type(int type)
 
 
 /* ==================================================================== *
- *  二、UI 风格注册表
+ *  二、页面事件回调注册表
  *
- *  一套风格 = 一组 (窗口/控件 id -> 事件回调) 的映射, 由应用侧用
- *  UI_STYLE_HANDLERS_BEGIN/END(见 ui/ui_core.h) 定义。
+ *  每个页面在 ui_action/<页面>_action.c 里定义自己那张
+ *  (窗口/控件 id -> ontouch/onkey/onchange) 表, 并包成一个
+ *  const struct ui_handler_group ui_handlers_<页面>。
+ *
+ *  ⚠ 新增页面要动两处: 写 ui_action/<页面>_action.c, 然后在这里加
+ *    一条 extern + 表里加一行。漏了是编译期未定义符号, 不是运行期静默失效。
+ *
+ *  原厂靠链接脚本收集 .elm_event_handler_JL 段 + .ui_style 段做同一件事,
+ *  为什么改成显式表见 include/ui/ui_core.h 的说明。
  * ==================================================================== */
 
-/* 应用侧的风格还没写(要等资源文件里的窗口 ID 定下来), 所以这张表先留空。
- * 空表的后果是明确的: ui_core_set_style() 返回 -EINVAL,
- * element_event_handler_for_id() 恒返回 NULL, 界面能画出来但所有控件
- * 都没有事件回调 —— 静态显示正常, 按键/刷新不响应。
- *
- * 写好风格文件后, 在这里加:
- *     extern const struct ui_style_info ui_style_jl02;
- * 并把 &ui_style_jl02 放进表里。 */
-const struct ui_style_info *const g_ui_style_table[] = {
+extern const struct ui_handler_group ui_handlers_music;
+extern const struct ui_handler_group ui_handlers_bt;
+extern const struct ui_handler_group ui_handlers_system;
+
+const struct ui_handler_group *const g_ui_handler_table[] = {
+    &ui_handlers_music,
+    &ui_handlers_bt,
+    &ui_handlers_system,
     NULL,   /* 结束标记 */
 };
 
