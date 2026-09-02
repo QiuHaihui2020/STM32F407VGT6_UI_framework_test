@@ -1,5 +1,7 @@
 # 可移植点阵屏 UI 框架 —— STM32 验证工程
 
+> **语言 / Language：** [中文](README.md) · [English](README_EN.md)
+
 参考杰理（JieLi）的 UI 框架重写的一套可移植点阵屏 UI 框架（`User/ui_framework/`）。
 杰理的框架闭源，代码全部重写；参考它是因为它有配套 GUI 编辑器（`ui-tools.exe` 画界面、
 `ResBuilder.exe` 出资源），要复用这套工具链就得认它的资源格式（`.sty`/`.res`/`.str`）
