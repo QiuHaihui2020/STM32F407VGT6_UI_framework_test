@@ -11,3 +11,4 @@ build/
 *.axf
 *.iex
 *.dbgconf
+__pycache__/

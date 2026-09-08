@@ -34,6 +34,7 @@
 #include "flash_disk.h"
 #include "stm32f4xx_hal.h"
 #include <string.h>
+#include "log_debug.h"
 
 /* 片内 Flash 按字(32bit)编程, 所有搬移与编程都以字为单位 */
 #define FLASH_DISK_WORD_SIZE        (4UL)
@@ -331,6 +332,19 @@ FlashDisk_StatusTypeDef FlashDisk_Init(void)
     {
         return FLASH_DISK_ERR_PARAM;
     }
+
+#if FLASH_DISK_EMBED_IMAGE
+    /* 引用嵌入镜像并校验 FAT 引导扇区签名: 一方面在链接期把未被引用的
+       .res_image 段钉住(防止被链接器当无用段裁掉), 另一方面兜底检查镜像本身
+       是有效的 FAT 磁盘. 注意不与 Flash 现场内容比对: USB MSC / 运行期写盘
+       都会改变磁盘区内容, 比对会把正常使用误判成故障. */
+    if ((g_res_image[0] != 0xEBU) ||
+        (g_res_image[510] != 0x55U) || (g_res_image[511] != 0xAAU))
+    {
+        log_error("FlashDisk_Init: g_res_image invalid FAT signature\r\n");
+        return FLASH_DISK_ERR_PARAM;
+    }
+#endif
 
     return FLASH_DISK_OK;
 }

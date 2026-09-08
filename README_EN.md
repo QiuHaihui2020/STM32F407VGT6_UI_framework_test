@@ -88,6 +88,10 @@ Two ways, same output.
 
 Open `MDK-ARM/STM32F407VGT6_Template.uvprojx` and build from the Keil UI.
 
+A **Before Build hook** runs `tools/make_res_image.bat` automatically before every build
+(Options → User → Before Build/Rebuild), regenerating the on-chip Flash resource image
+(see section 4). **Python 3 must be on PATH**.
+
 The project has two targets (top-left dropdown):
 
 | Target                   | Purpose                                              |
@@ -111,10 +115,13 @@ Things to watch out for:
 
 - `set UV=D:\Keil_v5\UV4\UV4.exe` in the script must match your Keil install path
 - The project file is located by `dir /s /b *.uvprojx`, which picks the first hit in the
-  current directory tree — so you **must run it from the `STM32F407VGT6_Template/` directory**
+  current directory tree (`.kilo/` worktree copies are excluded — they contain a project
+  with the same name) — so you **must run it from the `STM32F407VGT6_Template/` directory**
 - The build log is written to `build_log.txt` (overwritten each run; the script `type`s it at the end)
+- **Python 3 must be on PATH** (needed by the Before Build hook, see section 4)
 
-Current baseline: `Code=109556  RO-data=10440  RW-data=820  ZI-data=93324`, 0 errors 0 warnings.
+Current baseline (incl. the 256KB resource image): `Code=111424  RO-data=273320  RW-data=820  ZI-data=93324`,
+0 errors 0 warnings.
 
 ### Reading the Log
 
@@ -198,8 +205,17 @@ step2-打开UI资源生成工具.bat  build resources  -> automatically calls pr
 
 ## 4. Getting Resources into On-Chip Flash
 
-The resource volume is a **FAT volume emulated in on-chip Flash**, exposed to the PC over
-**USB MSC** so files can be dragged onto it directly.
+The resource volume is a **FAT volume emulated in on-chip Flash**. There are two ways to
+get resources onto it:
+
+| Method                                        | Description                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A: Build-time preseeding (default)**  | Before every build, `tools/JL` and `tools/font` are packed into a FAT12 disk image that is flashed together with the firmware. FatFs mounts it right after boot — **no USB MSC needed** |
+| **B: USB MSC copy**                     | Plug in USB and drag files onto the drive. Useful for updating the volume at run time, or when the image is not embedded (`FLASH_DISK_EMBED_IMAGE = 0`) |
+
+Both methods write the **same region of the same Flash**, with an identical on-volume layout,
+and can be mixed: downloading the firmware restores the volume to the build-time image, and
+anything changed over USB afterwards persists until the next download.
 
 ### Flash Layout (VET6, 512KB)
 
@@ -208,8 +224,8 @@ Configured in `User/fs/flash_disk.h`:
 | Sectors | Address                    | Size      | Purpose                                            |
 | ------- | -------------------------- | --------- | -------------------------------------------------- |
 | S0..S4  | `0x08000000`..`0x0801FFFF` | 128KB     | Program code                                       |
-| S5      | `0x08020000`..`0x0803FFFF` | 128KB     | FAT write **swap sector** (`FLASH_DISK_SWAP_ADDR`) |
-| S6..S7  | `0x08040000`..`0x0807FFFF` | **256KB** | **FAT resource volume** (`FLASH_DISK_BASE_ADDR`)   |
+| S5      | `0x08020000`..`0x0803FFFF` | 128KB     | FAT write **swap sector** (`FLASH_DISK_SWAP_ADDR`), **not part of the image** |
+| S6..S7  | `0x08040000`..`0x0807FFFF` | **256KB** | **FAT resource volume** (`FLASH_DISK_BASE_ADDR`), image is flashed here |
 
 Sector size is 512 bytes (`FLASH_DISK_SECTOR_SIZE`; it must match `_MAX_SS` in `ffconf.h`,
 enforced by an `#error`). The volume is currently in **read-write mode**
@@ -217,31 +233,74 @@ enforced by an `#error`). The volume is currently in **read-write mode**
 per physical sector, so modifying one 512B logical sector means reading the whole physical
 sector into the swap area first.
 
-### Steps
+### Method A: Build-time preseeding (default)
+
+The whole chain is automatic — edit resources and just build:
+
+```
+tools/JL/*  tools/font/*
+     │  before every build, Keil's Before Build hook runs (both the GUI and keil_make.bat)
+     ▼
+tools/make_res_image.bat → python tools/make_res_image.py
+     │  1. parses FLASH_DISK_BASE_ADDR / SIZE / SECTOR_SIZE from User/fs/flash_disk.h
+     │  2. builds a FAT12 disk image of exactly FLASH_DISK_SIZE (0:/JL/... 0:/font/...)
+     │  3. generates User/fs/res_image.c (g_res_image const array, .res_image section)
+     │  4. reads the image back along the FAT chains and byte-compares with the sources
+     ▼
+the FS_IMAGE region in MDK-ARM/FLASH_RELEASE/*.sct places the .res_image section at
+FLASH_DISK_BASE_ADDR → flashed together with the firmware on download
+```
+
+| Artifact                        | Description                                                   |
+| ------------------------------- | ------------------------------------------------------------- |
+| `User/fs/res_image.c`         | **Generated file, do not edit.** 256KB const array, compiled into the firmware |
+| `tools/res_image/fat_image.bin` | The image itself; can be flashed standalone to `0x08040000` with CubeProgrammer etc. |
+
+Notes:
+
+- The switch is `FLASH_DISK_EMBED_IMAGE` in `flash_disk.h` (default 1). Set it to 0 to fall
+  back to the USB-only flow; under the RAM_Debug target (code runs from RAM) it turns off
+  automatically so the image is not linked into RAM
+- The image size always equals `FLASH_DISK_SIZE`; unused clusters stay 0xFF (equivalent to
+  erased), so run-time writes still hit the "blank → program directly" fast path
+- When the resources are unchanged the script does not rewrite `res_image.c`, so incremental
+  builds stay incremental; if the resources do not fit, the script fails with a message
+  suggesting a larger `FLASH_DISK_SIZE`
+- Every firmware download restores the volume to the build-time resource version
+- The default "Erase Sectors" download option is fine; a full-chip erase is also OK since the
+  image gets reprogrammed with the download
+- ⚠ **Do not call `fs_test()`**: its ForceFormat erases the whole volume and wipes the
+  preseeded resources
+
+### Method B: USB MSC copy
 
 1. Flash the firmware, plug in USB (**USB_OTG_FS: PA11 = D−, PA12 = D+**)
-2. A roughly **256KB removable drive** shows up on the PC (the first time it may ask to be
-   formatted → format as FAT, default cluster size)
+2. A roughly **256KB removable drive** shows up on the PC (with the image embedded it already
+   contains the resources; otherwise the first time it may ask to be formatted → format as
+   FAT, default cluster size)
 3. Copy the files in using the layout below
 4. Eject the drive and reset the board
 
-### Required Layout on the Volume
+### Required Layout on the Volume (same for both methods)
 
 ```
 0:/JL/JL.res          <- tools/JL/JL.res
 0:/JL/JL.str          <- tools/JL/JL.str
 0:/JL/JL.sty          <- tools/JL/JL.sty
 0:/font/ascii.res     <- tools/font/ascii.res
+0:/font/F_ASCII.PIX   <- tools/font/F_ASCII.PIX
 0:/font/F_GB2312.PIX  <- tools/font/F_GB2312.PIX   (only if you need Chinese)
 0:/font/F_GB2312.TAB  <- tools/font/F_GB2312.TAB   (only if you need Chinese)
 ```
+
+**All files** under `tools/JL` and `tools/font` go into the image (and can be copied over USB);
+names must be 8.3-compliant (`_USE_LFN = 0`, all-uppercase short names on the volume).
 
 > ⚠ **`UI_PORT_RES_ROOT` is the volume root `"0:"` — no extra directory level.**
 > The framework builds paths itself as `RES_PATH"JL/JL.res"`, so setting it to `"0:/ui"`
 > yields `0:/ui/JL/JL.res`, which does not exist on the volume → every `resfile_open` fails
 > and the screen stays black.
 >
-> `_USE_LFN = 0`, so the volume uses 8.3 short filenames (all uppercase).
 > When paths do not line up, enable `UI_PORT_FS_DUMP_TREE` and look at the real tree
 > instead of guessing.
 
@@ -375,12 +434,16 @@ STM32F407VGT6_Template/
 ├── User/
 │   ├── apps/app_core.c         application main task, UI init entry point
 │   ├── fs/flash_disk.c         on-chip Flash emulated disk (shared by FatFs and USB MSC)
+│   ├── fs/res_image.c          generated file, do not edit: embedded FAT disk image (.res_image section)
 │   ├── key/  led/  test/       peripheral tests
 │   └── ui_framework/           ★ the UI framework itself, see below
 ├── tools/
 │   ├── LCD_UI工程/             UI editor / resource builder / font tools
 │   ├── JL/                     generated UI resources (JL.sty/res/str)
-│   └── font/                   fonts (ascii.res, F_GB2312.PIX/TAB)
+│   ├── font/                   fonts (ascii.res, F_GB2312.PIX/TAB)
+│   ├── make_res_image.py       disk image generator (run automatically by Before Build)
+│   ├── make_res_image.bat      Keil Before Build hook
+│   └── res_image/fat_image.bin generated disk image (can be flashed standalone to 0x08040000)
 ├── docs/                   hardware material (schematics, PCB, datasheets)
 ├── MDK-ARM/                Keil project
 └── keil_make.bat           command-line build

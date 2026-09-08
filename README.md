@@ -84,6 +84,10 @@ USB 是 **Full Speed 设备模式**，`vbus_sensing_enable = DISABLE`（不做 V
 
 打开 `MDK-ARM/STM32F407VGT6_Template.uvprojx`，选好使用keil界面编译工程。
 
+编译前 **Before Build 挂钩**会自动执行 `tools/make_res_image.bat`
+（Options → User → Before Build/Rebuild），重新生成片内 Flash 的资源镜像（见第 4 节），
+需要 **Python 3 在 PATH 里**。
+
 工程里有两个 target（左上角下拉框切换）：
 
 | target                     | 用途                                              |
@@ -104,11 +108,13 @@ keil_make.bat rebuild                # 全量重编
 需要注意：
 
 - 脚本里的 `set UV=D:\Keil_v5\UV4\UV4.exe` 要按你的 Keil 安装路径改
-- 工程文件靠 `dir /s /b *.uvprojx` 在当前目录树里自动找第一个，所以**必须在
+- 工程文件靠 `dir /s /b *.uvprojx` 在当前目录树里自动找第一个（已排除 `.kilo/`
+  下的 worktree 副本，那里有同名工程），所以**必须在
   `STM32F407VGT6_Template/` 目录下运行**
 - 编译日志写到 `build_log.txt`（每次覆盖，脚本结尾会 `type` 出来）
+- **需要 Python 3 在 PATH 里**（编译前的 Before Build 挂钩要用，见第 4 节）
 
-当前基线：`Code=109556  RO-data=10440  RW-data=820  ZI-data=93324`，0 Error 0 Warning。
+当前基线（含 256KB 资源镜像）：`Code=111424  RO-data=273320  RW-data=820  ZI-data=93324`，0 Error 0 Warning。
 
 ### 看日志
 
@@ -190,7 +196,15 @@ step2-打开UI资源生成工具.bat  生成资源 → 自动调 project/copy_fi
 
 ## 4. 把资源放进片内 Flash
 
-资源盘是**片内 Flash 模拟的 FAT 盘**，通过 **USB MSC** 挂到 PC 上直接拖文件。
+资源盘是**片内 Flash 模拟的 FAT 盘**，有两种方式把资源放进去：
+
+| 方式                                     | 说明                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **方式 A：编译期预置（默认）**     | 编译前自动把 `tools/JL`、`tools/font` 做成 FAT12 磁盘镜像，随固件一起烧进磁盘区。上电 FatFs 直接挂载，**不需要 USB MSC** |
+| **方式 B：USB MSC 拷贝**           | 插 USB 把 PC 上的文件拖进 U 盘。适合运行期换资源，或镜像没嵌（`FLASH_DISK_EMBED_IMAGE = 0`）时用 |
+
+两种方式写的是**同一片 Flash 的同一个磁盘区**，盘上布局完全一致，可混用：
+下载固件会把磁盘恢复成编译时的镜像版本，之后再用 USB 改的内容保持到下次下载。
 
 ### Flash 分区（VET6 512KB）
 
@@ -199,36 +213,74 @@ step2-打开UI资源生成工具.bat  生成资源 → 自动调 project/copy_fi
 | 扇区   | 地址                           | 大小            | 用途                                                   |
 | ------ | ------------------------------ | --------------- | ------------------------------------------------------ |
 | S0..S4 | `0x08000000`..`0x0801FFFF` | 128KB           | 程序代码                                               |
-| S5     | `0x08020000`..`0x0803FFFF` | 128KB           | FAT 写入**中转扇区**（`FLASH_DISK_SWAP_ADDR`） |
-| S6..S7 | `0x08040000`..`0x0807FFFF` | **256KB** | **FAT 资源盘**（`FLASH_DISK_BASE_ADDR`）       |
+| S5     | `0x08020000`..`0x0803FFFF` | 128KB           | FAT 写入**中转扇区**（`FLASH_DISK_SWAP_ADDR`），**不进镜像** |
+| S6..S7 | `0x08040000`..`0x0807FFFF` | **256KB** | **FAT 资源盘**（`FLASH_DISK_BASE_ADDR`），镜像烧在这里   |
 
 扇区大小 512 字节（`FLASH_DISK_SECTOR_SIZE`，必须与 `ffconf.h` 的 `_MAX_SS` 一致，
 有 `#error` 卡住）。当前是**读写模式**（`FLASH_DISK_READONLY = 0`），
 所以需要中转扇区：Flash 只能按扇区擦，改一个 512B 逻辑扇区得先把整个物理扇区读到中转区。
 
-### 操作步骤
+### 方式 A：编译期预置（默认）
+
+整条链是全自动的，改完资源直接编译即可：
+
+```
+tools/JL/*  tools/font/*
+     │  每次编译前, Keil 的 Before Build 挂钩自动执行 (GUI 和 keil_make.bat 都会走)
+     ▼
+tools/make_res_image.bat → python tools/make_res_image.py
+     │  1. 解析 User/fs/flash_disk.h 里的 FLASH_DISK_BASE_ADDR / SIZE / SECTOR_SIZE
+     │  2. 做成与 FLASH_DISK_SIZE 等大的 FAT12 磁盘镜像 (0:/JL/... 0:/font/...)
+     │  3. 生成 User/fs/res_image.c (g_res_image 常量数组, .res_image 段)
+     │  4. 按 FAT 链回读, 与源文件逐字节比对校验
+     ▼
+MDK-ARM/FLASH_RELEASE/*.sct 的 FS_IMAGE region 把 .res_image 段定位到
+FLASH_DISK_BASE_ADDR → 随固件一起下载烧录
+```
+
+| 产物                            | 说明                                                  |
+| ------------------------------- | ----------------------------------------------------- |
+| `User/fs/res_image.c`         | **生成文件，别手改**。256KB const 数组，随固件编译链接 |
+| `tools/res_image/fat_image.bin` | 镜像本体，可用 CubeProgrammer 等单独烧到 `0x08040000` |
+
+要点：
+
+- 开关是 `flash_disk.h` 的 `FLASH_DISK_EMBED_IMAGE`（默认 1）。置 0 回到纯 USB 方式；
+  RAM_Debug 目标（代码跑 RAM）下自动关闭，避免镜像被链接进 RAM 区
+- 镜像大小恒等于 `FLASH_DISK_SIZE`，未用的簇保持 0xFF（等价于擦除态），
+  运行期写盘仍走"空白直接编程"快路径
+- 资源没变时脚本不重写 `res_image.c`，增量编译不受影响；资源装不下时脚本直接报错
+  （提示调大 `FLASH_DISK_SIZE`）
+- 每次下载固件都会把磁盘区恢复成编译时的资源版本
+- 下载时擦除方式用默认的 "Erase Sectors" 即可；全片擦除也没问题，镜像会随下载重写
+- ⚠ **不要调用 `fs_test()`**：它的 ForceFormat 会整区擦除磁盘，把预置资源清掉
+
+### 方式 B：USB MSC 拷贝
 
 1. 烧固件，插 USB（**USB_OTG_FS：PA11 = D−，PA12 = D+**）
-2. PC 上出现一个约 **256KB 的 U 盘**（首次可能提示需要格式化 → 格成 FAT，簇大小用默认）
-3. 按下面的布局把文件拷进去
+2. PC 上出现一个约 **256KB 的 U 盘**（嵌了镜像的话里面已经是资源；没嵌则首次提示格式化 → 格成 FAT，簇大小用默认）
+3. 按"盘上必须的布局"把文件拷进去
 4. 弹出 U 盘、复位单板
 
-### 盘上必须的布局
+### 盘上必须的布局（两种方式相同）
 
 ```
 0:/JL/JL.res          <- tools/JL/JL.res
 0:/JL/JL.str          <- tools/JL/JL.str
 0:/JL/JL.sty          <- tools/JL/JL.sty
 0:/font/ascii.res     <- tools/font/ascii.res
+0:/font/F_ASCII.PIX   <- tools/font/F_ASCII.PIX
 0:/font/F_GB2312.PIX  <- tools/font/F_GB2312.PIX   (需要中文时)
 0:/font/F_GB2312.TAB  <- tools/font/F_GB2312.TAB   (需要中文时)
 ```
+
+`tools/JL`、`tools/font` 下的**所有文件**都会进镜像 / 都可拷，文件名必须是 8.3 格式
+（`_USE_LFN = 0`，盘上是全大写短名）。
 
 > ⚠ **`UI_PORT_RES_ROOT` 是盘根 `"0:"`，不能多一层目录。**
 > 框架自己拼 `RES_PATH"JL/JL.res"`，写成 `"0:/ui"` 会变成 `0:/ui/JL/JL.res`，
 > 与盘上对不上 → `resfile_open` 全部失败、界面全黑。
 >
-> `_USE_LFN = 0`，所以盘上是 8.3 短文件名（全大写）。
 > 路径对不上时打开 `UI_PORT_FS_DUMP_TREE` 看实际目录树，别靠猜。
 
 ### USB 配置
@@ -353,12 +405,16 @@ STM32F407VGT6_Template/
 ├── User/
 │   ├── apps/app_core.c         应用主任务, UI 初始化入口
 │   ├── fs/flash_disk.c         片内 Flash 模拟磁盘(FatFs 与 USB MSC 共用)
+│   ├── fs/res_image.c          生成文件, 勿手改: 嵌入的 FAT 磁盘镜像(.res_image 段)
 │   ├── key/  led/  test/       外设测试
 │   └── ui_framework/           ★ UI 框架本体, 见下
 ├── tools/
 │   ├── LCD_UI工程/             UI 绘图 / 资源生成 / 字库工具
 │   ├── JL/                     生成的 UI 资源(JL.sty/res/str)
-│   └── font/                   字库(ascii.res, F_GB2312.PIX/TAB)
+│   ├── font/                   字库(ascii.res, F_GB2312.PIX/TAB)
+│   ├── make_res_image.py       资源镜像生成脚本(编译前 Before Build 自动执行)
+│   ├── make_res_image.bat      Keil Before Build 挂钩
+│   └── res_image/fat_image.bin 生成的磁盘镜像(可用烧录工具单独烧到 0x08040000)
 ├── docs/                   硬件资料(原理图 PCB, 数据手册)
 ├── MDK-ARM/                Keil 工程
 └── keil_make.bat           命令行编译

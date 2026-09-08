@@ -24,8 +24,9 @@ set DEFAULT_TARGET_NAME=STM32F407VGT6_Template
 
 :: 设置工程文件路径
 :: set UV_PRO_PATH=D:\MyWorkSpace_Test\B1X\MCU_MainApp\B1X_RT1061_MAIN\MDK\B1X_RT1061_MAIN.uvprojx
-:: ​当前目录及所有子目录​​中搜索扩展名为 .uvprojx 的文件，并将​第一个找到的文件路径​​赋值给环境变量 UV_PRO_PATH
-for /f "usebackq delims=" %%j in (`dir /s /b %cd%\*.uvprojx`) do (
+:: 当前目录及所有子目录中搜索扩展名为 .uvprojx 的文件，并将第一个找到的文件路径赋值给环境变量 UV_PRO_PATH
+:: 注意: 排除 .kilo 目录 (Kilo/Agent Manager 的 worktree 副本里也有同名工程, 不能编错对象)
+for /f "usebackq delims=" %%j in (`dir /s /b %cd%\*.uvprojx ^| findstr /v /i /c:".kilo"`) do (
     if exist %%j (
         set UV_PRO_PATH="%%j"
     )

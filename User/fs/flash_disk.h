@@ -18,6 +18,34 @@ extern "C" {
 
 /* ========================= 用户可配置区 开始 ========================= */
 
+
+/**
+  * @brief 是否把磁盘镜像嵌入固件 (编译期预置资源).
+  *
+  *        1 = 编译前由 tools/make_res_image.py 生成 User/fs/res_image.c,
+  *            scatter 文件把 .res_image 段定位到 FLASH_DISK_BASE_ADDR,
+  *            下载固件时镜像随代码一起烧进磁盘区:
+  *              - 首次上电 FatFs 直接挂载, 不再需要先用 USB MSC 拷资源;
+  *              - USB MSC / 运行期 FatFs 仍可正常读写这片 Flash (镜像只是
+  *                flash 的初始内容, 与驱动读写路径无关);
+  *              - 资源更新: 改完 tools/JL、tools/font 重新编译即可, 每次下载
+  *                固件都会把磁盘区恢复成编译时的资源版本.
+  *
+  *        0 = 不嵌入, 磁盘内容靠 USB MSC 拷贝或运行期 f_mkfs 建立 (旧行为).
+  *
+  * @note  RAM_Debug 目标(代码跑 RAM)下自动关闭, 避免整个磁盘镜像被链接进
+  *        RAM 区; 需要时可在 Keil 的 C Defines 里覆盖: FLASH_DISK_EMBED_IMAGE=1.
+  * @note  注意: fs_test() 的 ForceFormat 会整区擦除磁盘, 嵌入模式下不要再跑
+  *        该测试, 否则预置资源会被清掉.
+  */
+#ifndef FLASH_DISK_EMBED_IMAGE
+#ifdef RAM_DEBUG
+#define FLASH_DISK_EMBED_IMAGE      (0)
+#else
+#define FLASH_DISK_EMBED_IMAGE      (1)
+#endif
+#endif
+
 /**
   * @brief 只读模式开关. 这是本驱动最主要的取舍开关, 决定要不要中转扇区.
   *
@@ -39,7 +67,11 @@ extern "C" {
   *            - Keil 工程 IROM1 大小必须限制到 0x20000 (128KB), 否则代码可能
   *              被链接到中转扇区或磁盘区, 一写盘就把自己擦掉.
   */
+ #if FLASH_DISK_EMBED_IMAGE
+#define FLASH_DISK_READONLY         (1)
+#else
 #define FLASH_DISK_READONLY         (0)
+#endif
 
 /**
   * @brief 磁盘区起始地址, 必须与 Flash 物理扇区边界对齐.
@@ -120,6 +152,14 @@ typedef enum
     FLASH_DISK_ERR_VERIFY,      /*!< 写入后回读校验不一致 */
     FLASH_DISK_ERR_READONLY     /*!< 只读模式下尝试写入 */
 } FlashDisk_StatusTypeDef;
+
+#if FLASH_DISK_EMBED_IMAGE
+/**
+  * @brief 嵌入的磁盘镜像 (tools/make_res_image.py 生成, .res_image 段,
+  *        由 scatter 文件定位到 FLASH_DISK_BASE_ADDR, 与 FlashDisk 读写同一片 Flash).
+  */
+extern const uint8_t g_res_image[FLASH_DISK_SIZE];
+#endif /* FLASH_DISK_EMBED_IMAGE */
 
 /**
   * @brief  初始化 Flash 磁盘, 校验配置的合法性.

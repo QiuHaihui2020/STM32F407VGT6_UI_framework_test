@@ -14,6 +14,7 @@
 ".\flash_release\stm32f4xx_hal_msp.o"
 ".\flash_release\stm32f4xx_hal_timebase_tim.o"
 ".\flash_release\flash_disk.o"
+".\flash_release\res_image.o"
 ".\flash_release\user_diskio.o"
 ".\flash_release\fatfs.o"
 ".\flash_release\stm32f4xx_hal_tim.o"
