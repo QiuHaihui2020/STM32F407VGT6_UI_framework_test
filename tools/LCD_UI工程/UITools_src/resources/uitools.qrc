@@ -1,0 +1,87 @@
+﻿<!--
+  uitools.qrc —— 从 ui-tools.exe 的 qrc 段里原样扔出来的 77 个图标。
+  前缀刻意保持 /icon，使资源路径与原程序完全一致（如 :/icon/icons/go-up.png），
+  这些路径在二进制的 QStringLiteral 里能直接找到。
+  提取脚本: re/qrc3.py
+-->
+<RCC>
+    <qresource prefix="/icon">
+        <file>icons/act_add.png</file>
+        <file>icons/act_del.png</file>
+        <file>icons/act_down.png</file>
+        <file>icons/act_downbottom.png</file>
+        <file>icons/act_insert.png</file>
+        <file>icons/act_up.png</file>
+        <file>icons/act_uptop.png</file>
+        <file>icons/addtab.png</file>
+        <file>icons/arrowdown.png</file>
+        <file>icons/arrowdown@2x.png</file>
+        <file>icons/arrowleft@2x.png</file>
+        <file>icons/arrowright@2x.png</file>
+        <file>icons/arrowup.png</file>
+        <file>icons/arrowup@2x.png</file>
+        <file>icons/ask.png</file>
+        <file>icons/bottom.png</file>
+        <file>icons/build.png</file>
+        <file>icons/buildstepmovedown@2x.png</file>
+        <file>icons/buildstepmoveup@2x.png</file>
+        <file>icons/busy.png</file>
+        <file>icons/canvas-diagram.png</file>
+        <file>icons/category_vcs.png</file>
+        <file>icons/CheckBox.png</file>
+        <file>icons/Close_Circle.png</file>
+        <file>icons/Close_Dark.png</file>
+        <file>icons/creator_advanceduse.png</file>
+        <file>icons/Cut.png</file>
+        <file>icons/document-open.png</file>
+        <file>icons/document-save-as.png</file>
+        <file>icons/editcopy.png</file>
+        <file>icons/editcut.png</file>
+        <file>icons/editpaste.png</file>
+        <file>icons/empty.png</file>
+        <file>icons/eye.png</file>
+        <file>icons/eye_closed@2x.png</file>
+        <file>icons/eye_open@2x.png</file>
+        <file>icons/eye-hidden.png</file>
+        <file>icons/fileopen.png</file>
+        <file>icons/fileoverlay_ui@2x.png</file>
+        <file>icons/go-bottom.png</file>
+        <file>icons/go-down.png</file>
+        <file>icons/go-next.png</file>
+        <file>icons/go-previous.png</file>
+        <file>icons/go-top.png</file>
+        <file>icons/go-up.png</file>
+        <file>icons/gradient.png</file>
+        <file>icons/hide-30x30.png</file>
+        <file>icons/horizontal-scale-icon.png</file>
+        <file>icons/image-icon.png</file>
+        <file>icons/info.png</file>
+        <file>icons/interface.png</file>
+        <file>icons/mode_help@2x.png</file>
+        <file>icons/next@2x.png</file>
+        <file>icons/player_play.png</file>
+        <file>icons/player_stop.png</file>
+        <file>icons/plus.png</file>
+        <file>icons/preferences-system.png</file>
+        <file>icons/prev@2x.png</file>
+        <file>icons/progressindicator_big@2x.png</file>
+        <file>icons/qt_logo.png</file>
+        <file>icons/QtBareMetal.png</file>
+        <file>icons/removesubmitfield.png</file>
+        <file>icons/same-height.png</file>
+        <file>icons/same-width.png</file>
+        <file>icons/Save_Icon.png</file>
+        <file>icons/scale-icon.png</file>
+        <file>icons/Screenshot.png</file>
+        <file>icons/search.png</file>
+        <file>icons/smallpt.png</file>
+        <file>icons/system-search.png</file>
+        <file>icons/Tick_Mark_Dark.png</file>
+        <file>icons/top.png</file>
+        <file>icons/undo.png</file>
+        <file>icons/visibility-30x30.png</file>
+        <file>icons/waring.png</file>
+        <file>icons/xfail.png</file>
+        <file>icons/xpass.png</file>
+    </qresource>
+</RCC>

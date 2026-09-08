@@ -1,0 +1,442 @@
+0x010bfac0	䱑獩坴摩敧䥴整⩭⠀⇧簁௻䀁௻倁䕌
+0x010c0de0	湯牃慥整敎䱷祡畯t湯牃慥整敎䱷祡牥
+0x010c2770	湯敄䍬牵敲瑮捓湥獥捓敲湥漀䍮湯偦潲敪瑣洀慐敧楓敺
+0x01190580	None
+0x011905e0	SHCore
+0x01191214	 - 
+0x01191d80	SystemAsterisk
+0x01191dc0	\.Current
+0x01191e00	AppEvents\Schemes\Apps\.Default\
+0x01191e60	SystemHand
+0x01191ea0	SystemExclamation
+0x01191ee0	SystemAsterisk
+0x01192200	TabletDummyWindow
+0x01192240	wintab32
+0x01192580	QWindowsDragCursorWindow
+0x0119280c	NULL
+0x01192840	Qt5ClipboardView
+0x01193280	QtOpenGLDummyWindow
+0x01193450	捨牵潳r慭汩潴
+0x011935e8	.exe 
+0x0119397c	dummy
+0x011939a0	qt_/directory/
+0x011939e0	Courier New
+0x01193a20	Windows
+0x01193a40	WindowsXP
+0x01193a80	WindowsVista
+0x01194560	:/qt-project.org/windows/cursors/images/
+0x01194640	<data>
+0x01194a40	application/x-color
+0x01194a80	application/x-qt-image
+0x01194ac0	text/uri-list
+0x01194b00	text/plain
+0x01194b40	text/html
+0x01194b80	UniformResourceLocator
+0x01194bc0	HTML Format
+0x01194c00	video/
+0x01194c20	text/
+0x01194c40	multipart/
+0x01194c80	model/
+0x01194ca0	message/
+0x01194ce0	image/
+0x01194d00	example/
+0x01194d40	audio/
+0x01194d60	application/
+0x01194da0	application/x-color
+0x01194de0	application/x-color
+0x01194e20	application/x-color
+0x01194e60	application/x-color
+0x01194ea0	application/x-qt-image
+0x01194ee0	text/html
+0x01194f20	HTML Format
+0x01194f60	text/uri-list
+0x01194fa0	UniformResourceLocator
+0x01194fe0	UniformResourceLocatorW
+0x01195020	text/plain
+0x011985c0	combase
+0x01198960	disable_rotation
+0x011989a0	disable_d3d9
+0x011989e0	disable_d3d11
+0x01198a20	disable_angle
+0x01198a60	disable_desktopgl
+0x01198aa0	:/qt-project.org/windows/openglblacklists/default.json
+0x01198b20	printable
+0x01198b60	description
+0x01198ba0	driverVersionString
+0x01198be0	driverBuild
+0x01198c20	driverSubVersion
+0x01198c60	driverVersion
+0x01198ca0	driverProduct
+0x01198ce0	driver
+0x01198d00	revision
+0x01198d40	subSysId
+0x01198d80	deviceId
+0x01198dc0	vendorId
+0x01198de4	d3d9
+0x011997a0	Comdlg32
+0x011997e0	_XXXXXX
+0x01199800	;
+0x01199820	[;\s]+
+0x01199840	data:text/plain;base64,
+0x0119a0a0	QWindowsGuiEventDispatcher
+0x0119a720	MS Shell Dlg 2
+0x0119a760	MS Shell Dlg 2
+0x0119a790	Arial
+0x0119a7c0	Old English
+0x0119a800	Impact
+0x0119a820	Comic Sans MS
+0x0119a860	Courier New
+0x0119a8a0	Courier New
+0x0119a8e0	Times New Roman
+0x0119a920	Segoe UI Symbol
+0x0119a960	Segoe UI Emoji
+0x0119a9a0	Courier New
+0x0119a9c8	Arial
+0x0119aa00	MS Sans Serif
+0x0119aa80	dwrite
+0x0119ad60	trueType
+0x0119ad84	hFont
+0x0119ada0	logFont
+0x0119adc0	gdi32
+0x0119afc0	\s(\d+,)+\d+
+0x0119b000	(TrueType)
+0x0119b040	HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts
+0x011c0060	mask
+0x011c007c	depth
+0x011c0098	group
+0x011c00c0	^(?<junk>[a-z|A-Z]{0,4})(?<group>[a-z|A-Z]{1})(?<depth>[\d]{0,2})(?<mask>[#mk]{0,2})$
+0x011c7dd0	￿˿
+0x011c80c4	￿˿
+0x011c80e8	￿˿
+0x011c810c	￿˿
+0x011c8f50	￿˿
+0x011c8f74	￿˿
+0x011c8f98	￿˿
+0x011c8fbc	￿˿
+0x011c9148	￿˿
+0x011c92d4	￿˿
+0x011c931c	￿˿
+0x011c9340	￿˿
+0x011c9538	￿˿
+0x011c9808	￿˿
+0x011c982c	￿˿
+0x011c9904	￿˿
+0x011c9a00	￿˿
+0x011c9a48	￿˿
+0x011c9afc	￿˿
+0x011c9eec	￿˿
+0x011f3980	呑敲噥敩w硥慰摮摥
+0x011f47a0	呑扡敬楗杤瑥椀整偭敲獳摥
+0x011f5720	呑扡敬楖睥猀汥捥剴睯
+0x011fb31c	qt.io
+0x011fb340	qt.io/licensing
+0x011fb370	2017
+0x011fb840	䙑汩卥獹整䵭摯汥爀潯側瑡䍨慨杮摥
+0x011fd67c	file
+0x011fd698	file
+0x011fd6b4	file
+0x011fd6d0	file
+0x011ff340	#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})
+0x01200a20	select-all
+0x01200a60	edit-delete
+0x01200aa0	edit-delete
+0x01200ae0	edit-paste
+0x01200b20	edit-paste
+0x01200b60	link-copy
+0x01200ba0	edit-copy
+0x01200be0	edit-copy
+0x01200c20	edit-cut
+0x01200c60	edit-cut
+0x01200ca0	edit-redo
+0x01200ce0	edit-redo
+0x01200d20	edit-undo
+0x01200d60	edit-undo
+0x01204aa0	䅑獢牴捡却楰䉮硯攀楤楴杮楆楮桳摥
+0x01204c50	潃牲捥呴偯敲楶畯噳污敵䌀牯敲瑣潔敎牡獥噴污敵
+0x01205950	XXXX
+0x01207e00	edit-delete
+0x01207e40	edit-paste
+0x01207e80	edit-copy
+0x01207ec0	edit-cut
+0x01207f00	edit-redo
+0x01207f40	edit-undo
+0x0120c710	b
+0x01212e80	:/qt-project.org/styles/commonstyle/images/cleartext-32.png
+0x01212f20	edit-clear
+0x01212f60	edit-clear-locationbar-rtl
+0x01212fc0	edit-clear-locationbar-ltr
+0x01213020	:/qt-project.org/styles/commonstyle/images/cleartext-16.png
+0x0121bc00	坑慨獴桔獩捁楴湯愀瑣潩呮楲杧牥摥
+0x0121d110	潒慴楴湯湁汧䍥慨杮摥䌀湥整偲楯瑮桃湡敧d
+0x0121d350	潨楲潺瑮污敖潬楣祴瘀牥楴慣噬汥捯瑩y
+0x0121fd00	卑慴正摥慌潹瑵眀摩敧剴浥癯摥
+0x012228dc	...
+0x01275420	䝑慲桰捩䕳晦捥t湥扡敬䍤慨杮摥
+0x01275b20	卑牣汯敬偲楲慶整琀牡敧䑴獥牴祯摥
+0x01276920	䍑浯汰瑥牥愀瑣癩瑡摥
+0x0127bd80	䕑灸湡楤杮楌敮摅瑩爀獥穩呥䍯湯整瑮s
+0x0127cbc0	牐灯牯楴湯污潆瑮s氀Ὡꀁ⟍䀁⟍ꀁ舏
+0x0127cda0	䙑湯䱴獩噴敩w楨桧楬桧整d
+0x0127d5a0	卑摩扥牡最呯啯汲
+0x0127dc00	o
+0x0127fed0	敫批慯摲楓杮敬瑓灥欀祥潢牡偤条卥整p
+0x01281040	慴䵢癯摥昀潲m潴
+0x01281050	牦浯琀o
+0x01284f60	pushbutton-
+0x01286120	$qt_xp_
+0x01286140	QTreeViewThemeHelperWindow
+0x012861a0	QTreeViewThemeHelperWindowClass
+0x01288800	䝑慲桰捩即慣敬漀楲楧䍮慨杮摥
+0x01289380	justify
+0x012893a0	center
+0x012893c0	right
+0x012893dc	left
+0x012893f8	rl
+0x01289420	single
+0x01289440	wave
+0x0128945c	wave
+0x01289480	dot-dot-dash
+0x012894c0	dot-dash
+0x012894e4	dash
+0x01289500	dash
+0x0128951c	solid
+0x0128a5c0	楆汬摥䘀慬t
+0x0128a7a0	䍑浯慭摮楌歮畂瑴湯搀獥牣灩楴湯昀慬t
+0x0128a930	敲畧慬䕲灸敲獳潩n껔ĨꩀĨ꧀Ĩ朠
+0x0128c9b0	牐灯牯楴湯污潆瑮s쳈Ĩ쫠Ĩ쩠Ĩ茀
+0x0128e0f0	牰浩牡佹楲湥慴楴湯渀瑡癩佥楲湥慴楴湯
+0x012904c0	application/x-qstandarditemmodeldatalist
+0x01290778	win
+0x01290790	10
+0x012907a8	8.1
+0x012907c0	8
+0x012907d4	7
+0x0129baa4	...
+0x0129c9c0	慃档乥湯e慃档䅥汬
+0x0129cc00	_q_icoOrigDepth
+0x0129db20	/pictureformats
+0x0129f63c	1
+0x012a5ec0	qttestability
+0x012a5f00	Reinstalling the application may fix this problem.
+0x012a5f80	Available platform plugins are: %1.\n\n
+0x012a5fe0	This application failed to start because it could not find or load the Qt platform plugin "%1"\nin "%2".\n\n
+0x012b1560	#line %1\n
+0x012bbdc0	敄敬整潃灭敬整楌敮䈀捡獫慰散䌀湡散l
+0x012bc220	䅑捣獥楳汢䍥捡敨漀橢捥䑴獥牴祯摥
+0x012bcc70	CC
+0x012bcc88	DD
+0x012bcca0	pc
+0x012bccb8	in
+0x012bccd0	mm
+0x012bcd00	Custom.%1x%2%3
+0x012d8300	QEventDispatcherWin32_Internal_Widget
+0x012d8dc0	Keyboard layout changed
+0x012da020	%1.%2.%3.%4
+0x012dbda4	false
+0x012dbdc0	true
+0x012e8bc0	application/x-qt-image
+0x012e8c00	application/x-color
+0x012e8c40	text/plain
+0x012e8c80	text/html
+0x012e8cc0	text/uri-list
+0x012ef980	䅑獢牴捡側潲祸潍敤l潳牵散潍敤䍬慨杮摥
+0x012f1240	application/x-qabstractitemmodeldatalist
+0x012f14c0	qtlogging.ini
+0x012f1850	楤敲瑣牯䍹慨杮摥搀ⷐꀁ⼙쀁⼘쯢
+0x012f2844	http
+0x012f2860	http
+0x012f2880	Relative URL's path component contains ':' before any '/'
+0x012f2920	Path component starts with '//' and authority is absent
+0x012f29a0	Path component is relative and authority is present
+0x012f2a20	Invalid fragment (character '%1' not permitted)
+0x012f2aa0	Invalid query (character '%1' not permitted)
+0x012f2b20	Invalid path (character '%1' not permitted)
+0x012f2ba0	Port field was empty
+0x012f2be0	Invalid port or port number out of range
+0x012f2c60	Expected ']' to match '[' in hostname
+0x012f2cc0	Invalid IPvFuture address (character '%1' not permitted)
+0x012f2d60	Invalid IPv6 address (character '%1' not permitted)
+0x012f2de0	Invalid IPv6 address
+0x012f2e20	Invalid hostname (contains invalid characters)
+0x012f2ea0	Invalid hostname (character '%1' not permitted)
+0x012f2f20	Invalid password (character '%1' not permitted)
+0x012f2fa0	Invalid user name (character '%1' not permitted)
+0x012f3020	Invalid scheme (character '%1' not permitted)
+0x012f3100	@SSL
+0x012f3120	webdavs
+0x012f3140	file
+0x012f315c	ftp
+0x01354c54	_-.@
+0x01354c84	C
+0x013974a0	yyyy-MM-dd HH:mm:ss.zzz t
+0x01397500	HH:mm:ss.zzz
+0x01397540	dd MMM yyyy hh:mm:ss 
+0x01397580	dd MMM yyyy
+0x013975c0	^[A-Z][a-z]+[ \t]+([A-Z][a-z]+)[ \t]+(\d\d)(?:[ \t]+(\d\d):(\d\d):(\d\d))?[ \t]+(\d\d\d\d)[ \t]*(?:([+-])(\d\d)(\d\d))?
+0x013976c0	^(?:[A-Z][a-z]+,)?[ \t]*(\d{1,2})[ \t]+([A-Z][a-z]+)[ \t]+(\d\d\d\d)(?:[ \t]+(\d\d):(\d\d)(?::(\d\d))?)?[ \t]*(?:([+-])(\d\d)(\d\d))?
+0x013992c0	QT_MESSAGE_PATTERN: Unknown placeholder %1\n
+0x013995c0	Android
+0x013995e0	watchOS
+0x01399600	tvOS
+0x0139961c	iOS
+0x01399640	iPhone OS
+0x01399664	macOS
+0x01399680	OS X
+0x013996a0	Mac OS X
+0x013996e0	Mac OS
+0x01399700	Windows
+0x013999e0	:/qt/etc/qt.conf
+0x01399ce0	windows
+0x01399d00	winnt
+0x01399d20	unknown
+0x01399d40	i386-little_endian-ilp32
+0x01399d84	ia64
+0x01399da0	x86_64
+0x01399dc0	i386
+0x01399ddc	 SP 
+0x0139aa70	瑳牡呴浩牥s猀潴呰浩牥
+0x0139c140	Invalid empty magic rule value
+0x0139c340	Missing 'type'-attribute
+0x0140b2c8	.dll
+0x0140bb28	A:/
+0x01411160	OffsetFromUtc
+0x014afc00	verticalLayout
+0x014afc40	horizontalLayout
+0x014afc80	label
+0x014afca0	lineEdit
+0x014afce0	horizontalLayout_2
+0x014afd20	pushButton
+0x014afd60	findDlg
+0x014afd80	centralWidget
+0x014afdc0	menuBar
+0x014afde0	mainToolBar
+0x014afe20	statusBar
+0x014afe60	MainWindow
+0x014afea0	gridLayout
+0x014afee0	splitter
+0x014aff20	sidebar
+0x014aff40	frame
+0x014aff60	vboxLayout
+0x014affa0	stackedWidget
+0x014affe0	page
+0x014b0000	vboxLayout1
+0x014b0040	listView
+0x014b0080	page_2
+0x014b00a0	vboxLayout2
+0x014b00e0	lookInLabel
+0x014b0120	treeView
+0x014b0160	fileNameLabel
+0x014b01a0	fileNameEdit
+0x014b01e0	buttonBox
+0x014b0220	fileTypeLabel
+0x014b0260	fileTypeCombo
+0x014b02a0	hboxLayout
+0x014b02e0	lookInCombo
+0x014b0320	backButton
+0x014b0360	forwardButton
+0x014b03a0	toParentButton
+0x014b03e0	newFolderButton
+0x014b0420	listModeButton
+0x014b0460	detailModeButton
+0x014b04a0	QFileDialog
+0x014b04e0	verticalLayout
+0x014b0520	lab_oldh
+0x014b0560	horizontalLayout
+0x014b05a0	spinBoxH
+0x014b05e0	buttonBox
+0x014b0620	groupBox
+0x014b0660	gridLayout
+0x014b06a0	lab_oldw
+0x014b06e0	spinBoxW
+0x014b0720	label_6
+0x014b0740	label_3
+0x014b0760	label_2
+0x014b0780	horizontalLayout_2
+0x014b07c0	label
+0x014b07e0	ZoomProject
+0x014b0820	layoutWidget
+0x014b0860	formLayout
+0x014b08a0	label_4
+0x014b08c0	txtfontsize
+0x014b0900	verticalLayout_3
+0x014b0940	label
+0x014b0960	itemWidget
+0x014b09a0	verticalLayout
+0x014b09e0	item_selectall
+0x014b0a20	item_dselectall
+0x014b0a60	item_re
+0x014b0a80	horizontalLayout
+0x014b0ac0	label_2
+0x014b0ae0	btn_ok
+0x014b0b00	btnCancel
+0x014b0b40	verticalLayout_2
+0x014b0b80	label_3
+0x014b0ba0	itemSelected
+0x014b0be0	horizontalLayout_2
+0x014b0c20	btnUp
+0x014b0c40	:/icon/icons/go-up.png
+0x014b0c80	btnDown
+0x014b0ca0	:/icon/icons/go-down.png
+0x014b0d00	I18nLanguage
+0x014b0d40	UTC
+0x014b0d80	buttonBox
+0x014b0dc0	verticalLayout_4
+0x014b0e00	label_2
+0x014b0e20	langWidget
+0x014b0e60	verticalLayout_2
+0x014b0ea0	lang_selectall
+0x014b0ee0	lang_dselectall
+0x014b0f20	lang_re
+0x014b0f40	layoutWidget
+0x014b0f80	verticalLayout
+0x014b0fc0	openfile
+0x014b1000	:/icon/icons/fileopen.png
+0x014b1060	view_lang
+0x014b10a0	filestatus
+0x014b10e0	layoutWidget1
+0x014b1120	horizontalLayout
+0x014b1160	line
+0x014b1180	ConfigProject
+0x014b11c0	buttonBox
+0x014b1200	label_3
+0x014b1220	prjname
+0x014b1240	layoutWidget2
+0x014b1280	verticalLayout
+0x014b12c0	pushButton
+0x014b1300	:/icon/icons/fileopen.png
+0x014b1360	view_lang
+0x014b13a0	filestatus
+0x014b13e0	groupBox
+0x014b1420	layoutWidget
+0x014b1460	gridLayout
+0x014b14a0	label
+0x014b14c0	spinBox
+0x014b14e0	label_2
+0x014b1500	spinBox_2
+0x014b1540	layoutWidget1
+0x014b1580	horizontalLayout
+0x014b15c0	ProjectDialog
+0x014b1600	user32
+0x014b1620	user32
+0x014b1640	verticalLayout
+0x014b1680	label_4
+0x014b16a0	background-color: rgb(223, 28, 28);
+0x014b1700	1
+0x014b1720	treeWidget
+0x014b1760	buttonBox
+0x014b17a0	GlobalSettings
+0x014b18c0	QtProject
+0x014b19c0	Increase
+0x014b1a00	Next Page
+0x014b1a40	Decrease
+0x014b1a80	ShowMenu
+0x014b1ac0	SetFocus
+0x014b1b00	Toggle
+0x014b1b20	Scroll Left
+0x014b1b60	Scroll Right
+0x014b1ba0	Scroll Up
+0x014b1be0	Scroll Down
+0x014b1c20	Previous Page
+0x014b1c60	Press
+0x014b1c7c	/
+0x014b1ca0	QtProject

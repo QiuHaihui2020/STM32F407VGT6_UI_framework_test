@@ -1,0 +1,5 @@
+# 构建产物与临时文件（构建目录在 C:\bt\，不在树里，这里只挡跑脚本留下的东西）
+__pycache__/
+*.pyc
+build/
+aqtinstall.log
