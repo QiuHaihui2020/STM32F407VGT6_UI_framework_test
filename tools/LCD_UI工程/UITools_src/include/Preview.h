@@ -96,6 +96,28 @@ extern const char *const kMonoFillOn;    ///< "#ff555aaa" 背景填充 / 文字�
 extern const char *const kMonoInvert;    ///< "#ffaaa555" 文字反显
 extern const char *const kMonoLit;       ///< "#ffffffff" 普通点亮（工程里 254 处在用）
 
+/* ---- text / ascii 的"预览文字" ----------------------------------------
+ * 这两种编码格式的内容是**业务层运行时写进去的**（ui_text_set_text_by_id
+ * 那几个接口），资源里没有，工具不可能知道会填什么，所以画布上只能是空的。
+ * 但排版的时候看不到字就很难判断"这个框够不够宽、对齐对不对"。
+ *
+ * 于是给这类控件配一句**只用于预览**的假文字。
+ *
+ * 【绝对不能写进工程文件】写进去就不是原厂那份 json 了 —— 读写要逐字节相同
+ * 是这套工具的硬指标（见 --json-roundtrip）。所以存在工具自己的配置里
+ * （GlobalSettings，按 "工程文件名 + 控件标识" 做键），工程目录、原厂目录
+ * 一个字节都不碰，也不会进资源。
+ */
+
+/** 控件在预设表里的键：优先用 ID号（ename），没有就用它在树里的路径。 */
+QString previewKey(const UiNode *n);
+/** 读预设文字；没配返回空。 */
+QString presetText(const UiNode *n);
+/** 写预设文字（空串 = 删掉这条）。只落到工具配置里。 */
+void setPresetText(const UiNode *n, const QString &text);
+/** 这个控件该不该给"预览文字"这一栏：只有 text / ascii 需要。 */
+bool needsPresetText(const UiNode *n);
+
 /** 供自测用：当前缓存里有多少张图。 */
 int cacheCount();
 

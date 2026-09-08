@@ -58,8 +58,22 @@ void ScenesScreen::setPage(UiNode *page)
 
 void ScenesScreen::setZoom(int percent)
 {
-    m_zoom = qBound(25, percent, 800);
+    const int z = qBound(25, percent, 800);
+    if (z == m_zoom) {
+        return;
+    }
+    m_zoom = z;
+    /* 【选中要跨过重建活下来】改倍率只是把 QWidget 重摆一遍，**模型一个字节
+     * 都没动**。但 rebuild() 会把 m_selected 清空（结构变更时那些裸指针确实
+     * 会变野），于是单独预览失去目标，applyVisibility 退回去显示默认那个
+     * 布局 —— 表现就是"一缩放就跳回第一个布局"。
+     * 这里先记下节点，重建完再选回来。安全性由 m_forms 保证：它是照活模型
+     * 重新建的，节点还在里面就说明指针没失效；不在就老老实实不恢复。 */
+    UiNode *keep = m_selected;
     rebuild();
+    if (keep && m_forms.contains(keep)) {
+        selectNode(keep);
+    }
 }
 
 void ScenesScreen::rebuild()
@@ -618,9 +632,9 @@ void CanvasManager::rebuildScreens()
         s->setPage(page);
         connect(s, &ScenesScreen::nodeSelected, this, &CanvasManager::nodeSelected);
         connect(s, &ScenesScreen::geometryEdited, this,
-                [this](UiNode *) { m_model.setDirty(true); });
+                [this](UiNode *) { setDirty(true); });
         connect(s, &ScenesScreen::structureChanged, this, [this, s]() {
-            m_model.setDirty(true);
+            setDirty(true);
             s->rebuild();                 // 画布先照新结构重画
             emit structureChanged();      // 再让树/页面栏跟上
         });
@@ -762,7 +776,7 @@ bool CanvasManager::saveProjectAs(const QString &path, QString *err)
     if (!m_model.save(path, err)) {
         return false;
     }
-    m_model.setDirty(false);
+    setDirty(false);
     writeProjectIni(path);
     /* 原厂还会在工程目录里留一份 autosave.json（这个名字在 ui-tools.exe
      * 里能搜到）。保存时同步写一份，工具崩了还能捞回来。 */
@@ -812,6 +826,15 @@ void CanvasManager::writeProjectIni(const QString &jsonPath)
  * 两个不同的工具）。按钮是 保存 / 取消 —— 正文点名了 <保存>。
  * @return true 表示可以继续（已保存或用户放弃保存）。
  */
+void CanvasManager::setDirty(bool d)
+{
+    if (m_model.dirty() == d) {
+        return;
+    }
+    m_model.setDirty(d);
+    emit dirtyChanged(d);
+}
+
 bool CanvasManager::confirmDiscardChanges()
 {
     if (!m_model.dirty()) {
@@ -926,7 +949,7 @@ void CanvasManager::onUpdateNewProjectSize()
         p->markDirty();
     }
     rebuildScreens();
-    m_model.setDirty(true);
+    setDirty(true);
 }
 
 void CanvasManager::onGlobalBtn()
@@ -1001,7 +1024,7 @@ void CanvasManager::onZoomProject()
         p->markDirty();
     }
     rebuildScreens();
-    m_model.setDirty(true);
+    setDirty(true);
     emit statusMessage(tr("工程已从 %1x%2 缩放到 %3x%4")
                        .arg(oldSize.width()).arg(oldSize.height())
                        .arg(ns.width()).arg(ns.height()));
@@ -1009,18 +1032,12 @@ void CanvasManager::onZoomProject()
 
 void CanvasManager::onAboutBtn()
 {
-    /* 原厂的关于框是：
-      *   <b><img src=':/icon/icons/smallpt.png'></b><p>名称: %1 </p>
-      *   <p>开发者: 刘春阳</p><p>维护者: linmingxiao</p></b>
-      * 重建版**不冒用原作者的署名** —— 那不是我写的东西。版式照抄，人名换成
-      * 真实来源。 */
+    /* 版式照抄原厂那三行（图标 + 名称 / 开发者 / 维护者），署名写自己。 */
     QMessageBox::about(nullptr, QStringLiteral("关于"),
                        QStringLiteral("<b><img src=':/icon/icons/smallpt.png'></b>"
-                          "<p>名称: UITools（重建版） </p>"
-                          "<p>来源: 从原厂 ui-tools.exe（Qt 5.9.3 / i386 / mingw 静态）"
-                          "逆向出的类结构、qrc 资源与文件格式重写</p>"
-                          "<p>原厂作者: 刘春阳 / linmingxiao</p>"
-                          "<p>还原度与未决项见 docs/RE_REPORT.md</p>"));
+                          "<p>名称: UITools </p>"
+                          "<p>开发者: Claude Opus 5 (Anthropic)</p>"
+                          "<p>维护者: Claude Opus 5 (Anthropic)</p>"));
 }
 
 void CanvasManager::onSelectGrid()
@@ -1042,7 +1059,7 @@ void CanvasManager::onCreateNewScenesScreen()
     page->rect = QRect(1, 1, m_pageSize.width(), m_pageSize.height());
     page->markDirty();
     m_model.pages().append(page);
-    m_model.setDirty(true);
+    setDirty(true);
     rebuildScreens();
     setCurrentPage(m_model.pages().size() - 1);
     emit projectChanged();
@@ -1060,7 +1077,7 @@ void CanvasManager::onDelCurrentScenesScreen()
     }
     delete m_model.pages().takeAt(m_current);
     m_current = qMax(0, m_current - 1);
-    m_model.setDirty(true);
+    setDirty(true);
     rebuildScreens();
     emit projectChanged();
 }

@@ -5,6 +5,7 @@
 #include "ProjectModel.h"
 #include "ControlLibrary.h"
 #include "EditorOps.h"
+#include "Preview.h"
 
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -243,8 +244,19 @@ void TreeDock::onSwapShowHideSubObject()
 
 /* ===================== PageView ===================== */
 
-/** 页面缩略渲染：把该页所有控件按 rect 画成方块，再画一圈选中角点。
- *  原厂右栏就是把每一页原尺寸画出来（128x64），不是缩略图。 */
+/**
+ * 页面渲染：把该页**运行时的样子**原尺寸画出来（128x64），不是缩略图 ——
+ * 原厂右栏就是这么做的。
+ *
+ * 【以前这里是另一套画法】按层级深浅填绿/蓝/紫的色块，既没有内容，也不是
+ * 单色屏该有的样子 —— 画布那边早就改成"黑底白点 + 真内容"了，右栏还停在
+ * 老版本，两边对不上。现在两边走同一条规则（Preview 那套单色语义 +
+ * Preview::contentOf），右栏看到的就是画布看到的，也是屏上看到的。
+ *
+ * 【为什么天然只画一个布局】一页里 1~9 个整屏布局是互斥的，**恰好只有一个**
+ * invisible=false。这里按"默认隐藏就不画"来走，剩下的自然就是运行时那一个，
+ * 不用另外挑。
+ */
 class PagePreview : public QWidget
 {
 public:
@@ -259,39 +271,195 @@ protected:
     void paintEvent(QPaintEvent *) override
     {
         QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, false);
         const QRect body = rect().adjusted(4, 4, -4, -4);
-        p.fillRect(body, QColor(0xF5, 0xF5, 0xF5));
+        /* 单色屏灭的时候是黑的 —— 和画布同一个底色 */
+        p.fillRect(body, Qt::black);
         if (m_page) {
+            p.save();
             p.translate(body.topLeft());
-            drawNode(p, m_page, 0);
-            p.resetTransform();
+            p.setClipRect(QRect(QPoint(0, 0), body.size()));
+            drawNode(p, m_page);
+            p.restore();
         }
-        /* 8 个角点，模仿原厂的选中手柄外观 */
-        p.setBrush(Qt::black);
+        /* 8 个角点，模仿原厂的选中手柄外观。
+         * 【不能再用黑色】页底已经是黑的了，黑手柄等于没画。
+         * 【也不能压在页面上】以前手柄是骑在边界上的（各盖进去 2px），现在
+         * 页面里画的是真内容，盖掉的就是真像素了 —— 挪到 4px 留白里去，
+         * 页面区域保持"只有黑和白"。 */
+        p.setBrush(QColor(0x2b, 0x7d, 0xd1));
         p.setPen(Qt::NoPen);
-        const QPoint pts[8] = {
-            body.topLeft(), QPoint(body.center().x(), body.top()), body.topRight(),
-            QPoint(body.left(), body.center().y()), QPoint(body.right(), body.center().y()),
-            body.bottomLeft(), QPoint(body.center().x(), body.bottom()), body.bottomRight()
+        const int hs = 4;                       // 手柄边长 = 留白宽度
+        const int cx = body.center().x() - hs / 2;
+        const int cy = body.center().y() - hs / 2;
+        const int l = body.left() - hs, r = body.right() + 1;
+        const int t = body.top() - hs, b = body.bottom() + 1;
+        const QRect handles[8] = {
+            QRect(l, t, hs, hs), QRect(cx, t, hs, hs), QRect(r, t, hs, hs),
+            QRect(l, cy, hs, hs),                      QRect(r, cy, hs, hs),
+            QRect(l, b, hs, hs), QRect(cx, b, hs, hs), QRect(r, b, hs, hs)
         };
-        for (const QPoint &pt : pts) {
-            p.drawRect(QRect(pt.x() - 2, pt.y() - 2, 5, 5));
+        for (const QRect &h : handles) {
+            p.drawRect(h);
         }
     }
 
 private:
-    void drawNode(QPainter &p, UiNode *n, int depth)
+    /** 控件的水平对齐（element_css 的 align），和 BaseForm::contentAlign 同源。 */
+    static Qt::Alignment alignOf(UiNode *n)
     {
+        const QString a = n->cssField(0, QStringLiteral("align"),
+                                      QStringLiteral("default")).toString();
+        if (a == QLatin1String("ALIGN_RIGHT")) {
+            return Qt::AlignRight;
+        }
+        if (a == QLatin1String("ALIGN_CENTER")) {
+            return Qt::AlignHCenter;
+        }
+        return Qt::AlignLeft;
+    }
+
+    /** 画一个控件自己那一层（背景/内容/边框），规则抄 BaseForm::paintEvent。 */
+    static void drawOne(QPainter &p, UiNode *n, const QRect &box)
+    {
+        const QString bgCss = n->cssField(0, QStringLiteral("background_color"),
+                                          QStringLiteral("background-color")).toString();
+        QString txtCss;
+        for (const UiProperty &pr : n->props) {
+            if (pr.caption == QStringLiteral("文字颜色")) {
+                txtCss = pr.raw.value(QStringLiteral("color")).toString();
+                if (txtCss.isEmpty()) {
+                    txtCss = pr.raw.value(QStringLiteral("background-color")).toString();
+                }
+                break;
+            }
+        }
+        const Preview::MonoText tm = Preview::textModeOf(txtCss);
+
+        /* 底：只有魔数 0x555AAA 才填充；反显也要先把整块点亮 */
+        if (Preview::fillOf(bgCss) == Preview::MonoFill::Set
+            || tm == Preview::MonoText::Invert) {
+            p.fillRect(box, Qt::white);
+        }
+
+        if (tm != Preview::MonoText::Hidden) {
+            const QPixmap content = Preview::contentOf(
+                n, tm == Preview::MonoText::Invert ? Qt::black : Qt::white);
+            if (!content.isNull()) {
+                /* 原尺寸摆放（右栏就是 1:1），超出部分裁掉 —— 和固件一致 */
+                int x = box.left();
+                switch (alignOf(n)) {
+                case Qt::AlignRight:   x = box.right() - content.width() + 1;      break;
+                case Qt::AlignHCenter: x = box.left()
+                                           + (box.width() - content.width()) / 2; break;
+                default:               break;
+                }
+                const int y = box.top() + (box.height() - content.height()) / 2;
+                p.save();
+                p.setClipRect(box);
+                p.drawPixmap(x, y, content);
+                p.restore();
+            }
+        }
+
+        /* 内边框线：颜色只决定画不画（判断方向和背景相反） */
+        const QJsonObject b = n->cssField(0, QStringLiteral("border"),
+                                          QStringLiteral("border")).toObject();
+        if (b.isEmpty()
+            || !Preview::borderVisible(n->cssField(0, QStringLiteral("border"),
+                                                   QStringLiteral("color")).toString())) {
+            return;
+        }
+        const int l = b.value(QStringLiteral("left")).toInt();
+        const int t = b.value(QStringLiteral("top")).toInt();
+        const int r = b.value(QStringLiteral("right")).toInt();
+        const int bo = b.value(QStringLiteral("bottom")).toInt();
+        p.save();
+        p.setPen(Qt::NoPen);
+        p.setBrush(Qt::white);
+        if (l > 0) {
+            p.drawRect(QRect(box.left(), box.top(), l, box.height()));
+        }
+        if (r > 0) {
+            p.drawRect(QRect(box.right() - r + 1, box.top(), r, box.height()));
+        }
+        if (t > 0) {
+            p.drawRect(QRect(box.left(), box.top(), box.width(), t));
+        }
+        if (bo > 0) {
+            p.drawRect(QRect(box.left(), box.bottom() - bo + 1, box.width(), bo));
+        }
+        p.restore();
+    }
+
+    /**
+     * 递归画整棵子树。
+     * @param origin 父控件左上角在本页里的绝对坐标 —— 工程里的 rect 是相对
+     *               父级的（画布上靠 QWidget 嵌套自动完成，这里得自己累加）。
+     */
+    /** 列表控件？行的位置不由自己的 rect 决定，得单独摊开。
+     *  【认 -class 不认 -type】json 里 -type 是 VerticalList / HorizontalList，
+     *  但画布是按 -class 建控件的（createFormForClass），两边要一致。 */
+    static bool isList(UiNode *n)
+    {
+        return n->cls == QLatin1String("NewList");
+    }
+
+    void drawNode(QPainter &p, UiNode *n, const QPoint &origin = QPoint())
+    {
+        /* 【列表的行要自己摊开】工程里列表各行的 rect **全都一样**（都在
+         * (0,0)），真正决定行距的是列表节点上那个独立的 sizehw / space 字段
+         * —— 画布靠 NewList::relayoutRows() 摊开，右栏以前没做这一步，
+         * 于是"系统/语言/关机"几行字全叠在同一个位置上。 */
+        if (isList(n)) {
+            const bool vert = n->extraValue(QStringLiteral("orientation")).toString()
+                              != QLatin1String("Horizontal");
+            const int size = qMax(1, n->extraValue(QStringLiteral("sizehw")).toInt(16));
+            const int step = size + n->extraValue(QStringLiteral("space")).toInt(0);
+            int i = 0;
+            for (const auto &c : n->children) {
+                UiNode *k = c.second;
+                if (k->isDefaultHidden()) {
+                    ++i;                       // 隐藏的行照样占位
+                    continue;
+                }
+                const int off = i * step;
+                const QRect box = vert
+                    ? QRect(origin.x() + k->rect.x(), origin.y() + off,
+                            k->rect.isValid() ? k->rect.width() : 1, size)
+                    : QRect(origin.x() + off, origin.y() + k->rect.y(),
+                            size, k->rect.isValid() ? k->rect.height() : 1);
+                drawOne(p, k, box);
+                drawNode(p, k, box.topLeft());
+                ++i;
+            }
+            return;
+        }
+
         for (const auto &c : n->children) {
             UiNode *k = c.second;
-            if (k->rect.isValid()) {
-                static const QColor pal[] = {
-                    QColor(0xA8, 0xC8, 0xA8), QColor(0x5B, 0x9B, 0xD5),
-                    QColor(0xC5, 0xE0, 0xB4), QColor(0xA0, 0x10, 0x80)
-                };
-                p.fillRect(k->rect, pal[depth % 4]);
+            /* 默认隐藏的不画 —— 一页里那 1~9 个互斥布局就是靠这条筛掉的 */
+            if (k->isDefaultHidden()) {
+                continue;
             }
-            drawNode(p, k, depth + 1);
+            if (!k->rect.isValid()) {
+                drawNode(p, k, origin);
+                continue;
+            }
+            const QRect box(origin + k->rect.topLeft(), k->rect.size());
+            drawOne(p, k, box);
+            if (isList(k)) {
+                /* 【行要被列表框裁掉】画布上行是列表 QWidget 的子控件，超出
+                 * 列表矩形的部分 Qt 自动裁掉（这套工程的列表就是"5 行塞进
+                 * 48px、只露 3 行"）。右栏是自己画的，得手动裁，否则多出来的
+                 * 行会糊到列表下面去。 */
+                p.save();
+                p.setClipRect(box, Qt::IntersectClip);
+                drawNode(p, k, box.topLeft());
+                p.restore();
+            } else {
+                drawNode(p, k, box.topLeft());
+            }
         }
     }
     UiNode *m_page = nullptr;
@@ -315,6 +483,20 @@ PageView::PageView(QWidget *parent)
 }
 
 PageView::~PageView() = default;
+
+QImage PageView::grabPageForTest(int i) const
+{
+    if (!m_mgr || i < 0 || i >= m_mgr->model()->pages().size()) {
+        return QImage();
+    }
+    UiNode *page = m_mgr->model()->pages().at(i);
+    const QSize s = page->rect.isValid() ? page->rect.size() : QSize(128, 64);
+    /* 只要页面内容那块，不要外面那圈边距和选中手柄 —— 拿去和画布比像素的。 */
+    PagePreview pv(page);
+    const QPixmap whole = pv.grab();
+    return whole.copy(QRect(QPoint(4, 4), s)).toImage()
+           .convertToFormat(QImage::Format_RGB32);
+}
 
 void PageView::reload()
 {
@@ -366,7 +548,7 @@ void PageView::onItemChanged(QListWidgetItem *a0)
     if (idx >= 0 && idx < pages.size() && !a0->text().isEmpty()) {
         pages[idx]->caption = a0->text();
         pages[idx]->markDirty();
-        m_mgr->model()->setDirty(true);
+        m_mgr->markDirty();
     }
 }
 
@@ -534,7 +716,7 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
 
     parent->children.append(qMakePair(EditorOps::childKeyFor(parent), n));
     parent->markDirty();
-    m_mgr->model()->setDirty(true);
+    m_mgr->markDirty();
     if (ScenesScreen *s = m_mgr->currentScreen()) {
         s->rebuild();
     }

@@ -16,7 +16,6 @@
 
 class QFileSystemModel;
 class QTreeView;
-class QListView;
 class QListWidget;
 
 class ImageFileDialog : public QDialog
@@ -35,9 +34,16 @@ public:
     void        setSelected(const QStringList &rel);
     QStringList selected() const;
 
+    /** 自测：已选列表第 i 条的图标是不是**真的位图**（不是通用文件图标/空）。 */
+    bool selectedIconIsRealForTest(int i) const;
+    /** 自测：切到某个目录，返回中间那栏里有几条**目录**（应当恒为 0）。 */
+    int dirRowsForTest(const QString &absDir);
+    /** 自测：把某个路径喂给"添加"，返回已选列表条数的变化。 */
+    int tryAddForTest(const QString &absPath);
+
 private slots:
     void onTreeViewClicked(QModelIndex index);
-    void onListViewDoubleClicked(QModelIndex index);
+    void onListViewDoubleClicked(QModelIndex index);   ///< 中间那栏双击 = 添加
     void onSelListViewDoubleClicked(QModelIndex index);
     void onDelSelectedItems();
     void onAddSelectedItems();
@@ -46,12 +52,24 @@ private slots:
 
 private:
     void addPath(const QString &absPath);
+    /** 往已选列表里加一条（缩略图 + 相对路径）。at<0 = 追加到末尾。 */
+    void addSelectedRow(const QString &rel, int at = -1);
+    /** 中间那栏切到某个目录：把里面的图片列出来（不含子目录）。 */
+    void showDir(const QString &path);
     void moveCurrent(int delta);
 
-    QFileSystemModel *m_dirModel = nullptr;
-    QFileSystemModel *m_fileModel = nullptr;
+    QFileSystemModel *m_dirModel = nullptr;      ///< 只给左边的目录树用
     QTreeView        *m_treeView = nullptr;
-    QListView        *m_listView = nullptr;
+    /**
+     * 中间那栏：自己填的列表，一行一张"缩略图 + 文件名"。
+     *
+     * 【为什么不用 QFileSystemModel】它是**异步**填充的，而且即使过滤器里
+     * 只写 QDir::Files，子目录照样会冒出来 —— 双击一个子目录就把它当图片
+     * 加进列表了。想在它上面套 QSortFilterProxyModel 把目录滤掉，实测直接
+     * 堆损坏崩溃（0xC0000374）：那个组合本来就以难伺候著称。
+     * 这一栏的需求很简单（列出一个目录里的图片），自己填反而干净可控。
+     */
+    QListWidget      *m_listView = nullptr;
     QListWidget      *m_selListView = nullptr;
     QString           m_projectDir;
     int               m_maxCount = 0;

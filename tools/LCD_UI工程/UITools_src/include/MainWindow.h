@@ -77,6 +77,8 @@ private slots:
     void onDobuleClickedImage(QListWidgetItem *a0);    ///< ★
 
     void onProjectChanged();
+    /** 只刷标题（工程名 + 改过没存的那个 *）。 */
+    void refreshTitle();
     void onNodeSelected(UiNode *node);
     void onStatusMessage(const QString &msg);
     /** 刷新工具栏上的画面指示。 */

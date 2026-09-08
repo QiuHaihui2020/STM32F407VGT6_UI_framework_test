@@ -83,6 +83,8 @@ public:
     /** 当前正在预览的是第几个画面（没有就返回 -1）。 */
     int  currentScreenIndex() const;
     BaseForm *formFor(UiNode *node) const { return m_forms.value(node, nullptr); }
+    /** 当前选中的节点（改倍率要能验证它没被弄丢）。 */
+    UiNode *selectedNode() const { return m_selected; }
 
     int  zoom() const { return m_zoom; }
     void setZoom(int percent);
@@ -198,6 +200,18 @@ public:
     /** 有未保存改动就按原厂那句话问一次。true = 可以继续。 */
     bool confirmDiscardChanges();
 
+    /**
+     * 改过没有 —— 唯一的入口，别再各处直接 m_model.setDirty()。
+     *
+     * 【为什么要收口】"标题带不带 *" 和 "退出问不问要不要保存" 都只看
+     * ProjectModel::dirty()。以前拖控件、改结构会置它，**属性面板改参数不会**
+     * （UiNode::markDirty() 只置节点自己的标志，够回写用，但传不到模型），
+     * 而且置了也没人去刷标题。结果就是改完参数看不到 *、退出也不提示，
+     * 一不小心就白改。现在统一走这里，顺带发信号让标题跟上。
+     */
+    void setDirty(bool d);
+    void markDirty() { setDirty(true); }
+
     /* ---- 画布缩放 ----------------------------------------------------
      * 【原厂没有这个】原厂画布只有 1:1，128x64 在 927px 宽的画布上就是左上角
      * 一个指甲盖。点阵屏工程尤其难受，所以加了缩放。缩放**只影响显示**：
@@ -230,6 +244,8 @@ signals:
     /** 画面列表或当前画面变了，工具栏上那个"2/5 布局_11"要跟着刷。 */
     void screenListChanged();
     void nodeSelected(UiNode *node);
+    /** 改过/存过，标题上那个 * 要跟着变。 */
+    void dirtyChanged(bool dirty);
     void statusMessage(const QString &msg);
     /** 当前页里有节点被删/粘/挪层，主窗口据此 reload 树和页面栏。 */
     void structureChanged();

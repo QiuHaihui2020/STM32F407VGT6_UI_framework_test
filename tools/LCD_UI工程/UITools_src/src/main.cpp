@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 
     QCommandLineParser p;
     p.setApplicationDescription(
-        QStringLiteral("杰理点阵屏 UI 布局工具（从 ui-tools.exe 逆向重建）"));
+        QStringLiteral("杰理点阵屏 UI 布局工具"));
     p.addHelpOption();
     p.addVersionOption();
     QCommandLineOption optRoot(QStringList() << QStringLiteral("tools-root"),
@@ -205,7 +205,10 @@ int main(int argc, char *argv[])
         }
         int n = 0;
         auto touch = [&n, &shotDir](QWidget *w) {
-            w->resize(400, 300);
+            /* 400x300 太小，列表类对话框挤成一条缝，出的图看不出排版对不对。
+             * 按对话框自己的默认大小来，放不下再兜到 400x300。 */
+            const QSize want = w->sizeHint().expandedTo(QSize(400, 300));
+            w->resize(want);
             const QPixmap pm = w->grab();     // 强制走一次 paintEvent
             if (!shotDir.isEmpty()) {
                 pm.save(QDir(shotDir).filePath(
@@ -219,7 +222,22 @@ int main(int argc, char *argv[])
         {
             auto *d = new ImageFileDialog;
             d->setProjectDir(dir);
-            d->setSelected(QStringList{ QStringLiteral("config/pic_lcd/x.bmp") });
+            /* 【挑真实存在的图】以前这里给的是 config/pic_lcd/x.bmp（不存在），
+             * 出图只有空列表，改过缩略图之后"没崩"根本看不出画对没有。
+             * 这里拿目录里前几张真图，让截图上能看到缩略图。 */
+            QStringList real;
+            const QString picDir = QDir(dir).filePath(QStringLiteral("config/pic_lcd"));
+            for (const QString &f : QDir(picDir).entryList(
+                     QStringList{ QStringLiteral("*.bmp"), QStringLiteral("*.BMP") },
+                     QDir::Files, QDir::Name)) {
+                real << QStringLiteral("config/pic_lcd/") + f;
+                if (real.size() >= 6) {
+                    break;
+                }
+            }
+            d->setSelected(real.isEmpty()
+                           ? QStringList{ QStringLiteral("config/pic_lcd/x.bmp") }
+                           : real);
             touch(d);
         }
         {

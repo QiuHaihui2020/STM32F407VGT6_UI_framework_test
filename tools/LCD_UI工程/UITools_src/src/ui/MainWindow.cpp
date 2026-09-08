@@ -16,6 +16,8 @@
 #include "EditorOps.h"
 #include "Preview.h"
 #include "findDlg.h"
+#include "I18nLanguage.h"
+#include "ImageFileDialog.h"
 
 #include <QAction>
 #include <QToolBar>
@@ -68,11 +70,35 @@ QToolButton { padding: 3px 6px; border: 1px solid transparent; }
 QToolButton:hover { border: 1px solid #A0C0E0; background: #EAF2FB; }
 )";
 
+/**
+ * 构建日期，形如 2026-09-08。
+ *
+ * 原厂标题是 "UI编辑工具(Build:...) <工程名>"，这里跟着来。
+ * 用 __DATE__（编译那天）而不是运行时的今天 —— 标题上的日期得能标出
+ * "你手上这个 exe 是哪天出的"，天天变的话就失去意义了。
+ * __DATE__ 是 "Sep  8 2026" 这种格式，这里转成年-月-日。
+ */
+static QString buildDate()
+{
+    static const char kMon[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    const QString d = QString::fromLatin1(__DATE__);      // "MMM DD YYYY"
+    const int m = (QByteArray(kMon).indexOf(d.left(3).toLatin1()) / 3) + 1;
+    const int day = d.mid(4, 2).trimmed().toInt();
+    const int year = d.right(4).toInt();
+    if (m < 1 || m > 12 || day < 1 || year < 2000) {
+        return d;                                          // 格式不认就原样显示
+    }
+    return QStringLiteral("%1-%2-%3")
+           .arg(year, 4, 10, QLatin1Char('0'))
+           .arg(m, 2, 10, QLatin1Char('0'))
+           .arg(day, 2, 10, QLatin1Char('0'));
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setObjectName(QStringLiteral("MainWindow"));
-    setWindowTitle(tr("UI编辑工具（重建版）"));
+    setWindowTitle(tr("UI编辑工具(Build:%1)").arg(buildDate()));
     /* 尺寸按原厂截图实测：客户区 1687x969（工具栏 31 + 内容 969），
      * 四列 263 / 232 / 927 / 255。 */
     resize(1694, 1032);
@@ -103,6 +129,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_mgr, &CanvasManager::statusMessage,   this, &MainWindow::onStatusMessage);
     /* 右键删/粘/挪层之后，树和页面栏要跟着重来 */
     connect(m_mgr, &CanvasManager::structureChanged, this, &MainWindow::onProjectChanged);
+    /* 脏标志一变就刷标题上那个 * —— 拖控件、改参数、保存，走的都是这一条 */
+    connect(m_mgr, &CanvasManager::dirtyChanged, this,
+            [this](bool) { refreshTitle(); });
     connect(m_mgr, &CanvasManager::findRequested,    this, &MainWindow::onFindObject);
     connect(m_mgr, &CanvasManager::controlDropped, this,
             [this](UiNode *parent, const QString &cls, const QString &type,
@@ -179,14 +208,32 @@ void MainWindow::buildDocks()
     connect(m_tree, &TreeDock::nodeActivated, this, &MainWindow::onNodeSelected);
     connect(m_components, &CompoentControls::nodeCreated, this,
             [this](UiNode *) { onProjectChanged(); });
+    /* 【属性面板改了也要算"工程改过"】以前这两条只刷界面，没置模型的脏标志
+     * —— UiNode::markDirty() 只管到节点（够回写用），传不到 ProjectModel。
+     * 而标题上那个 * 和退出时"要不要保存"两处看的都是 ProjectModel::dirty()，
+     * 结果改完参数既不显示 *、退出也不提示，一不小心就白改。 */
     connect(m_prop, &PropertyTab::nodeEdited, this, [this](UiNode *) {
         if (ScenesScreen *s = m_mgr->currentScreen()) {
             s->rebuild();
         }
         m_tree->reload();
         m_pages->reload();
+        m_mgr->markDirty();
     });
-    connect(m_com, &BaseProperty::nodeEdited, this, [this](UiNode *) { m_tree->reload(); });
+    connect(m_com, &BaseProperty::nodeEdited, this, [this](UiNode *) {
+        m_tree->reload();
+        /* 右栏那张页面图也要跟着重画 —— 改的可能就是它画出来的东西 */
+        m_pages->reload();
+        m_mgr->markDirty();
+    });
+    /* 【只重画，不置脏】"预览文字"只存在工具配置里，工程数据没动过，
+     * 所以不能走 markDirty —— 否则标题平白带上 *、退出还问要不要保存。 */
+    connect(m_com, &BaseProperty::previewOnlyChanged, this, [this]() {
+        if (ScenesScreen *s = m_mgr->currentScreen()) {
+            s->rebuild();
+        }
+        m_pages->reload();
+    });
 }
 
 void MainWindow::buildToolBar()
@@ -449,9 +496,16 @@ void MainWindow::onProjectChanged()
     m_tree->reload();
     m_pages->reload();
     refreshScreenLabel();
-    /* 原厂标题：UI编辑工具(Build:...) <工程名> */
-    setWindowTitle(tr("UI编辑工具（重建版） %1%2")
-                   .arg(m_mgr->model()->name(),
+    refreshTitle();
+}
+
+void MainWindow::refreshTitle()
+{
+    /* 标题：UI编辑工具(Build:<构建日期>) <工程名>；改过没存就带一个 *。
+     * 构建日期用 __DATE__，编译那天定死，不是运行时的今天 —— 这样用户报
+     * 问题时报的标题就能对上是哪个版本。 */
+    setWindowTitle(tr("UI编辑工具(Build:%1) %2%3")
+                   .arg(buildDate(), m_mgr->model()->name(),
                         m_mgr->model()->dirty() ? QStringLiteral(" *") : QString()));
 }
 
@@ -477,6 +531,42 @@ int MainWindow::dumpPreviewForTest(const QString &dir)
             return true;
         });
     }
+
+    /* 顺手把"分隔符不够"的警告气泡也出一张 —— 改过气泡的画法之后，"没崩"
+     * 不等于"没画坏"（尾巴指偏、文字被裁都不会崩），得能看一眼。
+     * 挑一个时间控件，临时把格式改成要 2 张分隔符的，出完图再改回去。 */
+    for (UiNode *pg : m_mgr->model()->pages()) {
+        UiNode *tm = nullptr;
+        pg->forEach([&](UiNode *x) {
+            if (!tm && x->type == QLatin1String("Time")) {
+                tm = x;
+            }
+            return tm == nullptr;
+        });
+        if (!tm) {
+            continue;
+        }
+        QString keep;
+        for (UiProperty &q : tm->props) {
+            if (q.name == QLatin1String("format")) {
+                keep = q.raw.value(QStringLiteral("default")).toString();
+                q.raw.insert(QStringLiteral("default"), QStringLiteral("h:m:s"));
+            }
+        }
+        m_com->showNode(tm);
+        const QPixmap tip = m_com->warningTipPixmapForTest();
+        if (!tip.isNull()) {
+            tip.save(QDir(dir).filePath(QStringLiteral("zz_warning_tip.png")));
+            ++n;
+        }
+        for (UiProperty &q : tm->props) {
+            if (q.name == QLatin1String("format")) {
+                q.raw.insert(QStringLiteral("default"), keep);
+            }
+        }
+        m_com->showNode(tm);
+        break;
+    }
     return n;
 }
 
@@ -499,6 +589,23 @@ bool MainWindow::selectNthNodeForTest(int n)
         return false;
     }
     UiNode *node = all.at(n);
+
+    /* 【先翻到它所在的页】节点是跨页收集的，画布却只显示当前页。不翻页的话
+     * 选中的是别页的节点、画布上什么都不会变 —— 之前拿 --select 截图排查
+     * 问题，一直截到的是第 1 页，白看半天。 */
+    for (UiNode *a = node; a; a = a->parent) {
+        if (!a->parent) {                       // 走到页节点
+            const int pi = m_mgr->model()->pages().indexOf(a);
+            if (pi >= 0 && pi != m_mgr->currentPage()) {
+                m_mgr->setCurrentPage(pi);
+                s = m_mgr->currentScreen();
+                if (!s) {
+                    return false;
+                }
+            }
+            break;
+        }
+    }
 
     // 路径一：在对象树里点一下（TreeDock::onItemPressed 就是这一句）
     s->selectNode(node);
@@ -1066,6 +1173,87 @@ int MainWindow::runOpsTest(QString *report)
                       .arg(r1.width()).arg(ff2->width()).arg(r1.width() * 4));
         }
         m_mgr->setZoom(100);
+
+        /* 【改倍率不能把选中弄丢】rebuild() 会清 m_selected（结构变更时那些
+         * 裸指针确实会变野），可改倍率**模型一个字节都没动**。清掉之后单独
+         * 预览失去目标，会退回去显示默认那个布局 —— 表现就是"一缩放就跳回
+         * 第一个布局"。挑一个**非默认**的画面来验，不然默认那个本来就在，
+         * 测不出区别。 */
+        {
+            const QVector<UiNode *> scr = sc->screens();
+            UiNode *other = nullptr;
+            for (UiNode *s : scr) {
+                if (s != sc->screens().value(sc->currentScreenIndex())) {
+                    other = s;
+                    break;
+                }
+            }
+            if (other && scr.size() >= 2) {
+                sc->setSolo(true);
+                onNodeSelected(other);
+                const int idxBefore = sc->currentScreenIndex();
+                m_mgr->setZoom(200);
+                check(QStringLiteral("改倍率不会把选中的控件弄丢"),
+                      sc->selectedNode() == other,
+                      QStringLiteral("选中 %1")
+                          .arg(sc->selectedNode()
+                               ? m_mgr->model()->displayName(sc->selectedNode())
+                               : QStringLiteral("(空)")));
+                check(QStringLiteral("改倍率不会跳回第一个布局"),
+                      sc->currentScreenIndex() == idxBefore,
+                      QStringLiteral("画面 %1 -> %2")
+                          .arg(idxBefore).arg(sc->currentScreenIndex()));
+                m_mgr->setZoom(100);
+                check(QStringLiteral("缩回去也还停在原来那个布局"),
+                      sc->currentScreenIndex() == idxBefore && sc->selectedNode() == other,
+                      QStringLiteral("画面 %1").arg(sc->currentScreenIndex()));
+            }
+        }
+
+        /* 【列表的行高也得跟着倍率走】sizehw/space 是 1:1 逻辑像素，
+         * relayoutRows() 摆的却是屏幕坐标。以前没乘倍率，放大后一滚轮就
+         * 露馅：行高还是原尺寸，和周围放大过的控件对不上。 */
+        {
+            NewList *lst = nullptr;
+            UiNode *lstNode = nullptr;
+            page->forEach([&](UiNode *x) {
+                if (!lst) {
+                    if (auto *f = qobject_cast<NewList *>(sc->formFor(x))) {
+                        if (f->subForms().size() >= 2) {
+                            lst = f;
+                            lstNode = x;
+                        }
+                    }
+                }
+                return lst == nullptr;
+            });
+            if (lst && lstNode) {
+                const int sizehw = lstNode->extraValue(QStringLiteral("sizehw")).toInt(16);
+                m_mgr->setZoom(400);
+                /* 重建过了，得重新拿一次 */
+                lst = qobject_cast<NewList *>(sc->formFor(lstNode));
+                if (lst && lst->subForms().size() >= 2) {
+                    lst->setFirstVisible(1);       // 走一次 relayoutRows
+                    lst->setFirstVisible(0);
+                    const QVector<BaseForm *> rows = lst->subForms();
+                    const bool vert = rows.at(0)->y() != rows.at(1)->y();
+                    const int got = vert ? rows.at(0)->height() : rows.at(0)->width();
+                    check(QStringLiteral("放大后列表行高跟着倍率走"),
+                          got == qMax(1, sizehw * 4),
+                          QStringLiteral("sizehw=%1 倍率 400 实际 %2（期望 %3）")
+                              .arg(sizehw).arg(got).arg(sizehw * 4));
+                    const int step = vert
+                        ? qAbs(rows.at(1)->y() - rows.at(0)->y())
+                        : qAbs(rows.at(1)->x() - rows.at(0)->x());
+                    const int space = lstNode->extraValue(QStringLiteral("space")).toInt(0);
+                    check(QStringLiteral("放大后列表行间距也跟着倍率走"),
+                          step == qMax(1, sizehw * 4) + space * 4,
+                          QStringLiteral("实际步长 %1（期望 %2）")
+                              .arg(step).arg(qMax(1, sizehw * 4) + space * 4));
+                }
+                m_mgr->setZoom(100);
+            }
+        }
     }
 
     /* --- 17. 单色语义 + 同名属性不能串写 ---
@@ -1195,28 +1383,675 @@ int MainWindow::runOpsTest(QString *report)
      * 滚轮当"改值"，一不留神坐标就被改了，而且这工具没有撤消，很难发现。 */
     onNodeSelected(frame);
     {
-        const auto spins = m_com->findChildren<QAbstractSpinBox *>()
-                           + m_prop->findChildren<QAbstractSpinBox *>();
+        /* 【三块都要扫】m_dyn 不是 m_com 的子对象（它排在 CSS属性 页签下面，
+         * 见 ComProperty 构造里的说明）。只扫 m_com 的话，动态区那些
+         * spin / 下拉框一个都测不到 —— 而"滚轮误改"最容易出事的恰恰是那儿
+         * （默认高亮行号、滚动方式、点亮/反显…）。 */
+        const QVector<QWidget *> roots{ m_com, m_com->dynamicSection(), m_prop };
         int rolled = 0, total = 0;
-        for (QAbstractSpinBox *sb : spins) {
-            auto *sp = qobject_cast<QSpinBox *>(sb);
-            if (!sp || !sp->isVisible()) {
-                continue;
-            }
-            ++total;
-            const int before = sp->value();
-            QWheelEvent we(QPointF(5, 5), sp->mapToGlobal(QPoint(5, 5)),
+        auto roll = [](QWidget *w) {
+            QWheelEvent we(QPointF(5, 5), w->mapToGlobal(QPoint(5, 5)),
                            QPoint(0, 120), QPoint(0, 120),
                            Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
-            QApplication::sendEvent(sp, &we);
-            if (sp->value() != before) {
-                ++rolled;
-                sp->setValue(before);
+            QApplication::sendEvent(w, &we);
+        };
+        for (QWidget *root : roots) {
+            if (!root) {
+                continue;
+            }
+            for (QAbstractSpinBox *sb : root->findChildren<QAbstractSpinBox *>()) {
+                auto *sp = qobject_cast<QSpinBox *>(sb);
+                if (!sp) {
+                    continue;
+                }
+                ++total;
+                const int before = sp->value();
+                roll(sp);
+                if (sp->value() != before) {
+                    ++rolled;
+                    sp->setValue(before);
+                }
+            }
+            /* 下拉框被滚轮换掉选项一样是误改，而且它改的是枚举语义，
+             * 比坐标差一像素更难发现。 */
+            for (QComboBox *cb : root->findChildren<QComboBox *>()) {
+                if (cb->count() < 2) {
+                    continue;
+                }
+                ++total;
+                const int before = cb->currentIndex();
+                roll(cb);
+                if (cb->currentIndex() != before) {
+                    ++rolled;
+                    cb->setCurrentIndex(before);
+                }
             }
         }
         check(QStringLiteral("属性栏里滚轮扫过不会改数值"),
               total > 0 && rolled == 0,
-              QStringLiteral("%1 个数值框，被滚动改掉 %2 个").arg(total).arg(rolled));
+              QStringLiteral("%1 个可改控件，被滚动改掉 %2 个").arg(total).arg(rolled));
+    }
+
+    /* --- 18b. "点亮/反显/不显示"下拉框必须真写进节点 ---
+     * 前面第 17 条改的是 json，验的是数据模型；这里改的是**控件本身** ——
+     * 用户在面板上点一下，到底有没有落到 props[] 上，只有驱动真控件才知道。
+     * 单色屏下这三个选项写的是固件认的魔数（Preview::kMonoLit / kMonoInvert
+     * / kMonoFillOn），下游 StyBuilder 按序号取 colorAt(0)/colorAt(1)，
+     * 所以"第二个下拉框"必须落到第二条 color 上。 */
+    {
+        UiNode *txt = nullptr;
+        page->forEach([&](UiNode *x) {
+            if (!txt && x->type == QLatin1String("Text")) {
+                txt = x;
+            }
+            return txt == nullptr;
+        });
+        if (txt && Preview::isMonoLayer(txt)) {
+            onNodeSelected(txt);
+            QVector<int> ci;                    // 两条 color 属性的下标
+            for (int i = 0; i < txt->props.size(); ++i) {
+                if (txt->props.at(i).name == QLatin1String("color")) {
+                    ci << i;
+                }
+            }
+            /* 面板上"点亮/反显/不显示"那种下拉框，按选项文字认出来 */
+            QVector<QComboBox *> cbs;
+            /* m_dyn 不是 m_com 的子对象（它排在 CSS属性 页签下面，见
+             * ComProperty 构造里的说明），得从 dynamicSection() 里找 */
+            for (QComboBox *cb : m_com->dynamicSection()
+                                 ->findChildren<QComboBox *>()) {
+                if (cb->count() == 3
+                    && cb->itemText(0) == QStringLiteral("点亮")
+                    && cb->itemText(1) == QStringLiteral("反显")) {
+                    cbs << cb;
+                }
+            }
+            check(QStringLiteral("文字控件的两条颜色都铺成了下拉框"),
+                  ci.size() >= 2 && cbs.size() >= 2,
+                  QStringLiteral("属性 %1 条，下拉框 %2 个")
+                      .arg(ci.size()).arg(cbs.size()));
+            if (ci.size() >= 2 && cbs.size() >= 2) {
+                const QString keep0 = txt->props.at(ci.at(0)).raw
+                                      .value(QStringLiteral("color")).toString();
+                /* 点第二个下拉框 = 高亮颜色，选"反显" */
+                cbs.at(1)->setCurrentIndex(1);
+                check(QStringLiteral("下拉框选反显会真写进高亮颜色"),
+                      txt->props.at(ci.at(1)).raw.value(QStringLiteral("color"))
+                          .toString() == QLatin1String(Preview::kMonoInvert),
+                      QStringLiteral("高亮颜色=%1")
+                          .arg(txt->props.at(ci.at(1)).raw
+                               .value(QStringLiteral("color")).toString()));
+                check(QStringLiteral("点高亮下拉框不会碰到文字颜色"),
+                      txt->props.at(ci.at(0)).raw.value(QStringLiteral("color"))
+                          .toString() == keep0,
+                      QStringLiteral("文字颜色现在=%1 原=%2")
+                          .arg(txt->props.at(ci.at(0)).raw
+                               .value(QStringLiteral("color")).toString(), keep0));
+                /* 点第一个 = 文字颜色，选"不显示" */
+                const QString keep1 = txt->props.at(ci.at(1)).raw
+                                      .value(QStringLiteral("color")).toString();
+                cbs.at(0)->setCurrentIndex(2);
+                check(QStringLiteral("下拉框选不显示会真写进文字颜色"),
+                      txt->props.at(ci.at(0)).raw.value(QStringLiteral("color"))
+                          .toString() == QLatin1String(Preview::kMonoFillOn)
+                          && txt->props.at(ci.at(1)).raw
+                             .value(QStringLiteral("color")).toString() == keep1,
+                      QStringLiteral("文字=%1 高亮=%2")
+                          .arg(txt->props.at(ci.at(0)).raw
+                               .value(QStringLiteral("color")).toString(),
+                               txt->props.at(ci.at(1)).raw
+                               .value(QStringLiteral("color")).toString()));
+                /* 选回"点亮"，别把工程留在一个奇怪的状态上 */
+                cbs.at(0)->setCurrentIndex(0);
+            }
+        }
+    }
+
+    /* --- 18d. 列表类参数必须和预览对得上 ---
+     * 原厂面板每个列表类属性下面都跟着一个条目下拉框（图片"缩略图+文件名"、
+     * 文字"内容#ResID"），而且**停在预览真正画的那一条上**。以前这里只有
+     * 一个按钮，面板上根本看不出画布上那张图是列表里的哪一条 —— 参数和
+     * 预览对不上就是这么来的。 */
+    UiNode *txtWithStr = nullptr;        // 18e 还要用它，提到外面来
+    {
+        UiNode *img = nullptr;
+        UiNode *txt = nullptr;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                if (!img && x->type == QLatin1String("ImageList")) {
+                    for (const UiProperty &q : x->props) {
+                        if (q.name == QLatin1String("normal_image")
+                            && q.raw.value(QStringLiteral("list")).toArray().size() >= 2) {
+                            img = x;
+                            break;
+                        }
+                    }
+                }
+                if (!txt && x->type == QLatin1String("Text")) {
+                    for (const UiProperty &q : x->props) {
+                        if (q.name == QLatin1String("str")
+                            && !q.raw.value(QStringLiteral("list")).toArray().isEmpty()) {
+                            txt = x;
+                            break;
+                        }
+                    }
+                }
+                return !(img && txt);
+            });
+            if (img && txt) {
+                break;
+            }
+        }
+
+        if (img) {
+            onNodeSelected(img);
+            /* 下拉框里的条目数要和列表条目数一致，且停在"默认高亮"那一条 */
+            int wantN = 0, wantIdx = 0;
+            for (const UiProperty &q : img->props) {
+                if (q.name == QLatin1String("normal_image")) {
+                    wantN = q.raw.value(QStringLiteral("list")).toArray().size();
+                }
+                if (q.name == QLatin1String("highlight")) {
+                    wantIdx = q.raw.value(QStringLiteral("default")).toInt();
+                }
+            }
+            QComboBox *entry = nullptr;
+            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+                if (cb->count() == wantN && wantN > 0 && !cb->itemIcon(0).isNull()) {
+                    entry = cb;
+                    break;
+                }
+            }
+            check(QStringLiteral("图片列表下面有条目下拉框（带缩略图）"),
+                  entry != nullptr,
+                  QStringLiteral("列表 %1 条").arg(wantN));
+            if (entry) {
+                check(QStringLiteral("图片条目下拉框停在「默认高亮」那一条"),
+                      entry->currentIndex() == qBound(0, wantIdx, wantN - 1),
+                      QStringLiteral("下拉框第 %1 条，默认高亮=%2")
+                          .arg(entry->currentIndex()).arg(wantIdx));
+            }
+        }
+
+        if (txt) {
+            onNodeSelected(txt);
+            QString wantId;
+            QStringList ids;
+            for (const UiProperty &q : txt->props) {
+                if (q.name != QLatin1String("str")) {
+                    continue;
+                }
+                wantId = q.raw.value(QStringLiteral("default")).toString();
+                for (const QJsonValue &v : q.raw.value(QStringLiteral("list")).toArray()) {
+                    ids << v.toString();
+                }
+                break;
+            }
+            check(QStringLiteral("文字列表的 default 就在列表里"),
+                  !ids.isEmpty() && ids.contains(wantId),
+                  QStringLiteral("default=%1 列表 %2 条").arg(wantId).arg(ids.size()));
+            QComboBox *entry = nullptr;
+            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+                /* 文字条目显示成"内容#ResID"，认这个 # 后缀 */
+                if (cb->count() == ids.size() && !ids.isEmpty()
+                    && cb->itemText(0).endsWith(QLatin1Char('#') + ids.at(0))) {
+                    entry = cb;
+                    break;
+                }
+            }
+            check(QStringLiteral("文字列表下面有条目下拉框（内容#ResID）"),
+                  entry != nullptr,
+                  entry ? entry->itemText(0) : QStringLiteral("没找到"));
+            if (entry) {
+                check(QStringLiteral("文字条目下拉框停在 default 那一条"),
+                      entry->currentIndex() == ids.indexOf(wantId),
+                      QStringLiteral("下拉框第 %1 条，default 是第 %2 条")
+                          .arg(entry->currentIndex()).arg(ids.indexOf(wantId)));
+            }
+            txtWithStr = txt;
+        }
+    }
+
+    /* --- 18e. 编码格式是固定三种，得给下拉框 ---
+     * 固件 ui_text.c 硬编码只认 strpic/text/ascii，填别的控件在屏上是空白
+     * 且无任何报错。以前这里是自由文本框，正好是最容易拼错的地方。 */
+    if (txtWithStr) {
+        onNodeSelected(txtWithStr);
+        QComboBox *codeCb = nullptr;
+        for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+            if (cb->findText(QStringLiteral("strpic")) >= 0
+                && cb->findText(QStringLiteral("text")) >= 0
+                && cb->findText(QStringLiteral("ascii")) >= 0) {
+                codeCb = cb;
+                break;
+            }
+        }
+        check(QStringLiteral("编码格式是下拉框（固件只认 strpic/text/ascii）"),
+              codeCb != nullptr,
+              codeCb ? QStringLiteral("当前 %1").arg(codeCb->currentText())
+                     : QStringLiteral("没找到"));
+        if (codeCb) {
+            QString cur;
+            for (const UiProperty &q : txtWithStr->props) {
+                if (q.name == QLatin1String("code")) {
+                    cur = q.raw.value(QStringLiteral("default")).toString();
+                    break;
+                }
+            }
+            check(QStringLiteral("编码格式下拉框停在工程里的那个值"),
+                  codeCb->currentText() == cur,
+                  QStringLiteral("下拉框=%1 工程=%2").arg(codeCb->currentText(), cur));
+            /* ascii 下资源里的文字列表不显示（固件把 attrs.str 置 NULL） */
+            const QString keep = cur;
+            /* 【只有 strpic 画得出资源里的文字】text/ascii 的内容都由程序
+             * 运行时写（ui_text_set_text_by_id 那几个接口）：
+             *   ascii  init 时 attrs.str 就是 NULL，不写就不画
+             *   text   attrs.str 指向的是 u16 的 ResID 数组，字库把它当字符
+             *          渲染出来是乱码，不是资源里那句话
+             * 所以两种都不该按资源里的文字去画。 */
+            for (const char *bad : { "ascii", "text" }) {
+                codeCb->setCurrentIndex(codeCb->findText(QLatin1String(bad)));
+                check(QStringLiteral("编码格式 %1 时预览不画资源里的文字")
+                          .arg(QLatin1String(bad)),
+                      Preview::contentOf(txtWithStr, Qt::white).isNull());
+                check(QStringLiteral("编码格式 %1 配了文字列表要告警")
+                          .arg(QLatin1String(bad)),
+                      m_com->warningTextForTest().contains(QStringLiteral("程序")),
+                      m_com->warningTextForTest().left(24));
+            }
+            /* 【预览文字】text/ascii 的内容运行时才有，画布上本来是空的。
+             * 配一句只用于预览的假文字顶上，方便看排版 —— 但它只能存在工具
+             * 配置里：写进工程就不是原厂那份 json 了，而且**不能**把工程标记
+             * 成改过（标题带 * / 退出问保存都是看这个）。 */
+            {
+                /* 先把 code 切到 ascii，**再**抓基准 —— 切 code 本身会改
+                 * json（"text" 4 字节 vs "ascii" 5 字节），那是它该改的，
+                 * 不能算到"预览文字"头上。 */
+                codeCb->setCurrentIndex(codeCb->findText(QStringLiteral("ascii")));
+                const QByteArray before = m_mgr->model()->toJsonBytes();
+                m_mgr->setDirty(false);           // 上一句改的是 code，先归零
+
+                const QString sample = QStringLiteral("预览文字ABC");
+                Preview::setPresetText(txtWithStr, sample);
+                check(QStringLiteral("配了预览文字后 text/ascii 也画得出来"),
+                      !Preview::contentOf(txtWithStr, Qt::white).isNull());
+                check(QStringLiteral("预览文字不写进工程 json"),
+                      m_mgr->model()->toJsonBytes() == before,
+                      QStringLiteral("字节数 %1 -> %2").arg(before.size())
+                          .arg(m_mgr->model()->toJsonBytes().size()));
+                check(QStringLiteral("配预览文字不会把工程标记成改过"),
+                      !m_mgr->model()->dirty());
+                check(QStringLiteral("预览文字只给 text/ascii 用"),
+                      Preview::needsPresetText(txtWithStr));
+
+                Preview::setPresetText(txtWithStr, QString());
+                check(QStringLiteral("清掉预览文字又回到空"),
+                      Preview::contentOf(txtWithStr, Qt::white).isNull());
+            }
+
+            codeCb->setCurrentIndex(codeCb->findText(keep));
+            check(QStringLiteral("改回 strpic 预览又画得出来"),
+                  !Preview::contentOf(txtWithStr, Qt::white).isNull(),
+                  QStringLiteral("已改回 %1").arg(keep));
+            check(QStringLiteral("改回 strpic 告警消失"),
+                  m_com->warningTextForTest().isEmpty(),
+                  m_com->warningTextForTest().left(24));
+            check(QStringLiteral("strpic 不给预览文字这一栏"),
+                  !Preview::needsPresetText(txtWithStr));
+        }
+    }
+
+    /* --- 18f. 时间/数字的格式：模板串 + 分隔符耗尽即截断 ---
+     * 规则抄自固件（ui_time.c:65 / ui_number.c:76），这几条以前是错的：
+     *   Y 是 4 位年，不是 2 位；
+     *   '/' 是普通字面字符（照样吃一张分隔符图），不是"结束符"；
+     *   分隔符图片用完之后，后面的内容**整段不画**。 */
+    {
+        UiNode *tm = nullptr;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                if (!tm && x->type == QLatin1String("Time")) {
+                    for (const UiProperty &q : x->props) {
+                        if (q.name == QLatin1String("number")
+                            && q.raw.value(QStringLiteral("list")).toArray().size() == 10) {
+                            tm = x;
+                            break;
+                        }
+                    }
+                }
+                return tm == nullptr;
+            });
+            if (tm) {
+                break;
+            }
+        }
+        if (tm) {
+            auto setFmt = [tm](const QString &f) {
+                for (UiProperty &q : tm->props) {
+                    if (q.name == QLatin1String("format")) {
+                        q.raw.insert(QStringLiteral("default"), f);
+                        return;
+                    }
+                }
+            };
+            auto delimCount = [tm]() {
+                for (const UiProperty &q : tm->props) {
+                    if (q.name == QLatin1String("delimiter")) {
+                        return q.raw.value(QStringLiteral("list")).toArray().size();
+                    }
+                }
+                return 0;
+            };
+            QString keep;
+            for (const UiProperty &q : tm->props) {
+                if (q.name == QLatin1String("format")) {
+                    keep = q.raw.value(QStringLiteral("default")).toString();
+                }
+            }
+            const int nDelim = delimCount();
+            const int w0 = Preview::contentOf(tm, Qt::white).width();
+
+            /* Y=4 位：单独一个 Y 要比单独一个 m 宽一倍 */
+            setFmt(QStringLiteral("Y"));
+            Preview::invalidate();
+            const int wY = Preview::contentOf(tm, Qt::white).width();
+            setFmt(QStringLiteral("m"));
+            Preview::invalidate();
+            const int wM = Preview::contentOf(tm, Qt::white).width();
+            check(QStringLiteral("时间格式 Y 是 4 位年（不是 2 位）"),
+                  wY > 0 && wM > 0 && wY == wM * 2,
+                  QStringLiteral("Y 宽 %1，m 宽 %2").arg(wY).arg(wM));
+
+            /* '/' 是普通字面字符：配得起分隔符时它要画出来 */
+            if (nDelim >= 1) {
+                setFmt(QStringLiteral("m"));
+                Preview::invalidate();
+                const int a = Preview::contentOf(tm, Qt::white).width();
+                setFmt(QStringLiteral("m/"));
+                Preview::invalidate();
+                const int b = Preview::contentOf(tm, Qt::white).width();
+                check(QStringLiteral("时间格式里的 / 会画成分隔符（不是结束符）"),
+                      b > a,
+                      QStringLiteral("\"m\" 宽 %1，\"m/\" 宽 %2").arg(a).arg(b));
+
+                /* 分隔符只有 1 张时，第二个分隔符处整段截断 */
+                setFmt(QStringLiteral("h:m:s"));
+                Preview::invalidate();
+                const int trunc = Preview::contentOf(tm, Qt::white).width();
+                setFmt(QStringLiteral("h:m"));
+                Preview::invalidate();
+                const int full = Preview::contentOf(tm, Qt::white).width();
+                check(QStringLiteral("分隔符不够时后面整段不画"),
+                      nDelim >= 2 ? trunc > full : trunc == full,
+                      QStringLiteral("分隔符 %1 张，\"h:m:s\" 宽 %2，\"h:m\" 宽 %3")
+                          .arg(nDelim).arg(trunc).arg(full));
+            }
+            setFmt(keep);
+            Preview::invalidate();
+            check(QStringLiteral("格式改回去预览也回得来"),
+                  Preview::contentOf(tm, Qt::white).width() == w0,
+                  QStringLiteral("宽 %1（原 %2）")
+                      .arg(Preview::contentOf(tm, Qt::white).width()).arg(w0));
+
+            /* 格式框 = 常用预设 + "自定义…"。预设选中要真写进节点；
+             * 工程里是预设之外的写法时，要落到"自定义"并把原值原样放出来，
+             * 不许替用户改成某个近似的预设。 */
+            onNodeSelected(tm);
+            QComboBox *fmtCb = nullptr;
+            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+                if (cb->count() > 1
+                    && cb->itemText(cb->count() - 1) == QStringLiteral("自定义…")) {
+                    fmtCb = cb;
+                    break;
+                }
+            }
+            check(QStringLiteral("格式框是「常用预设 + 自定义…」下拉框"),
+                  fmtCb != nullptr,
+                  fmtCb ? QStringLiteral("%1 个预设，当前 %2")
+                          .arg(fmtCb->count() - 1).arg(fmtCb->currentText())
+                        : QStringLiteral("没找到"));
+            if (fmtCb) {
+                check(QStringLiteral("格式框停在工程里的那个值"),
+                      fmtCb->currentText() == keep
+                          || fmtCb->currentText() == QStringLiteral("自定义…"),
+                      QStringLiteral("下拉框=%1 工程=%2")
+                          .arg(fmtCb->currentText(), keep));
+                /* 选一个预设：要真写进节点 */
+                const int pick = fmtCb->findText(QStringLiteral("Y/M/D"));
+                if (pick >= 0) {
+                    fmtCb->setCurrentIndex(pick);
+                    QString now;
+                    for (const UiProperty &q : tm->props) {
+                        if (q.name == QLatin1String("format")) {
+                            now = q.raw.value(QStringLiteral("default")).toString();
+                        }
+                    }
+                    check(QStringLiteral("选预设会真写进格式参数"),
+                          now == QLatin1String("Y/M/D"),
+                          QStringLiteral("格式现在=%1").arg(now));
+                }
+                /* 切到"自定义…"不能把原值清掉 */
+                fmtCb->setCurrentIndex(fmtCb->count() - 1);
+                QString afterCustom;
+                for (const UiProperty &q : tm->props) {
+                    if (q.name == QLatin1String("format")) {
+                        afterCustom = q.raw.value(QStringLiteral("default")).toString();
+                    }
+                }
+                check(QStringLiteral("切到「自定义…」不会把格式清空"),
+                      !afterCustom.isEmpty(),
+                      QStringLiteral("格式还是=%1").arg(afterCustom));
+            }
+            setFmt(keep);
+            Preview::invalidate();
+
+            /* 分隔符不够时的警告：面板里只留一个 ⚠（窄栏塞不下整句话），
+             * 正文走带尾巴的浮动气泡，气泡按文字算尺寸、不会显示不全。 */
+            if (fmtCb) {
+                const int need2 = fmtCb->findText(QStringLiteral("h:m:s"));
+                if (need2 >= 0 && nDelim < 2) {
+                    fmtCb->setCurrentIndex(need2);
+                    check(QStringLiteral("分隔符不够会出警告"),
+                          !m_com->warningTextForTest().isEmpty(),
+                          m_com->warningTextForTest().left(28));
+                    QLabel *mark = nullptr;
+                    for (QLabel *l : m_com->dynamicSection()->findChildren<QLabel *>()) {
+                        if (l->text() == QStringLiteral("⚠")) {
+                            mark = l;
+                            break;
+                        }
+                    }
+                    check(QStringLiteral("窄面板里只放一个 ⚠ 标记"),
+                          mark != nullptr && !mark->toolTip().isEmpty(),
+                          mark ? QStringLiteral("提示 %1 字").arg(mark->toolTip().size())
+                               : QStringLiteral("没找到 ⚠"));
+                    check(QStringLiteral("警告气泡放得下整句话（不会显示不全）"),
+                          m_com->warningTipFitsForTest());
+                }
+                /* 换成够用的格式，警告要消失 */
+                const int ok2 = fmtCb->findText(QStringLiteral("m"));
+                if (ok2 >= 0) {
+                    fmtCb->setCurrentIndex(ok2);
+                    check(QStringLiteral("格式改对了警告会消失"),
+                          m_com->warningTextForTest().isEmpty(),
+                          m_com->warningTextForTest());
+                }
+            }
+            setFmt(keep);
+            Preview::invalidate();
+        }
+    }
+
+    /* --- 18h. 两个列表编辑对话框里也要有预览 ---
+     * 原厂的「图片编辑」是把每张位图画出来的，「显示列表」是"内容#ResID"
+     * （见 temp/图片列表.jpg、temp/文字列表.jpg）。以前这两个都退化成了
+     * 纯文件名 / 纯 ResID：图片那边 QFileSystemModel 给的是通用文件图标，
+     * 一屏两百多个一模一样的小方块，只能靠文件名猜。 */
+    {
+        const PropertyContext &ctx = PropertyContext::instance();
+        /* 找一张工程里真实存在的图片来验 */
+        QString relPic;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                for (const UiProperty &q : x->props) {
+                    if (q.type != QLatin1String("piclist")
+                        && q.type != QLatin1String("arrlist")) {
+                        continue;
+                    }
+                    for (const QJsonValue &v : q.raw.value(QStringLiteral("list")).toArray()) {
+                        const QString r = v.toString();
+                        if (!r.isEmpty()
+                            && QFileInfo::exists(QDir(ctx.projectDir).filePath(r))) {
+                            relPic = r;
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            });
+            if (!relPic.isEmpty()) {
+                break;
+            }
+        }
+        check(QStringLiteral("工程里找得到真实存在的图片来验缩略图"),
+              !relPic.isEmpty(), relPic);
+        if (!relPic.isEmpty()) {
+            ImageFileDialog dlg;
+            dlg.setProjectDir(ctx.projectDir);
+            dlg.setSelected(QStringList{ relPic });
+            check(QStringLiteral("图片编辑：已选列表带缩略图"),
+                  dlg.selectedIconIsRealForTest(0),
+                  relPic);
+            /* 值不能被显示改坏 —— 存回去的还得是那条相对路径 */
+            check(QStringLiteral("图片编辑：加了缩略图不影响存回去的路径"),
+                  dlg.selected() == QStringList{ relPic },
+                  dlg.selected().join(QLatin1Char(',')));
+
+            /* 【目录不能当图片】QFileSystemModel 光设 QDir::Files 挡不住
+             * 子目录，双击就能把一个目录加进图片列表 —— 存进工程是一条指向
+             * 目录的"图片路径"，要到出资源那步才炸，很难回溯。
+             * 挑一个**有子目录**的地方来验。 */
+            QString dirWithSub;
+            const QString cfg = QDir(ctx.projectDir).filePath(QStringLiteral("config"));
+            for (const QString &d : QDir(cfg).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+                const QString abs = QDir(cfg).filePath(d);
+                if (!QDir(abs).entryList(QDir::Dirs | QDir::NoDotAndDotDot).isEmpty()) {
+                    dirWithSub = abs;
+                    break;
+                }
+            }
+            if (dirWithSub.isEmpty()) {
+                dirWithSub = cfg;          // config 自己底下全是子目录
+            }
+            check(QStringLiteral("图片编辑：列表里不会出现子目录"),
+                  dlg.dirRowsForTest(dirWithSub) == 0,
+                  QStringLiteral("%1 里列出了 %2 个目录")
+                      .arg(QFileInfo(dirWithSub).fileName())
+                      .arg(dlg.dirRowsForTest(dirWithSub)));
+            check(QStringLiteral("图片编辑：把目录喂给「添加」也加不进去"),
+                  dlg.tryAddForTest(dirWithSub) == 0);
+            check(QStringLiteral("图片编辑：真图还是加得进去"),
+                  dlg.tryAddForTest(QDir(ctx.projectDir).filePath(relPic)) == 1);
+        }
+
+        if (!ctx.excelPath.isEmpty() && QFileInfo::exists(ctx.excelPath)) {
+            I18nLanguage dlg;
+            QString err;
+            if (dlg.loadExcel(ctx.excelPath, &err)) {
+                dlg.setSelected(QStringList{ QStringLiteral("m1") });
+                const QString shown = dlg.selectedLabelForTest(0);
+                check(QStringLiteral("显示列表：已选那条显示成「内容#ResID」"),
+                      shown.endsWith(QStringLiteral("#m1")) && shown != QStringLiteral("m1"),
+                      shown);
+                check(QStringLiteral("显示列表：显示变了但值还是纯 ResID"),
+                      dlg.selected() == QStringList{ QStringLiteral("m1") },
+                      dlg.selected().join(QLatin1Char(',')));
+            }
+        }
+    }
+
+    /* --- 18c. 右栏的页面视图也要有内容预览 ---
+     * 【这里坏了很久】右栏原本是另一套画法：按层级深浅填绿/蓝/紫色块，
+     * 既没有图片文字，也不是单色屏的样子 —— 画布那边早就改成"黑底白点 +
+     * 真内容"了，右栏一直停在老版本。断言两条：
+     *   1) 真有点亮的像素（= 内容画出来了，不是一片空白）
+     *   2) 每个像素只有黑或白（= 没有残留的彩色块；屏上只有亮/灭） */
+    if (m_pages) {
+        const QImage img = m_pages->grabPageForTest(m_mgr->currentPage());
+        check(QStringLiteral("右栏页面视图不是空图"),
+              !img.isNull() && img.width() > 1 && img.height() > 1,
+              QStringLiteral("%1x%2").arg(img.width()).arg(img.height()));
+        if (!img.isNull()) {
+            int lit = 0, colored = 0;
+            for (int y = 0; y < img.height(); ++y) {
+                for (int x = 0; x < img.width(); ++x) {
+                    const QColor c = img.pixelColor(x, y);
+                    if (c.red() != c.green() || c.green() != c.blue()) {
+                        ++colored;                 // 不是灰阶 = 彩色残留
+                    } else if (c.red() > 200) {
+                        ++lit;
+                    }
+                }
+            }
+            check(QStringLiteral("右栏页面视图画出了内容（有点亮像素）"),
+                  lit > 20,
+                  QStringLiteral("点亮 %1 个像素").arg(lit));
+            check(QStringLiteral("右栏页面视图是单色的（没有彩色块残留）"),
+                  colored == 0,
+                  QStringLiteral("非灰阶像素 %1 个").arg(colored));
+        }
+    }
+
+    /* --- 18g. 改过参数要算"工程改过" ---
+     * 标题上那个 * 和退出时"要不要保存"看的都是 ProjectModel::dirty()。
+     * UiNode::markDirty() 只置节点自己的标志（够回写用），**传不到模型** ——
+     * 所以属性面板改完参数以前既不显示 *、退出也不提示，一不小心就白改。 */
+    {
+        m_mgr->setDirty(false);
+        refreshTitle();
+        check(QStringLiteral("干净工程标题上没有 *"),
+              !windowTitle().contains(QLatin1Char('*')), windowTitle());
+        /* 标题格式：UI编辑工具(Build:YYYY-MM-DD) <工程名>，
+         * 不带"重建版"这类字眼 */
+        check(QStringLiteral("标题带构建日期、不带重建字样"),
+              windowTitle().contains(QStringLiteral("Build:"))
+                  && !windowTitle().contains(QStringLiteral("重建")),
+              windowTitle());
+
+        /* 走**真的属性面板**改一个值，不是直接改 json */
+        UiNode *any = nullptr;
+        page->forEach([&](UiNode *x) {
+            if (!any && x != page && x->cssStateCount() > 0) {
+                any = x;
+            }
+            return any == nullptr;
+        });
+        if (any) {
+            onNodeSelected(any);
+            QSpinBox *sp = nullptr;
+            for (QSpinBox *s : m_prop->findChildren<QSpinBox *>()) {
+                if (s->isVisible()) {
+                    sp = s;
+                    break;
+                }
+            }
+            if (sp) {
+                sp->setValue(sp->value() + 1);
+                check(QStringLiteral("改参数会把工程标记成改过"),
+                      m_mgr->model()->dirty(),
+                      QStringLiteral("dirty=%1").arg(m_mgr->model()->dirty()));
+                check(QStringLiteral("改参数后标题会带 *"),
+                      windowTitle().contains(QLatin1Char('*')), windowTitle());
+                /* 有脏标志时退出才会问"要不要保存"（这里只验条件，不弹框） */
+                check(QStringLiteral("有改动时退出要问保存"),
+                      m_mgr->model()->dirty());
+                sp->setValue(sp->value() - 1);
+            }
+        }
+        m_mgr->setDirty(false);
+        refreshTitle();
+        check(QStringLiteral("存过之后 * 会消失"),
+              !windowTitle().contains(QLatin1Char('*')), windowTitle());
     }
 
     /* --- 19. 这一通改完，工程还得能存能读 --- */

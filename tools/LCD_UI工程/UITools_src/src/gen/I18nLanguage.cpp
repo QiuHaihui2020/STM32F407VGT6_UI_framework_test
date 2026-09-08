@@ -92,7 +92,7 @@ I18nLanguage::I18nLanguage(QWidget *parent)
         const QString id = it->data(Qt::UserRole).toString();
         int at = -1;
         for (int i = 0; i < m_itemSelected->count(); ++i) {
-            if (m_itemSelected->item(i)->text() == id) {
+            if (idOf(m_itemSelected->item(i)) == id) {
                 at = i;
                 break;
             }
@@ -106,7 +106,7 @@ I18nLanguage::I18nLanguage(QWidget *parent)
                                              tr("最多只能放 %1 项").arg(m_maxCount));
                     return;
                 }
-                m_itemSelected->addItem(id);
+                addSelectedId(id);
             }
         } else if (at >= 0) {
             delete m_itemSelected->takeItem(at);
@@ -146,6 +146,7 @@ bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
     }
     const res::XlsSheet &sh = xls.sheets().first();
     m_itemWidget->clear();
+    m_labelOfId.clear();
     // 第 0 行是表头（ResID, Chinese_Simplified, …），从第 1 行起是数据
     for (int r = 1; r < sh.rows.size(); ++r) {
         const QString id = sh.cell(r, 0).trimmed();
@@ -154,7 +155,17 @@ bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
         }
         const QString zh = sh.cell(r, 1).trimmed();
         const QString en = sh.cell(r, 5).trimmed();
-        auto *it = new QListWidgetItem(QStringLiteral("%1    %2    %3").arg(id, zh, en));
+        /* 【显示成"内容#ResID"】原厂就是这个写法（见 temp/文字列表.jpg：
+         * "蓝牙#m1"）—— 一眼看到的是**这条到底是什么字**，ResID 只是尾巴。
+         * 以前这里是 "m1    蓝牙    Bluetooth"，先看到的是没有意义的编号，
+         * 而且已选列表那边只显示 "m1"，根本对不上是哪句话。
+         * 英文放进 tooltip，不占行宽。 */
+        const QString label = zh.isEmpty() ? id : QStringLiteral("%1#%2").arg(zh, id);
+        m_labelOfId.insert(id, label);
+        auto *it = new QListWidgetItem(label);
+        if (!en.isEmpty()) {
+            it->setToolTip(QStringLiteral("%1\n%2").arg(zh, en));
+        }
         it->setData(Qt::UserRole, id);
         it->setFlags(it->flags() | Qt::ItemIsUserCheckable);
         it->setCheckState(Qt::Unchecked);
@@ -168,7 +179,7 @@ void I18nLanguage::setSelected(const QStringList &ids)
     m_itemSelected->clear();
     for (const QString &id : ids) {
         if (!id.isEmpty()) {
-            m_itemSelected->addItem(id);
+            addSelectedId(id);
         }
     }
     QSignalBlocker b(m_itemWidget);
@@ -179,11 +190,39 @@ void I18nLanguage::setSelected(const QStringList &ids)
     }
 }
 
+QString I18nLanguage::labelOf(const QString &id) const
+{
+    /* 表还没读进来（或这条 ResID 表里没有）就退回裸 ResID —— 总比空着强 */
+    return m_labelOfId.value(id, id);
+}
+
+QString I18nLanguage::idOf(const QListWidgetItem *it)
+{
+    return it ? it->data(Qt::UserRole).toString() : QString();
+}
+
+void I18nLanguage::addSelectedId(const QString &id, int at)
+{
+    auto *it = new QListWidgetItem(labelOf(id));
+    it->setData(Qt::UserRole, id);          // 值永远是纯 ResID
+    if (at < 0) {
+        m_itemSelected->addItem(it);
+    } else {
+        m_itemSelected->insertItem(at, it);
+    }
+}
+
+QString I18nLanguage::selectedLabelForTest(int i) const
+{
+    const QListWidgetItem *it = m_itemSelected->item(i);
+    return it ? it->text() : QString();
+}
+
 QStringList I18nLanguage::selected() const
 {
     QStringList out;
     for (int i = 0; i < m_itemSelected->count(); ++i) {
-        out.append(m_itemSelected->item(i)->text());
+        out.append(idOf(m_itemSelected->item(i)));
     }
     return out;
 }

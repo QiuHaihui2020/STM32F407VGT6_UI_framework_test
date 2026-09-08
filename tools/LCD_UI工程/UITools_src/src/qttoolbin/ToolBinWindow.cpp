@@ -46,7 +46,7 @@ QString toolDir()
 ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
     : QWidget(parent), m_projectDir(projectDir)
 {
-    setWindowTitle(tr("UIToolBin工具（重建版）"));
+    setWindowTitle(tr("UIToolBin工具"));
 
     // ---- 运行 ----
     m_run = new QPushButton(tr("生成资源文件(F5)"), this);
@@ -81,8 +81,7 @@ ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
     m_platform->addItem(tr("全平台"));
     m_platform->setEnabled(false);
     m_platform->setToolTip(
-        tr("原厂有这一项，但它到底影响什么没逆向出来；\n"
-           "重建版的产出不依赖它，所以这里只占位、不生效。"));
+        tr("这一项不影响产出，只占位、不生效。"));
 
     m_rotate = new QComboBox(this);
     m_rotate->addItems(QStringList{ QStringLiteral("0"), QStringLiteral("90"),

@@ -1,5 +1,6 @@
 #include "Preview.h"
 
+#include "GlobalSettings.h"
 #include "ProjectModel.h"
 #include "ResConfig.h"
 #include "TextRaster.h"
@@ -246,73 +247,110 @@ QPixmap hcat(const QVector<QPixmap> &parts)
 }
 
 /**
- * 按 format 拼数字。
+ * 按 format 拼数字。规则**逐条对着固件抄**，不是照手册猜的：
  *
- * 时间的 format 关键字是 Y M D h m s（手册 2.8），数字是 printf 那套
- * "%02d"（手册 2.9）。预览用不着真值，摆一串 0 就行 —— 目的是让人看清
- * "这里有几位数字、多宽、什么字形"，不是显示实时数据。
+ * 时间（ui_time.c:65-124 time_vsprintf）
+ *   Y -> 4 位，M/D/h/m/s -> 各 2 位，**其余字符一律原样进串**；
+ *   然后逐字符换图：数字取 number[d]，非数字取 delimiter[j++]。
+ *   分隔符用完（原厂是取到 0xffff）就 **停止渲染后面全部内容**。
+ *
+ *   【'/' 不是结束符】以前这里把 '/' 特判成"结束符，不画"。固件里它就是个
+ *   普通字面字符，一样吃一张分隔符图 —— 工程里 "Y/M/D" 配了 2 张分隔符，
+ *   两个 '/' 都是画出来的。"m:s/" 看着像结束符，只是因为它只配了 1 张
+ *   分隔符，走到 '/' 时正好用完了才停 —— 结果对，理由错。
+ *
+ * 数字（ui_number.c:76-143 number_vsprintf）
+ *   占位符只认 %0Nd / %Nd / %d 三种（N=1..9），**最多两个**，出现第三个或
+ *   写成别的（如 %0x）整个控件就不画了（原厂打印 "not support yet" 后返回）。
+ *   %0Nd 补 0，%Nd 补空格（空格取 space[] 那张图），%d 不补。
+ *
+ * 预览摆的是 0，目的是让人看清"几位数字、多宽、什么字形"，不是显示实时值。
  */
 QPixmap composeDigits(UiNode *n, const QColor &lit, bool isTime)
 {
     const QStringList digits = listOf(n, QStringLiteral("number"));
     if (digits.isEmpty()) {
+        /* number[0] 为空 = 没有字模表，固件走"直接输出 ASCII"那条路，
+         * 由业务层/字库决定长什么样，工具画不出来 */
         return QPixmap();
     }
     const QStringList delim = listOf(n, QStringLiteral("delimiter"));
+    const QStringList space = listOf(n, QStringLiteral("space"));
     const QString fmt = strOf(n, QStringLiteral("format"), QStringLiteral("default"));
 
-    QVector<QPixmap> parts;
-    int delimUsed = 0;
-    auto digit = [&](int d) {
-        return litPixmap(abs(digits.value(qBound(0, d, digits.size() - 1))), lit);
-    };
-    auto nextDelim = [&]() {
-        const QPixmap p = litPixmap(abs(delim.value(delimUsed)), lit);
-        if (delimUsed + 1 < delim.size()) {
-            ++delimUsed;
-        }
-        return p;
-    };
-
+    /* 第一步：按 format 拼出**字符串**（和固件一样先拼串再换图） */
+    QString str;
     if (isTime) {
-        /* "m:s/" —— Y/M/D/h/m/s 各占两位，其余字符走分隔符图片 */
-        for (int i = 0; i < fmt.size(); ++i) {
-            const QChar c = fmt.at(i);
-            if (c == QLatin1Char('Y') || c == QLatin1Char('M') || c == QLatin1Char('D')
-                || c == QLatin1Char('h') || c == QLatin1Char('m') || c == QLatin1Char('s')) {
-                parts << digit(0) << digit(0);
-            } else if (c == QLatin1Char('/')) {
-                continue;                       // 结束符，不画
+        for (const QChar c : fmt) {
+            if (c == QLatin1Char('Y')) {
+                str += QStringLiteral("0000");
+            } else if (c == QLatin1Char('M') || c == QLatin1Char('D')
+                       || c == QLatin1Char('h') || c == QLatin1Char('m')
+                       || c == QLatin1Char('s')) {
+                str += QStringLiteral("00");
             } else {
-                parts << nextDelim();
+                str += c;
             }
         }
     } else {
-        /* "%02d" / "%4d" —— 取宽度，不足补 0 */
-        int i = 0;
-        while (i < fmt.size()) {
+        int placeholders = 0;
+        for (int i = 0; i < fmt.size(); ) {
             if (fmt.at(i) != QLatin1Char('%')) {
-                parts << nextDelim();
+                str += fmt.at(i);
                 ++i;
                 continue;
             }
-            ++i;
-            QString wide;
-            while (i < fmt.size() && fmt.at(i).isDigit()) {
-                wide.append(fmt.at(i));
-                ++i;
+            if (++placeholders > 2) {
+                return QPixmap();               // 第三个占位符 -> 固件不画
             }
-            if (i < fmt.size() && fmt.at(i) == QLatin1Char('d')) {
-                ++i;
+            const QChar c1 = (i + 1 < fmt.size()) ? fmt.at(i + 1) : QChar();
+            if (c1 == QLatin1Char('0')) {
+                const QChar c2 = (i + 2 < fmt.size()) ? fmt.at(i + 2) : QChar();
+                const QChar c3 = (i + 3 < fmt.size()) ? fmt.at(i + 3) : QChar();
+                if (c2 < QLatin1Char('1') || c2 > QLatin1Char('9')
+                    || c3 != QLatin1Char('d')) {
+                    return QPixmap();           // %0x 之类 -> 不画
+                }
+                str += QString(c2.digitValue(), QLatin1Char('0'));
+                i += 4;
+            } else if (c1 >= QLatin1Char('1') && c1 <= QLatin1Char('9')) {
+                if (((i + 2 < fmt.size()) ? fmt.at(i + 2) : QChar()) != QLatin1Char('d')) {
+                    return QPixmap();
+                }
+                /* %Nd 是空格补位：1 位数字 + (N-1) 个空格 */
+                str += QString(c1.digitValue() - 1, QLatin1Char(' '))
+                       + QLatin1Char('0');
+                i += 3;
+            } else if (c1 == QLatin1Char('d')) {
+                str += QLatin1Char('0');
+                i += 2;
+            } else {
+                return QPixmap();
             }
-            int cnt = wide.isEmpty() ? 1 : wide.toInt();
-            /* "%02d" 的前导 0 是补位标志不是位数，去掉它再算 */
-            if (wide.startsWith(QLatin1Char('0')) && wide.size() > 1) {
-                cnt = wide.mid(1).toInt();
+        }
+    }
+
+    /* 第二步：逐字符换成图片。任何一张取不到就**就地截断**，和固件一致。 */
+    QVector<QPixmap> parts;
+    int j = 0;
+    for (const QChar c : str) {
+        if (c == QLatin1Char(' ')) {
+            if (space.isEmpty()) {
+                break;
             }
-            for (int k = 0; k < qMax(1, cnt); ++k) {
-                parts << digit(0);
+            parts << litPixmap(abs(space.first()), lit);
+        } else if (c.isDigit()) {
+            const int d = c.digitValue();
+            if (d >= digits.size()) {
+                break;
             }
+            parts << litPixmap(abs(digits.at(d)), lit);
+        } else {
+            if (j >= delim.size()) {
+                break;                          // 分隔符用完 -> 后面全不画
+            }
+            parts << litPixmap(abs(delim.at(j)), lit);
+            ++j;
         }
     }
     return hcat(parts);
@@ -429,6 +467,78 @@ int cacheCount()
     return g_cache.size();
 }
 
+QString previewKey(const UiNode *n)
+{
+    if (!n) {
+        return QString();
+    }
+    /* ID号（ename）最稳：它是用户自己起的、面板和树上都看得见，改结构也不会变。
+     * 没填 ID号的就退回"在树里的位置"，形如 p0/2/1/3。 */
+    for (const UiProperty &p : n->props) {
+        if (p.name == QLatin1String("id") && !p.ename.isEmpty()) {
+            return p.ename;
+        }
+    }
+    QStringList path;
+    for (const UiNode *x = n; x && x->parent; x = x->parent) {
+        int idx = 0;
+        for (const auto &c : x->parent->children) {
+            if (c.second == x) {
+                break;
+            }
+            ++idx;
+        }
+        path.prepend(QString::number(idx));
+    }
+    return QStringLiteral("@/") + path.join(QLatin1Char('/'));
+}
+
+bool needsPresetText(const UiNode *n)
+{
+    if (!n || n->type != QLatin1String("Text")) {
+        return false;
+    }
+    for (const UiProperty &p : n->props) {
+        if (p.name == QLatin1String("code")) {
+            const QString c = p.raw.value(QStringLiteral("default")).toString();
+            return c == QLatin1String("text") || c == QLatin1String("ascii");
+        }
+    }
+    return false;
+}
+
+/** 配置里的键：工程文件名 + 控件标识。不同工程互不干扰。 */
+static QString presetSettingsKey(const UiNode *n)
+{
+    const QString k = previewKey(n);
+    if (k.isEmpty()) {
+        return QString();
+    }
+    const QString proj = g_projectDir.isEmpty()
+                         ? QStringLiteral("_")
+                         : QFileInfo(g_projectDir).fileName();
+    return QStringLiteral("previewText/%1/%2").arg(proj, k);
+}
+
+QString presetText(const UiNode *n)
+{
+    const QString key = presetSettingsKey(n);
+    if (key.isEmpty()) {
+        return QString();
+    }
+    return GlobalSettings::value(key).toString();
+}
+
+void setPresetText(const UiNode *n, const QString &text)
+{
+    const QString key = presetSettingsKey(n);
+    if (key.isEmpty()) {
+        return;
+    }
+    GlobalSettings::setValue(key, text);
+    g_cache.clear();          // 文字变了，画好的那张要作废
+}
+
 QPixmap contentOf(UiNode *n, const QColor &lit)
 {
     if (!n) {
@@ -439,7 +549,10 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
     const QString type = n->type;
 
     if (type == QLatin1String("ImageList")) {
-        /* 图片列表里可以有多张（切换用），预览画"默认高亮"那一张 */
+        /* 图片列表里可以有多张（切换用），预览画"默认高亮"那一张。
+         * 【不能拿 normal_image 的 default 当条目】它几乎都不在 list 里
+         * （实测 196/202 是控件模板里的残留，如 config/images/xxx.png），
+         * 真正指定条目的是"默认高亮"这个 int8 参数。 */
         const QStringList pics = listOf(n, QStringLiteral("normal_image"));
         if (pics.isEmpty()) {
             return QPixmap();
@@ -459,23 +572,71 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
         if (pics.isEmpty()) {
             return QPixmap();
         }
-        /* 电量图是 0%..100% 一串，预览取中间那档最有代表性 */
-        return litPixmap(abs(pics.value(pics.size() / 2)), use);
+        /* 【取第一条，不要自作聪明取中间】电量图是 BATTLVL1..5 一串，运行时
+         * 按真实电量选。工程里没有任何参数指定"预览该显示哪一档"
+         * （image 的 default 是 config/images/battery0.png，12/12 都不在
+         * list 里），所以只能按列表顺序取第 1 条 —— 这样面板上那个条目
+         * 下拉框停在第 1 条，和画布上看到的就是同一张。
+         * 以前这里取 pics[size/2]，属性面板上找不到任何依据说明为什么是那张。 */
+        return litPixmap(abs(pics.first()), use);
     }
 
     if (type == QLatin1String("Text")) {
-        const QStringList ids = listOf(n, QStringLiteral("str"));
-        if (ids.isEmpty()) {
-            return QPixmap();
+        /* 【只有 strpic 画得出资源里的文字】三个编码格式在固件里是三条完全
+         * 不同的路（ui_synthesis_oled.c 764 / 922 / 966）：
+         *
+         *   strpic  u16 id = text->str[0]; open_string_pic(id) —— 从 result.str
+         *           里取**预先光栅化好的图片串**贴上去。内容来自资源。
+         *   text    font_open(NULL, language) 打开字库，把 str 当**字符**渲染。
+         *           内容由业务层运行时写（ui_text_set_text_by_id 那几个 API）。
+         *   ascii   走 ASCII 字模；初始化时 attrs.str 就是 NULL，不写就不画。
+         *
+         * 【text 下配了文字列表也不会显示那句话】init 时 attrs.str 指向的是
+         * _str[]，也就是**u16 的 ResID 数组**，不是字符串。字库把那几个字节
+         * 当字符渲染出来是乱码，不是"蓝牙"。所以这里一样不画 —— 画了就是骗人。
+         * 原厂工程里 19 个 text、4 个 ascii 控件的文字列表**全是空的**，
+         * 正好印证这条。
+         *
+         * 别的取值（含空串）固件三个分支都不匹配，屏上什么都没有，这里同理。 */
+        QString show;               // 最终要画的那句话
+        if (strOf(n, QStringLiteral("code"), QStringLiteral("default"))
+            != QLatin1String("strpic")) {
+            /* text / ascii：资源里没有内容，但可以配一句**只用于预览**的
+             * 假文字（存在工具配置里，不进工程文件）—— 排版时能看出这个框
+             * 够不够宽、对齐对不对。没配就还是空的。 */
+            show = presetText(n);
+            if (show.isEmpty()) {
+                return QPixmap();
+            }
+        } else {
+            const QStringList ids = listOf(n, QStringLiteral("str"));
+            if (ids.isEmpty()) {
+                return QPixmap();
+            }
+            /* 【按 default 取，不是无脑取第一条】str 的 default 一定在 list 里
+             * （实测 209/209），它就是"当前显示的那一条" —— 面板上的条目下拉框
+             * 也停在它上面。列表有多条时（本工程有 3 个控件是 2~4 条），
+             * 取第一条就会和面板显示的对不上。 */
+            QString id;
+            for (const UiProperty &p : n->props) {
+                if (p.name == QLatin1String("str")) {
+                    id = p.raw.value(QStringLiteral("default")).toString();
+                    break;
+                }
+            }
+            if (id.isEmpty() || !ids.contains(id)) {
+                id = ids.first();
+            }
+            ensureConfig();
+            const QVector<int> langsForText = g_cfg.activeLanguages();
+            show = stringOf(id, langsForText.isEmpty() ? 0 : langsForText.first());
+            if (show.isEmpty()) {
+                return QPixmap();
+            }
         }
+
         ensureConfig();
-        const QVector<int> langsForText = g_cfg.activeLanguages();
-        const QString text = stringOf(ids.first(),
-                                      langsForText.isEmpty() ? 0 : langsForText.first());
-        if (text.isEmpty()) {
-            return QPixmap();
-        }
-        ensureConfig();
+        const QString text = show;
         const QString key = QStringLiteral("T|%1|%2").arg(text, use.name(QColor::HexArgb));
         auto it = g_cache.constFind(key);
         if (it != g_cache.constEnd()) {

@@ -21,6 +21,13 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QDir>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QPainterPath>
+#include <QRegularExpression>
+#include <QScreen>
+#include <QTimer>
 #include <QColorDialog>
 #include <QAbstractScrollArea>
 #include <QAbstractSpinBox>
@@ -46,6 +53,138 @@
  * 做法是把滚轮事件转给最近的滚动区，让页面照常滚、值不动。
  * 控件仍然可以点进去用键盘或箭头改 —— 只是不再"扫过就改"。
  */
+/**
+ * 带尾巴的浮动提示气泡。
+ *
+ * 【为什么不用面板里那行字】属性栏只有两百来像素宽，一句话的警告塞进
+ * QFormLayout 的一行里会被挤成好几行还显示不全 —— 等于没提示。
+ * 气泡是**顶层窗口**，不受面板宽度限制，尾巴指着出问题的那个输入框，
+ * 一眼就知道说的是谁。
+ *
+ * 【为什么不用 QToolTip】QToolTip 要鼠标悬停才出来，而这种"配置本身有问题"
+ * 的提示得**主动弹**；而且 QToolTip 没有指向性尾巴，属性栏里上下十几个框
+ * 挨着，光一个气泡看不出在说哪一个。
+ */
+class CalloutTip : public QWidget
+{
+public:
+    explicit CalloutTip(QWidget *parent = nullptr)
+        : QWidget(parent, Qt::ToolTip | Qt::FramelessWindowHint
+                          | Qt::WindowDoesNotAcceptFocus)
+    {
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        m_hide.setSingleShot(true);
+        connect(&m_hide, &QTimer::timeout, this, &QWidget::hide);
+    }
+
+    /** 贴着 anchor 弹出来；msec<=0 表示不自动收。 */
+    void showFor(QWidget *anchor, const QString &text, int msec = 8000)
+    {
+        if (!anchor || text.isEmpty()) {
+            hide();
+            return;
+        }
+        m_text = text;
+        m_anchor = anchor;
+
+        const QFontMetrics fm(font());
+        const int maxW = 320;
+        QRect need = fm.boundingRect(QRect(0, 0, maxW - 2 * kPad, 10000),
+                                     Qt::TextWordWrap, text);
+        const int bodyW = qMin(maxW, need.width() + 2 * kPad);
+        const int bodyH = need.height() + 2 * kPad;
+
+        /* 默认挂在输入框下面，下面放不下就翻到上面去（尾巴跟着翻） */
+        const QPoint tl = anchor->mapToGlobal(QPoint(0, 0));
+        const QRect scr = screenRectFor(tl);
+        m_below = (tl.y() + anchor->height() + bodyH + kTail) <= scr.bottom();
+
+        int x = tl.x();
+        /* 尾巴对着输入框左侧往里一点，别顶在角上 */
+        m_tailX = qMin(24, anchor->width() / 2);
+        if (x + bodyW > scr.right()) {
+            x = scr.right() - bodyW;
+            m_tailX = qBound(kPad, tl.x() + qMin(24, anchor->width() / 2) - x,
+                             bodyW - kPad);
+        }
+        const int y = m_below ? (tl.y() + anchor->height())
+                              : (tl.y() - bodyH - kTail);
+        setFixedSize(bodyW, bodyH + kTail);
+        move(x, y);
+        show();
+        raise();
+        if (msec > 0) {
+            m_hide.start(msec);
+        } else {
+            m_hide.stop();
+        }
+    }
+
+    /** 自测：当前尺寸放得下当前文字吗（"显示不全"就是这条要防的）。 */
+    bool fits() const
+    {
+        if (m_text.isEmpty()) {
+            return true;
+        }
+        const QRect body(0, m_below ? kTail : 0, width(), height() - kTail);
+        const QRect inner = body.adjusted(kPad, kPad, -kPad, -kPad);
+        const QRect need = QFontMetrics(font())
+                           .boundingRect(QRect(0, 0, inner.width(), 10000),
+                                         Qt::TextWordWrap, m_text);
+        return need.width() <= inner.width() && need.height() <= inner.height();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        const QRect body = m_below ? QRect(0, kTail, width(), height() - kTail)
+                                   : QRect(0, 0, width(), height() - kTail);
+        QPainterPath path;
+        path.addRoundedRect(QRectF(body).adjusted(0.5, 0.5, -0.5, -0.5), 4, 4);
+        /* 尾巴：朝着输入框那一侧伸出去 */
+        QPolygonF tail;
+        if (m_below) {
+            tail << QPointF(m_tailX, kTail) << QPointF(m_tailX + kTail * 2, kTail)
+                 << QPointF(m_tailX + kTail, 0.5);
+        } else {
+            tail << QPointF(m_tailX, height() - kTail)
+                 << QPointF(m_tailX + kTail * 2, height() - kTail)
+                 << QPointF(m_tailX + kTail, height() - 0.5);
+        }
+        path.addPolygon(tail);
+        p.setPen(QPen(QColor(0xC0, 0x39, 0x2B), 1));
+        p.setBrush(QColor(0xFF, 0xF4, 0xE5));
+        p.drawPath(path.simplified());
+        p.setPen(QColor(0x8A, 0x2A, 0x1F));
+        p.drawText(body.adjusted(kPad, kPad, -kPad, -kPad),
+                   Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, m_text);
+    }
+
+    void mousePressEvent(QMouseEvent *) override { hide(); }   // 点一下就收
+
+private:
+    static QRect screenRectFor(const QPoint &g)
+    {
+        if (const QScreen *s = QGuiApplication::screenAt(g)) {
+            return s->availableGeometry();
+        }
+        return QGuiApplication::primaryScreen()
+               ? QGuiApplication::primaryScreen()->availableGeometry()
+               : QRect(0, 0, 1920, 1080);
+    }
+
+    static const int kPad = 8;
+    static const int kTail = 7;
+    QString  m_text;
+    QWidget *m_anchor = nullptr;
+    bool     m_below = true;
+    int      m_tailX = 12;
+    QTimer   m_hide;
+};
+
 class NoWheelFilter : public QObject
 {
 public:
@@ -673,6 +812,78 @@ ComProperty::ComProperty(QWidget *parent)
 
 ComProperty::~ComProperty() = default;
 
+CalloutTip *ComProperty::tip() const
+{
+    /* 全进程一个就够：同一时刻只会指着一个输入框说话。 */
+    static CalloutTip *s_tip = new CalloutTip;
+    return s_tip;
+}
+
+bool ComProperty::warningTipFitsForTest()
+{
+    if (m_tipText.isEmpty() || !m_tipAnchor) {
+        return true;
+    }
+    tip()->showFor(m_tipAnchor, m_tipText, 0);
+    const bool ok = tip()->fits();
+    tip()->hide();
+    return ok;
+}
+
+void ComProperty::setWarning(QLabel *mark, QWidget *anchor, const QString &msg)
+{
+    if (!mark) {
+        return;
+    }
+    if (msg.isEmpty()) {
+        mark->clear();
+        mark->setStyleSheet(QString());
+        mark->setToolTip(QString());
+        if (m_tipAnchor == anchor) {
+            m_tipText.clear();
+            m_tipAnchor = nullptr;
+            tip()->hide();
+        }
+        return;
+    }
+    mark->setText(QStringLiteral("⚠"));
+    mark->setStyleSheet(QStringLiteral("color:#c00000;font-weight:bold"));
+    mark->setToolTip(msg);
+    m_tipText = msg;
+    m_tipAnchor = anchor;
+    /* 无人值守跑测试时不弹窗，免得顶层窗口干扰截图/自检 */
+    if (!EditorOps::silent()) {
+        tip()->showFor(anchor, msg);
+    }
+}
+
+QPixmap ComProperty::warningTipPixmapForTest()
+{
+    if (m_tipText.isEmpty() || !m_tipAnchor) {
+        return QPixmap();
+    }
+    tip()->showFor(m_tipAnchor, m_tipText, 0);
+    const QPixmap pm = tip()->grab();
+    tip()->hide();
+    return pm;
+}
+
+bool ComProperty::eventFilter(QObject *o, QEvent *e)
+{
+    /* 面板上那个 ⚠：点一下（或鼠标移上去）把气泡再叫出来 —— 气泡会自动收，
+     * 收了之后总得有办法看回去。 */
+    if ((e->type() == QEvent::MouseButtonPress || e->type() == QEvent::Enter)
+        && !m_tipText.isEmpty() && m_tipAnchor) {
+        if (auto *w = qobject_cast<QWidget *>(o)) {
+            if (w->toolTip() == m_tipText) {
+                tip()->showFor(m_tipAnchor, m_tipText);
+                return true;
+            }
+        }
+    }
+    return BaseProperty::eventFilter(o, e);
+}
+
 void ComProperty::clearDynamic()
 {
     while (m_dynForm->count() > 0) {
@@ -790,6 +1001,271 @@ void ComProperty::showNode(UiNode *n)
                         });
                 m_dynForm->addRow(cap, w);
             }
+        } else if (p.name == QLatin1String("format")) {
+            /* 【常用几种 + 自定义】格式本身是模板串，字面字符可以随便写，
+             * 枚举不完 —— 但实际用到的就那么几种，所以下拉框里列常用的，
+             * 最后留一项"自定义…"，选中它才放出文本框。
+             * 预设不是拍脑袋列的，是把两个工程里实际出现过的取值统计出来的。
+             *
+             * 解析规则（都对着固件抄）：
+             *   时间 ui_time.c:65   Y=4 位年，M/D/h/m/s 各 2 位，
+             *                       **其余字符原样输出**，每个非数字吃一张分隔符图
+             *   数字 ui_number.c:76 只认 %0Nd / %Nd / %d，最多两个，
+             *                       写别的整个控件不显示
+             *
+             * 【真正会坑人的是分隔符不够】分隔符图片取不到（原厂是 0xffff）
+             * 时固件**就地截断，后面全不画**，屏上只剩前半截，而且不报错。
+             * 工程里就有一个：oled 的 时间_461 用 "h:m:s" 却一张分隔符都没配。
+             * 所以下面那行实时算一遍、不够就用红字点出来。 */
+            const bool isTime = (n->type == QLatin1String("Time"));
+            const QString curFmt = def.toString();
+            /* 【预设一律不带结尾的 '/'】原厂工程里有 "m:s/"、"%04d/" 这种写法，
+             * 看着像"结束符"，其实**它什么也没做**：
+             *   time_vsprintf / number_vsprintf 在循环之后无条件补终止符
+             *       buf[i + 1] = 0xff; buf[i] = 0xff;      (ui_time.c:125)
+             *   渲染那头是 while (id != 0x00ff && id != 0xffff)
+             *                                              (ui_synthesis_oled.c:1120)
+             * 也就是说串尾总会被终止，不需要在格式里写字符去结束它。
+             * "m:s/" 能用只是因为 ':' 吃掉了唯一那张分隔符图，走到 '/' 时
+             * delimiter[1] 是 0xffff 就地截断 —— 落到的还是同一个终止符。
+             * 一旦给这个控件补上第 2 张分隔符图，"m:s/" 就会**多画一个符号**，
+             * "m:s" 不会。所以预设不带它，免得照着抄出个潜伏的坑。
+             * 工程里已经是 "m:s/" 的会落到"自定义"并原样保留，不替用户改。
+             * 注意 "Y/M/D" 里的 '/' 是**真分隔符**（要配 2 张图），留着。 */
+            const QStringList presets = isTime
+                ? QStringList{ QStringLiteral("m:s"), QStringLiteral("h:m"),
+                               QStringLiteral("h:m:s"), QStringLiteral("Y/M/D"),
+                               QStringLiteral("M/D"), QStringLiteral("Y"),
+                               QStringLiteral("M"), QStringLiteral("D"),
+                               QStringLiteral("h"), QStringLiteral("m"),
+                               QStringLiteral("s") }
+                : QStringList{ QStringLiteral("%02d"), QStringLiteral("%03d"),
+                               QStringLiteral("%04d"), QStringLiteral("%d"),
+                               QStringLiteral("%02d/%02d"),
+                               QStringLiteral("%03d.%01d") };
+
+            auto *cb = new QComboBox(m_dyn);
+            cb->setFont(monoFont());
+            cb->addItems(presets);
+            cb->addItem(QStringLiteral("自定义…"));
+            auto *ed = new QLineEdit(curFmt, m_dyn);
+            ed->setFont(monoFont());
+            ed->setMaxLength(qMax(1, p.raw.value(QStringLiteral("maxlength")).toInt(16)));
+            /* 工程里是预设之外的写法就直接落到"自定义"，把原值原样放进
+             * 文本框 —— 绝不替用户改成某个近似的预设。 */
+            const int hit = presets.indexOf(curFmt);
+            cb->setCurrentIndex(hit >= 0 ? hit : presets.size());
+            ed->setVisible(hit < 0);
+            cb->setToolTip(isTime
+                ? QStringLiteral(
+                    "时间格式是模板串，可以自己写：\n"
+                    "  Y=4 位年  M=月 D=日 h=时 m=分 s=秒（各 2 位）\n"
+                    "  其它字符原样显示，每个都要吃一张「分隔符图片」\n"
+                    "分隔符图片不够时，固件会从那里开始把后面全部截掉\n"
+                    "结尾不用写 '/'：串尾固件总会自动终止；写了只会多吃一张\n"
+                    "分隔符图，图配够了反而会多画一个符号出来")
+                : QStringLiteral(
+                    "数字格式只认这三种占位符，最多两个：\n"
+                    "  %0Nd 补 0   %Nd 补空格（用「空格图片」）  %d 不补\n"
+                    "写成别的（如 %0x）或超过两个，控件在屏上完全不显示"));
+
+            /* 分隔符够不够，实时提示。
+             * 【面板里只放一个 ⚠，正文走浮动气泡】属性栏两百来像素宽，
+             * 整句话塞进去会被挤得显示不全。⚠ 是"这里有问题"的标记，
+             * 正文由带尾巴的气泡指着输入框弹出来。 */
+            auto *hint = new QLabel(m_dyn);
+            hint->setCursor(Qt::WhatsThisCursor);
+            auto refreshHint = [this, hint, cb, isTime]() {
+                if (!m_node) {
+                    return;
+                }
+                QString f;
+                int have = 0;
+                for (const UiProperty &q : m_node->props) {
+                    if (q.name == QLatin1String("format")) {
+                        f = q.raw.value(QStringLiteral("default")).toString();
+                    } else if (q.name == QLatin1String("delimiter")) {
+                        have = q.raw.value(QStringLiteral("list")).toArray().size();
+                    }
+                }
+                /* 末尾那个 '/' 是原厂惯用的"到此为止"写法（靠分隔符耗尽
+                 * 来截断），不算它缺图 */
+                QString body = f;
+                if (body.endsWith(QLatin1Char('/'))) {
+                    body.chop(1);
+                }
+                int need = 0;
+                if (isTime) {
+                    for (const QChar c : body) {
+                        if (!QStringLiteral("YMDhms").contains(c)) {
+                            ++need;
+                        }
+                    }
+                } else {
+                    QString s = body;
+                    s.remove(QRegularExpression(QStringLiteral("%0?[1-9]?d")));
+                    need = s.size();
+                }
+                setWarning(hint, cb, need > have ? QStringLiteral(
+                    "这个格式要 %1 张「分隔符图片」，只配了 %2 张。\n"
+                    "固件取不到图就地截断，屏上会从缺图那里开始整段不显示，"
+                    "而且不会报错。").arg(need).arg(have) : QString());
+            };
+            /* 气泡自动收了之后，点一下 ⚠ 还能再叫出来 */
+            hint->installEventFilter(this);
+            ed->setToolTip(cb->toolTip());
+            auto apply = [commit, refreshHint](const QString &t) {
+                commit([&t](QJsonObject &o) {
+                    o.insert(QStringLiteral("default"), t);
+                });
+                refreshHint();
+            };
+            connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                    [apply, ed, presets](int i) {
+                        if (i >= 0 && i < presets.size()) {
+                            ed->setVisible(false);
+                            ed->setText(presets.at(i));
+                            apply(presets.at(i));
+                            return;
+                        }
+                        /* 选"自定义…"：放出文本框，值先保持原样，等用户填完
+                         * 再写 —— 别一选中就把工程里的格式清掉。 */
+                        ed->setVisible(true);
+                        ed->setFocus();
+                        ed->selectAll();
+                    });
+            connect(ed, &QLineEdit::editingFinished, this,
+                    [apply, ed]() { apply(ed->text()); });
+
+            auto *row = new QWidget(m_dyn);
+            auto *rowLay = new QVBoxLayout(row);
+            rowLay->setContentsMargins(0, 0, 0, 0);
+            rowLay->setSpacing(2);
+            rowLay->addWidget(cb);
+            rowLay->addWidget(ed);
+            m_dynForm->addRow(cap, row);
+            m_dynForm->addRow(QString(), hint);
+            refreshHint();
+        } else if (p.name == QLatin1String("code")) {
+            /* 【编码格式是固定三种，不是随便填的】固件 ui_text.c 里是**硬编码
+             * 字符串比较**，认且只认这三个（见 ui_text.c:80/89/277 和
+             * ui_synthesis_oled.c:764/966）：
+             *
+             *   strpic  字符串已经在 result.str 里预先光栅化成图片串，
+             *           直接贴图（本工程 211 处在用）
+             *   text    存的是原始字节，运行时按字库渲染；具体几字节一个字
+             *           看 attrs.encode（0=ascii/gbk 1=unicode 2=utf8）
+             *   ascii   内容由业务层运行时 set，初始化时 attrs.str = NULL，
+             *           资源里的文字列表**不会显示**
+             *
+             * 填成别的（哪怕只是拼错一个字母）两个分支都不匹配，控件在屏上
+             * 就是**一片空白**，而且没有任何报错 —— 以前这里是个自由文本框，
+             * 正好是最容易踩的那种坑。
+             * 工程里出现过没见过的值就原样保留并选中，不替用户改工程。 */
+            const QString cur = def.toString();
+            auto *cb = new QComboBox(m_dyn);
+            cb->setFont(monoFont());
+            cb->addItem(QStringLiteral("strpic"));
+            cb->addItem(QStringLiteral("text"));
+            cb->addItem(QStringLiteral("ascii"));
+            if (cb->findText(cur) < 0 && !cur.isEmpty()) {
+                cb->addItem(cur);
+            }
+            cb->setCurrentIndex(qMax(0, cb->findText(cur)));
+            cb->setToolTip(QStringLiteral(
+                "strpic：文字已预先光栅化进 result.str，直接贴图；\n"
+                "        显示什么由「文字列表」决定（最常用）\n"
+                "text  ：内容由程序运行时写（ui_text_set_text_by_id 等），\n"
+                "        按字库渲染。资源里的文字列表不会显示\n"
+                "ascii ：同上，走 ASCII 字模；程序不写就什么都不显示\n"
+                "固件只认这三个，写别的控件在屏上会是空白"));
+
+            /* code 和「文字列表」搭不搭得上，实时校验 */
+            auto *codeHint = new QLabel(m_dyn);
+            codeHint->setCursor(Qt::WhatsThisCursor);
+            codeHint->installEventFilter(this);
+            auto refreshCode = [this, codeHint, cb]() {
+                if (!m_node) {
+                    return;
+                }
+                QString c;
+                int strN = 0;
+                for (const UiProperty &q : m_node->props) {
+                    if (q.name == QLatin1String("code")) {
+                        c = q.raw.value(QStringLiteral("default")).toString();
+                    } else if (q.name == QLatin1String("str")) {
+                        strN = q.raw.value(QStringLiteral("list")).toArray().size();
+                    }
+                }
+                QString msg;
+                if (c != QLatin1String("strpic") && strN > 0) {
+                    /* 【text 下不是"显示那句话"，是乱码】init 时 attrs.str 指向的
+                     * 是 u16 的 ResID 数组，字库把那几个字节当字符渲染。 */
+                    msg = QStringLiteral(
+                        "编码格式是 %1，内容要由程序运行时写进来"
+                        "（ui_text_set_text_by_id 那几个接口，按 ID号 找控件）。\n"
+                        "这里配的 %2 条文字列表不会显示；%3")
+                        .arg(c).arg(strN)
+                        .arg(c == QLatin1String("text")
+                             ? QStringLiteral("text 下字库还会把 ResID 当字符渲染，"
+                                              "屏上是乱码。")
+                             : QStringLiteral("程序不写就一直是空的。"));
+                } else if (c != QLatin1String("strpic")
+                           && c != QLatin1String("text")
+                           && c != QLatin1String("ascii") && !c.isEmpty()) {
+                    msg = QStringLiteral(
+                        "固件只认 strpic / text / ascii 三个，\"%1\" 三个分支都不"
+                        "匹配 —— 这个控件在屏上会是一片空白，而且不会报错。").arg(c);
+                }
+                setWarning(codeHint, cb, msg);
+            };
+            connect(cb, &QComboBox::currentTextChanged, this,
+                    [commit, refreshCode](const QString &t) {
+                        commit([&t](QJsonObject &o) {
+                            o.insert(QStringLiteral("default"), t);
+                        });
+                        refreshCode();
+                    });
+            m_dynForm->addRow(cap, cb);
+            m_dynForm->addRow(QString(), codeHint);
+
+            /* 【只用于预览的假文字】text / ascii 的内容是运行时由程序写的，
+             * 资源里没有，画布上本来只能是空的 —— 排版时看不到字，很难判断
+             * 这个框够不够宽、对齐对不对。这里配一句假的顶上。
+             *
+             * 【绝对不写进工程】写进去就不是原厂那份 json 了（读写要逐字节
+             * 相同是硬指标）。存在工具自己的配置里，按"工程名 + ID号"做键，
+             * 工程目录和资源一个字节都不碰。 */
+            auto *preset = new QLineEdit(Preview::presetText(n), m_dyn);
+            preset->setFont(monoFont());
+            preset->setPlaceholderText(QStringLiteral("（仅预览，不写进工程）"));
+            preset->setToolTip(QStringLiteral(
+                "这一栏只影响画布上的预览，**不会**写进工程文件、也不会进资源。\n"
+                "text / ascii 的真实内容由程序运行时写（按 ID号 找控件），\n"
+                "工具不可能知道会填什么 —— 摆一句假的方便看排版。"));
+            connect(preset, &QLineEdit::editingFinished, this, [this, preset]() {
+                if (!m_node) {
+                    return;
+                }
+                Preview::setPresetText(m_node, preset->text());
+                /* 【不能发 nodeEdited】那条路会把工程标记成"改过"（标题带 *、
+                 * 退出问保存）—— 可这次什么都没改到工程里。单独一条信号，
+                 * 只让画布和右栏重画。 */
+                emit previewOnlyChanged();
+            });
+            m_dynForm->addRow(QStringLiteral("预览文字"), preset);
+            /* 只有 text / ascii 需要这一栏；strpic 的内容来自资源，不该有 */
+            auto syncPresetRow = [preset, this]() {
+                const bool need = Preview::needsPresetText(m_node);
+                preset->setVisible(need);
+                if (QWidget *lb = m_dynForm->labelForField(preset)) {
+                    lb->setVisible(need);
+                }
+            };
+            connect(cb, &QComboBox::currentTextChanged, this,
+                    [syncPresetRow](const QString &) { syncPresetRow(); });
+            syncPresetRow();
+            refreshCode();
         } else if (p.type == QLatin1String("piclist") || p.type == QLatin1String("arrlist")) {
             m_dynForm->addRow(cap, makeListButton(p, cap, commit));
         } else if (p.type == QLatin1String("text-pic")) {
@@ -870,13 +1346,93 @@ static QStringList jsonToStringList(const QJsonArray &a)
     return out;
 }
 
-QPushButton *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
-                                         const CommitFn &commit)
+int ComProperty::previewIndexOf(const UiProperty &p) const
 {
-    auto *btn = new QPushButton(m_dyn);
+    const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
+    if (lst.isEmpty()) {
+        return -1;
+    }
+    if (p.name == QLatin1String("str")) {
+        const QString def = p.raw.value(QStringLiteral("default")).toString();
+        for (int i = 0; i < lst.size(); ++i) {
+            if (lst.at(i).toString() == def) {
+                return i;
+            }
+        }
+        return 0;
+    }
+    if (p.name == QLatin1String("normal_image") && m_node) {
+        for (const UiProperty &q : m_node->props) {
+            if (q.name == QLatin1String("highlight")) {
+                return qBound(0, q.raw.value(QStringLiteral("default")).toInt(),
+                              lst.size() - 1);
+            }
+        }
+    }
+    return 0;
+}
+
+/** 列表条目下拉框：图片给缩略图 + 文件名，文字给"内容#ResID"。 */
+QComboBox *ComProperty::makeEntryCombo(const UiProperty &p, bool isText)
+{
+    const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
+    auto *cb = new QComboBox(m_dyn);
+    cb->setFont(monoFont());
+    cb->setIconSize(QSize(16, 16));
+    if (lst.isEmpty()) {
+        cb->setEnabled(false);
+        return cb;
+    }
+    const PropertyContext &ctx = PropertyContext::instance();
+    for (const QJsonValue &v : lst) {
+        const QString rel = v.toString();
+        if (isText) {
+            /* 原厂显示成"蓝牙#m1"：前面是这条 ResID 在多国语言表里的内容，
+             * 后面是 ResID 本身。只给 ResID 的话，面板上看不出画的是哪句话。 */
+            const QString s = Preview::stringOf(rel);
+            cb->addItem(s.isEmpty() ? rel : QStringLiteral("%1#%2").arg(s, rel));
+        } else {
+            const QString abs = QFileInfo(rel).isAbsolute()
+                                ? rel : QDir(ctx.projectDir).filePath(rel);
+            const QPixmap pm(abs);
+            cb->addItem(pm.isNull() ? QIcon() : QIcon(pm),
+                        QFileInfo(rel).fileName());
+        }
+    }
+    /* 停在预览真正画的那一条上 —— 这是"面板和画布对得上"的关键 */
+    const int pi = previewIndexOf(p);
+    if (pi >= 0 && pi < cb->count()) {
+        cb->setCurrentIndex(pi);
+    }
+    return cb;
+}
+
+QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
+                                     const CommitFn &commit)
+{
+    auto *box = new QWidget(m_dyn);
+    auto *lay = new QVBoxLayout(box);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(2);
+    auto *btn = new QPushButton(box);
     btn->setFont(monoFont());
     const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
     btn->setText(tr("%1 项…").arg(lst.size()));
+    lay->addWidget(btn);
+
+    /* 条目下拉框：**只用来看**，不写任何字段。
+     * 【为什么不能让它改预览】piclist 的 default 几乎都不在 list 里（模板
+     * 残留），拿它当"当前条目"存下去等于凭空改工程文件，产物就和原厂不一样
+     * 了。要换预览的那一条，改"默认高亮"（ImageList 有这个参数）。 */
+    auto *cb = makeEntryCombo(p, false);
+    if (p.name == QLatin1String("normal_image")) {
+        cb->setToolTip(QStringLiteral("画布上画的是「默认高亮」指定的这一条；"
+                                      "改「默认高亮」就能换"));
+    } else {
+        cb->setToolTip(QStringLiteral("列表内容（只读）。画布上画的是第 1 条"));
+    }
+    lay->addWidget(cb);
+
     const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
     const QJsonArray init = lst;
     connect(btn, &QPushButton::clicked, this, [this, btn, init, maxLen, cap, commit]() {
@@ -895,18 +1451,46 @@ QPushButton *ComProperty::makeListButton(const UiProperty &p, const QString &cap
         }
         btn->setText(tr("%1 项…").arg(arr.size()));
         commit([&arr](QJsonObject &o) { o.insert(QStringLiteral("list"), arr); });
+        /* 列表变了，下拉框和画布都要跟上 —— 不刷的话面板上还是旧条目 */
+        if (m_node) {
+            showNode(m_node);
+        }
     });
-    return btn;
+    return box;
 }
 
-QPushButton *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap,
-                                             const CommitFn &commit)
+QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap,
+                                         const CommitFn &commit)
 {
-    auto *btn = new QPushButton(m_dyn);
+    auto *box = new QWidget(m_dyn);
+    auto *lay = new QVBoxLayout(box);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(2);
+    auto *btn = new QPushButton(box);
     btn->setFont(monoFont());
     const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
     btn->setText(lst.isEmpty() ? tr("（空）…")
                                : QStringLiteral("%1 …").arg(jsonToStringList(lst).join(QLatin1Char(','))));
+    lay->addWidget(btn);
+
+    /* 文字列表的条目下拉框**可以改**：str 的 default 一定在 list 里
+     * （实测 209/209），它就是"当前显示的那一条"，改它是正当编辑，
+     * 画布也跟着换。 */
+    auto *cb = makeEntryCombo(p, true);
+    cb->setToolTip(QStringLiteral("当前显示的那一条（画布画的就是它）"));
+    lay->addWidget(cb);
+    const QStringList ids = jsonToStringList(lst);
+    connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this, commit, ids](int i) {
+                if (i < 0 || i >= ids.size()) {
+                    return;
+                }
+                const QString id = ids.at(i);
+                commit([&id](QJsonObject &o) {
+                    o.insert(QStringLiteral("default"), id);
+                });
+            });
+
     const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
     const QJsonArray init = lst;
     connect(btn, &QPushButton::clicked, this, [this, btn, init, maxLen, cap, commit]() {
@@ -945,8 +1529,11 @@ QPushButton *ComProperty::makeTextListButton(const UiProperty &p, const QString 
             // default 是"当前显示的那条"，原厂就是列表第一项
             o.insert(QStringLiteral("default"), sel.value(0));
         });
+        if (m_node) {
+            showNode(m_node);            // 条目下拉框跟上新列表
+        }
     });
-    return btn;
+    return box;
 }
 
 QPushButton *ComProperty::makeActionButton(const UiProperty &p, const CommitFn &commit)

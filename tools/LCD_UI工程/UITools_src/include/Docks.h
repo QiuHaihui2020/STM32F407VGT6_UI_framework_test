@@ -35,6 +35,7 @@
 #include <QDockWidget>
 #include <QGroupBox>
 #include <QTabWidget>
+#include <QImage>
 #include <QPoint>
 #include <QVector>
 
@@ -94,6 +95,9 @@ public:
 
     void setManager(CanvasManager *m) { m_mgr = m; }
     void reload();
+
+    /** 自测用：把第 i 页的渲染抓成图（要和画布画出来的一致）。 */
+    QImage grabPageForTest(int i) const;
 
 signals:
     void pageActivated(int index);

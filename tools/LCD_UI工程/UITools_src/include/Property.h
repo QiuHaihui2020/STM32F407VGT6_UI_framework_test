@@ -203,6 +203,12 @@ public:
 
 signals:
     void nodeEdited(UiNode *n);
+    /**
+     * 只改了"预览"，工程数据一个字节都没动 —— 画布要重画，但**不能**把工程
+     * 标记成改过（那样标题会平白带上 *、退出还问要不要保存）。
+     * 目前只有 text/ascii 那句"预览文字"走这条。
+     */
+    void previewOnlyChanged();
 
 protected:
     UiNode      *m_node = nullptr;
@@ -249,21 +255,66 @@ public:
      *  ComProperty 本体只显示最上面的 "ID号"。 */
     QWidget *dynamicSection() const { return m_dyn; }
 
+    /** 自测：当前的警告正文（空 = 没有警告）。 */
+    QString warningTextForTest() const { return m_tipText; }
+    /**
+     * 自测：把警告气泡真弹一次，返回"文字放得下吗"。
+     *
+     * 这条盯的是"提示显示不全" —— 以前警告是塞在属性栏一行里的，两百来像素
+     * 宽根本放不下。气泡是顶层窗口、按文字算尺寸，不该再被裁。
+     * @return 没有警告时返回 true（没什么要显示的，自然放得下）
+     */
+    bool warningTipFitsForTest();
+    /** 自测：把警告气泡画成图（看尾巴/圆角/文字排版）。没有警告时返回空图。 */
+    QPixmap warningTipPixmapForTest();
+
 private:
     void clearDynamic();
 
     /// 属性写回：把改动塞进 UiProperty::raw，再置脏
     typedef std::function<void(const std::function<void(QJsonObject &)> &)> CommitFn;
 
-    QPushButton *makeListButton(const UiProperty &p, const QString &cap,
+    /* 【返回的是"按钮 + 条目下拉框"一整块，不只是按钮】原厂面板每个列表类
+     * 属性下面都跟着一个下拉框，把列表里的条目列出来（图片显示"缩略图 +
+     * 文件名"，文字显示"内容#ResID"，如"蓝牙#m1"）—— 只有一个按钮的话，
+     * 面板上根本看不出这个控件配了什么、画布上那张图是列表里的哪一条。 */
+    QWidget *makeListButton(const UiProperty &p, const QString &cap,
+                            const CommitFn &commit);
+    QWidget *makeTextListButton(const UiProperty &p, const QString &cap,
                                 const CommitFn &commit);
-    QPushButton *makeTextListButton(const UiProperty &p, const QString &cap,
-                                    const CommitFn &commit);
+    /**
+     * 预览画的是列表里第几条 —— 下拉框要停在这一条上，面板和画布才对得上。
+     *
+     * 规则不是拍脑袋定的，是按"哪个参数真的指定了条目"来的（实测两个工程）：
+     *   str（文字列表）      default 一定在 list 里（209/209），它就是那条
+     *   normal_image（图片） default 几乎都不在 list 里（196/202，是模板残留），
+     *                        真正指定条目的是"默认高亮"（highlight）
+     *   其它 piclist/arrlist 没有任何参数指定，取第 0 条
+     */
+    int previewIndexOf(const UiProperty &p) const;
+    /** 列表条目下拉框。isText=true 走"内容#ResID"，否则走"缩略图 + 文件名"。 */
+    QComboBox *makeEntryCombo(const UiProperty &p, bool isText);
     QPushButton *makeActionButton(const UiProperty &p, const CommitFn &commit);
+
+protected:
+    /** 点面板上那个 ⚠ 时，把浮动气泡再叫出来。 */
+    bool eventFilter(QObject *o, QEvent *e) override;
+
+private:
+    /** 带尾巴的浮动警告气泡（进程内共用一个，见 Property.cpp 的 CalloutTip）。 */
+    class CalloutTip *tip() const;
+    /**
+     * 在 mark 上挂 ⚠ 并让气泡指着 anchor 弹出来；msg 为空表示没问题、清掉。
+     * 【为什么正文不放面板里】属性栏两百来像素宽，整句话塞进去显示不全。
+     */
+    void setWarning(QLabel *mark, QWidget *anchor, const QString &msg);
 
     QLineEdit   *m_id = nullptr;
     QWidget     *m_dyn = nullptr;
     QFormLayout *m_dynForm = nullptr;
+    /* 气泡自动收了之后还要能再叫出来，所以把内容和锚点留着 */
+    QString      m_tipText;
+    QWidget     *m_tipAnchor = nullptr;
 };
 
 #endif // PROPERTY_H

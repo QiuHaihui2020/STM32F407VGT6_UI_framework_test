@@ -962,8 +962,14 @@ void NewList::relayoutRows()
     }
     const QVector<BaseForm *> rows = subForms();
     const bool vert = listIsVertical(m_node);
-    const int size = m_node->extraValue(QStringLiteral("sizehw")).toInt(16);
-    const int space = m_node->extraValue(QStringLiteral("space")).toInt(0);
+    /* 【行高/间隔也要乘倍率】sizehw / space 是工程里的 1:1 逻辑像素，而这里
+     * 摆的是**屏幕**坐标。以前直接拿来用，放大之后列表外框和别的控件都按倍率
+     * 变大了，行却还是原尺寸 —— 一滚轮就露馅：行高和周围对不上。
+     * 和 BaseForm::syncRectFromNode() 用同一套换算，别在这儿自成一派。 */
+    const int z = qMax(1, displayZoom());
+    const int size = qMax(1, m_node->extraValue(QStringLiteral("sizehw")).toInt(16)
+                             * z / 100);
+    const int space = m_node->extraValue(QStringLiteral("space")).toInt(0) * z / 100;
     const int step = size + space;
 
     for (int i = 0; i < rows.size(); ++i) {
