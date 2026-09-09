@@ -37,11 +37,14 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QTimer>
 #include <QTextStream>
 
 #include "StyBuilder.h"
+#include "FeatureDialog.h"
+#include "ResbuilderOptions.h"
 #include "ToolBinWindow.h"
 
 namespace {
@@ -109,12 +112,15 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("--cli") || a == QLatin1String("-o")
+            || a == QLatin1String("--verify-resxml")
             || a == QLatin1String("--out") || a == QLatin1String("--verify")
             || a == QLatin1String("--run-resbuilder") || a == QLatin1String("--no-script")
             || a == QLatin1String("--ename") || a == QLatin1String("-h")
             || a == QLatin1String("--help")) {
             wantGui = false;
-        } else if (a == QLatin1String("--gui")) {
+        } else if (a == QLatin1String("--gui")
+                   || a == QLatin1String("--shot-feature")) {
+            // --shot-feature 要造 QDialog，必须有 QApplication
             wantGui = true;
             break;
         }
@@ -143,10 +149,254 @@ int main(int argc, char *argv[])
     QCoreApplication &app = *appHolder;
     const QStringList args = app.arguments();
 
+    /* --verify-resxml <工程目录>
+     *
+     * 「功能设置」那一页能不能顶替原厂，标准只有一条：**读得进原厂那份配置，
+     * 再写出去还是同一份**。不然用户拿本版点一次生成，原厂配好的字体表、
+     * 透明色、语言掩码就被悄悄改掉了。
+     *
+     * 做法：从 <工程目录>/Resbuilder.xml 读设置 -> 拿它生成一份新的 ->
+     * 把两份的 LanguageList / Fonts / 尾部设置项逐条对。
+     * 只读工程目录，产物写到临时目录，不动原文件。 */
+    {
+        QString vdir, vreport;
+        for (int i = 1; i + 1 < args.size(); ++i) {
+            if (args.at(i) == QStringLiteral("--verify-resxml")) {
+                vdir = args.at(i + 1);
+            } else if (args.at(i) == QStringLiteral("--report")) {
+                vreport = args.at(i + 1);
+            }
+        }
+        /* 报告先攒着，最后一次性写出去 —— 直接往 stdout 打，父进程用管道
+         * 是收不到的（见本文件抬头 AttachConsole 那段）。 */
+        QString rep;
+        QTextStream rs(&rep);
+        auto flushRep = [&rep, &rs, &vreport]() {
+            rs.flush();
+            if (!vreport.isEmpty()) {
+                QFile f(vreport);
+                if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    f.write(rep.toUtf8());
+                }
+            }
+            out() << rep;
+            out().flush();
+        };
+        if (!vdir.isEmpty()) {
+            const QString refXml = QDir(vdir).absoluteFilePath(
+                QStringLiteral("Resbuilder.xml"));
+            if (!QFile::exists(refXml)) {
+                rs << QStringLiteral("找不到 %1\n").arg(refXml);
+                                flushRep();
+                return 2;
+            }
+            toolbin::ResbuilderOptions ro;
+            if (!ro.loadFromProject(refXml)) {
+                rs << QStringLiteral("读不出 %1\n").arg(refXml);
+                                flushRep();
+                return 2;
+            }
+
+            // 工程 json：按原厂规矩从 project.ini 取
+            QSettings pini(QDir(vdir).absoluteFilePath(
+                               QStringLiteral("config/ini/project.ini")),
+                           QSettings::IniFormat);
+            const QString jf = pini.value(QStringLiteral("Project/projectfilename")).toString();
+            const QString jp = QDir(vdir).absoluteFilePath(jf);
+            sty::Options vo;
+            ro.applyTo(vo);
+            vo.projectDir = vdir;
+            vo.pjId = pini.value(QStringLiteral("Project/projectid"), 0).toInt();
+            vo.rotate = pini.value(QStringLiteral("Project/projectrotate"), 0).toInt();
+            vo.optionIni = QDir(QCoreApplication::applicationDirPath())
+                           .absoluteFilePath(QStringLiteral("config/ini/option.ini"));
+            vo.enameIn = QDir(vdir).absoluteFilePath(QStringLiteral("ename.h"));
+
+            sty::Builder vb;
+            QString verr;
+            if (!vb.loadProject(jp, &verr) || !vb.loadOptionIni(vo.optionIni, &verr)) {
+                rs << QStringLiteral("× %1\n").arg(verr);
+                                flushRep();
+                return 1;
+            }
+            const sty::Output vout = vb.build(vo);
+            if (!vout.ok) {
+                rs << QStringLiteral("× %1\n").arg(vout.error);
+                                flushRep();
+                return 1;
+            }
+
+            /* 逐条比。PageList 里是图片绝对路径，跟机器走，不比。 */
+            auto pick = [](const QString &all, const QString &tag) {
+                const QString a = QStringLiteral("<%1>").arg(tag);
+                const QString b = QStringLiteral("</%1>").arg(tag);
+                const int i = all.indexOf(a);
+                const int j = all.indexOf(b, i);
+                return (i < 0 || j < 0) ? QString() : all.mid(i + a.size(), j - i - a.size());
+            };
+            /* 【两边都按 UTF-8 优先解】原厂写的是 UTF-8；本版历史上写过 GBK，
+             * 所以沿用 ResConfig 那套探测。用错编码的话中文字数对不上，
+             * 会报出一堆假的"不一致"。 */
+            auto decode = [](const QByteArray &raw) {
+                QString t = QString::fromUtf8(raw);
+                if (t.contains(QChar(0xFFFD)) || t.toUtf8() != raw) {
+                    t = QString::fromLocal8Bit(raw);
+                }
+                return t;
+            };
+            QFile rf(refXml);
+            rf.open(QIODevice::ReadOnly);
+            const QString refS = decode(rf.readAll());
+            const QString newS = decode(vout.resbuilderXml);
+
+            const QStringList tags{
+                QStringLiteral("endian"), QStringLiteral("paneltype"),
+                QStringLiteral("picture_path"), QStringLiteral("excel_path"),
+                QStringLiteral("language"), QStringLiteral("bmp_transparent_color"),
+                QStringLiteral("png_background_color"), QStringLiteral("res"),
+                QStringLiteral("resfilename"), QStringLiteral("headerfilename"),
+                QStringLiteral("image_compress_method"),
+                QStringLiteral("string_compress_method"),
+                QStringLiteral("palette_type"), QStringLiteral("rotate"),
+            };
+            int bad = 0;
+            for (const QString &t : tags) {
+                const QString a = pick(refS, t), b = pick(newS, t);
+                if (a == b) {
+                    rs << QStringLiteral("  [同] %1 = %2\n").arg(t, a);
+                } else {
+                    rs << QStringLiteral("  [异] %1  原厂=%2  本版=%3\n").arg(t, a, b);
+                    ++bad;
+                }
+            }
+            // LanguageList / Fonts 整段比
+            auto section = [](const QString &all, const QString &tag) {
+                const QString a = QStringLiteral("<%1>").arg(tag);
+                const QString b = QStringLiteral("</%1>").arg(tag);
+                const int i = all.indexOf(a);
+                const int j = all.indexOf(b, i);
+                return (i < 0 || j < 0) ? QString() : all.mid(i, j - i);
+            };
+            /* 【属性次序不算差异】原厂的 <fontNN .../> 每个属性的先后**每次生成
+             * 都不一样**（同一台机器、同一个工程，隔一次跑就换一种排法）——
+             * 和 ColorList 的排序是同一个成因：Qt 容器 + 进程级随机 hash 种子，
+             * 详见 docs/QTTOOLBIN.md「ColorList 排序」。XML 属性本来就是无序的，
+             * ResBuilder 解出来完全一样，所以这里按"属性名排序后"再比。 */
+            auto canonSection = [](const QString &sec) {
+                QStringList lines;
+                QRegularExpression re(QStringLiteral("<(\\w+)\\s+([^>]*?)/>"));
+                QRegularExpressionMatchIterator it = re.globalMatch(sec);
+                while (it.hasNext()) {
+                    const QRegularExpressionMatch m = it.next();
+                    QRegularExpression ar(QStringLiteral(
+                        "(\\w+)\\s*=\\s*\"([^\"]*)\""));
+                    QRegularExpressionMatchIterator ai = ar.globalMatch(m.captured(2));
+                    QStringList kv;
+                    while (ai.hasNext()) {
+                        const QRegularExpressionMatch a = ai.next();
+                        kv << a.captured(1) + QLatin1Char('=') + a.captured(2);
+                    }
+                    kv.sort();
+                    lines << m.captured(1) + QLatin1Char(' ') + kv.join(QLatin1Char(' '));
+                }
+                /* 一个自闭合元素都没有（LanguageList 那种带文本的）就原样比 */
+                return lines.isEmpty() ? sec.simplified() : lines.join(QLatin1Char('\n'));
+            };
+            for (const QString &t : { QStringLiteral("LanguageList"),
+                                      QStringLiteral("Fonts") }) {
+                const QString a = canonSection(section(refS, t));
+                const QString b = canonSection(section(newS, t));
+                if (a == b) {
+                    rs << QStringLiteral("  [同] %1 整段一致（属性名排序后比）\n").arg(t);
+                } else {
+                    rs << QStringLiteral("  [异] %1 不一致\n").arg(t);
+                    const QStringList la = a.split(QLatin1Char('\n'));
+                    const QStringList lb = b.split(QLatin1Char('\n'));
+                    for (int i = 0; i < qMax(la.size(), lb.size()); ++i) {
+                        if (la.value(i) != lb.value(i)) {
+                            rs << QStringLiteral("        原厂: %1\n        本版: %2\n")
+                                     .arg(la.value(i), lb.value(i));
+                            break;
+                        }
+                    }
+                    ++bad;
+                }
+            }
+            rs << QStringLiteral("\n配置项不一致 %1 处\n").arg(bad);
+                        flushRep();
+            return bad == 0 ? 0 : 1;
+        }
+    }
+
+    /* 只把「配置界面」出一张图再退出。改过那一页的版式之后，"没崩"不等于
+     * "没排坏"（控件被挤掉半截照样不崩），得能看一眼。只给自动化回归用。 */
+    {
+        QString featShot;
+        for (int i = 1; i + 1 < args.size(); ++i) {
+            if (args.at(i) == QStringLiteral("--shot-feature")) {
+                featShot = args.at(i + 1);
+            }
+        }
+        if (!featShot.isEmpty()) {
+            toolbin::ResbuilderOptions o = toolbin::ResbuilderOptions::defaults();
+            toolbin::FeatureDialog d(o);
+            d.resize(d.sizeHint().expandedTo(QSize(720, 660)));
+            bool ok = d.grab().save(featShot);
+
+            /* 顺带把「配置语言」那张表的行为验一遍。QFontDialog 是模态的，
+             * 无人值守点不了，所以走 applyFontForTest 这条等价路径。 */
+            if (!d.cellsReadOnlyForTest()) {
+                out() << QStringLiteral("x 表格单元格可以直接编辑（原厂是只读的）\n");
+                ok = false;
+            } else {
+                out() << QStringLiteral("配置语言表：单元格只读，符合原厂\n");
+            }
+            if (d.rowCountForTest() > 0) {
+                QFont nf(QStringLiteral("Arial"), 20);
+                nf.setBold(true);
+                nf.setItalic(true);
+                nf.setUnderline(true);
+                nf.setStrikeOut(true);
+                d.applyFontForTest(0, nf);
+                const toolbin::LangRow &r0 = d.options().langs.at(0);
+                const bool hit = r0.face == QStringLiteral("Arial") && r0.point == 20
+                                 && r0.bold && r0.italic && r0.underline && r0.strikeOut;
+                out() << (hit ? QStringLiteral("字体弹窗那条路改得到值\n")
+                              : QStringLiteral("x 选了字体但没写回去\n"));
+                /* lfHeight = -(pt*4/3)：20pt 应当写成 -26 */
+                const int h = r0.lfHeight();
+                out() << QStringLiteral("  20pt -> lfHeight %1（应为 -26）\n").arg(h);
+                ok = ok && hit && h == -26;
+            }
+            /* 「增加」那条路：弹窗填的名字要落到表里，LANG 里的非法字符要被挡掉
+             * （它会变成 result.h 的宏名，带中文/空格就编不过）。 */
+            {
+                const int before = d.rowCountForTest();
+                d.addLangForTest(QStringLiteral("越南语"),
+                                 QStringLiteral("Viet namese-2"));
+                const bool grew = d.rowCountForTest() == before + 1;
+                const toolbin::LangRow &nr = d.options().langs.last();
+                const bool named = nr.name == QStringLiteral("越南语")
+                                   && nr.key == QStringLiteral("Vietnamese2");
+                out() << (grew && named
+                          ? QStringLiteral("增加语言：名字进表了，LANG 已滤成 %1\n").arg(nr.key)
+                          : QStringLiteral("x 增加语言没生效（%1 / %2）\n")
+                            .arg(nr.name, nr.key));
+                ok = ok && grew && named;
+            }
+            out() << QStringLiteral("配置界面自截 %1: %2\n")
+                     .arg(featShot, ok ? QStringLiteral("成功") : QStringLiteral("失败"));
+            out().flush();
+            return ok ? 0 : 8;
+        }
+    }
+
+
     QString jsonPath, outDir, refDir, resbuilderExe, script = QStringLiteral("copy_file.bat");
     bool noScript = false;
     // project.ini 只在命令行没给的时候才生效
     bool pjIdSet = false, rotateSet = false, scriptSet = false;
+    bool excelSet = false, langSet = false;
     sty::Options opt;
 
     for (int i = 1; i < args.size(); ++i) {
@@ -162,10 +412,12 @@ int main(int argc, char *argv[])
             opt.optionIni = next();
         } else if (a == QLatin1String("--excel")) {
             opt.excelPath = next();
+            excelSet = true;
         } else if (a == QLatin1String("--language")) {
             const QString v = next();
             opt.language = v.startsWith(QLatin1String("0x"), Qt::CaseInsensitive)
                            ? v.mid(2).toUInt(nullptr, 16) : v.toUInt();
+            langSet = true;
         } else if (a == QLatin1String("--ename")) {
             opt.enameIn = next();
         } else if (a == QLatin1String("-o") || a == QLatin1String("--out")) {
@@ -182,13 +434,18 @@ int main(int argc, char *argv[])
         } else if (a == QLatin1String("--gui") || a == QLatin1String("--cli")
                    || a == QLatin1String("--selftest-generate")) {
             // 上面挑运行模式时已经处理过了
-        } else if (a == QLatin1String("--shot")) {
+        } else if (a == QLatin1String("--verify-resxml")
+                   || a == QLatin1String("--report")) {
+            next();   // 值在下面那段里单独取
+        } else if (a == QLatin1String("--shot")
+                   || a == QLatin1String("--shot-feature")) {
             next();   // 值在界面分支里单独取，这里只是别让它掉进"工程 json"
         } else if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
             out() << QStringLiteral("用法: QtToolBin <工程.json> [--pj-id N] [--rotate N] [--option-ini 路径]\n"
                 "                [--excel 路径] [--language 0xNN] [--ename ename.h]\n"
                 "                [-o 输出目录] [--verify 原厂目录]\n"
-                "                [--run-resbuilder ResBuilder.exe] [--script bat|--no-script]\n");
+                "                [--run-resbuilder ResBuilder.exe] [--script bat|--no-script]\n"
+                "                [--verify-resxml 工程目录 [--report 文件]]\n");
             out().flush();
             return 0;
         } else if (!a.startsWith(QLatin1Char('-'))) {
@@ -222,6 +479,18 @@ int main(int argc, char *argv[])
                 bool ok = true;
                 if (selftest) {
                     ok = w.generateForTest();
+                    /* 【生成完必须把光标还回去】覆盖光标是个栈：
+                     * setOverrideCursor 压一层、restoreOverrideCursor 弹一层。
+                     * 以前 setBusy() 两个方向都压、只弹一次，每生成一次就残留
+                     * 一层 WaitCursor —— 输出已经打印"生成完成"，鼠标却一直
+                     * 转圈而且点不掉。这里直接查栈空不空。 */
+                    if (QApplication::overrideCursor()) {
+                        out() << QStringLiteral(
+                            "x 生成结束后覆盖光标没还回去（鼠标会一直转圈）\n");
+                        ok = false;
+                    } else {
+                        out() << QStringLiteral("生成结束光标已还原\n");
+                    }
                 }
                 if (!shot.isEmpty()) {
                     ok = w.grab().save(shot) && ok;
@@ -287,6 +556,28 @@ int main(int argc, char *argv[])
         outDir = projDir;
     }
     opt.projectDir = projDir;
+    opt.outDir = outDir;            // excel_path 相对它折算
+
+    /* 【「功能设置」跟着工程走】原厂把这一页存在 <工程目录>/Resbuilder.xml 里
+     * （证据见 ResbuilderOptions.h 抬头）。界面那条路在 ToolBinWindow 里读，
+     * 命令行这条也得读 —— 不然 step2 双击一次和脚本跑一次出来的字体表、
+     * 透明色不一样，"能顶替原厂"就无从谈起。
+     * 命令行显式给的 --excel / --language 优先，所以先存后恢复。 */
+    {
+        const QString savedExcel = opt.excelPath;
+        const quint32 savedLang = opt.language;
+        toolbin::ResbuilderOptions ro;
+        if (ro.loadFromProject(QDir(projDir).absoluteFilePath(
+                QStringLiteral("Resbuilder.xml")))) {
+            ro.applyTo(opt);
+        }
+        if (excelSet) {
+            opt.excelPath = savedExcel;
+        }
+        if (langSet) {
+            opt.language = savedLang;
+        }
+    }
     /* 工程目录一般是 .../ui_xxx/<界面>/project，工具目录在上三级。
      * 先找放着本 exe 的那个工具目录（重建版通常叫 UITools_rebuilt），
      * 找不到再退回原厂的 UITools —— 这样两套工具目录都能用。 */

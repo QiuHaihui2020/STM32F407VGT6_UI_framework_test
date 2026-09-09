@@ -539,13 +539,58 @@ void setPresetText(const UiNode *n, const QString &text)
     g_cache.clear();          // 文字变了，画好的那张要作废
 }
 
+/* ---- 点阵屏预览配色 ----------------------------------------------------
+ * 缓存起来：paintEvent 调得很频，每次去翻一遍 QSettings 太亏。
+ * 默认值就是改这个功能之前写死在代码里的那两个颜色，所以不配也不会变样。 */
+QColor g_lit(0xFF, 0xFF, 0xFF);
+QColor g_dark(0x10, 0x10, 0x10);
+
+QColor monoLit()
+{
+    return g_lit;
+}
+
+QColor monoDark()
+{
+    return g_dark;
+}
+
+void reloadMonoColors()
+{
+    const QColor lit(GlobalSettings::value(QStringLiteral("Preview/LitColor"),
+                                           QStringLiteral("#ffffff")).toString());
+    const QColor dark(GlobalSettings::value(QStringLiteral("Preview/DarkColor"),
+                                            QStringLiteral("#101010")).toString());
+    if (lit.isValid()) {
+        g_lit = lit;
+    }
+    if (dark.isValid()) {
+        g_dark = dark;
+    }
+    /* 画好的位图是按 (内容|颜色) 缓存的，颜色换了键就不同，本来不会串。
+     * 还是清一次 —— 免得改上几轮之后缓存里堆着一堆再也用不到的配色。 */
+    invalidate();
+}
+
 QPixmap contentOf(UiNode *n, const QColor &lit)
 {
     if (!n) {
         return QPixmap();
     }
-    const QColor own = colorOf(n, QStringLiteral("文字颜色"));
-    const QColor use = own.isValid() && own.alpha() > 0 ? own : lit;
+    /* 【点亮就是点亮，不看控件自己的"文字颜色"】
+     *
+     * 以前这里是：控件配了"文字颜色"就用那个颜色画，没配才用 lit。那是彩屏的
+     * 想法 —— 点阵屏上固件只往显存里写"亮/灭"一个 bit（ui_synthesis_oled.c
+     * 的 DC_DATA_FORMAT_MONO 分支），屏上每个点亮的像素颜色完全一样，
+     * 不可能一个控件白一个控件绿。照工程里的颜色画等于骗人。
+     *
+     * 而且"文字颜色"那几个值本来就不是颜色，是**魔数**：0x555aaa = 不显示、
+     * 0xaaa555 = 反显。语义已经在 textModeOf() 里判过了；再拿它当颜色画，
+     * 反显的字就被画成 #AAA555 那个灰紫，而不是"灭"。
+     *
+     * 现在一律用调用方给的 lit —— 正常是[全局设置]里的点亮色，反显时调用方
+     * 传的是熄灭色。 */
+    const QColor use = lit;
     const QString type = n->type;
 
     if (type == QLatin1String("ImageList")) {

@@ -324,12 +324,14 @@ void BaseForm::paintEvent(QPaintEvent *)
 
     /* 底：填充 = 点亮成白；反显文字也要先把整块点亮（固件就是先 fill 再挖字） */
     if (fill || tm == Preview::MonoText::Invert) {
-        p.fillRect(rect(), Qt::white);
+        p.fillRect(rect(), Preview::monoLit());
     }
 
-    /* 内容：图片/文字/数字。反显时字要画成"灭"，也就是黑。 */
+    /* 内容：图片/文字/数字。反显时字要画成"灭"。
+     * 亮/灭具体是什么颜色由[全局设置]的点阵屏预览配色决定 —— 不同的屏差很多。 */
     if (tm != Preview::MonoText::Hidden) {
-        const QColor litColor = (tm == Preview::MonoText::Invert) ? Qt::black : Qt::white;
+        const QColor litColor = (tm == Preview::MonoText::Invert)
+                                ? Preview::monoDark() : Preview::monoLit();
         const QPixmap content = Preview::contentOf(m_node, litColor);
         if (!content.isNull()) {
             /* 【按原尺寸摆，不要拉伸】固件是按对齐方式贴进控件区域再裁掉超出

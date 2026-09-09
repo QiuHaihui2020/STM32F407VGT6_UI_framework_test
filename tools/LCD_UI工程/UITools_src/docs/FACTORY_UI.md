@@ -429,3 +429,146 @@ UITools.exe --dialog-smoke <工程目录> --out <PNG输出目录>
 
 见 `include/Preview.h` 抬头。三个魔数（`0x555AAA` / `0xAAA555`）来自
 `ui_synthesis_oled.c`，比较是在 **RGB565** 上做的。
+
+---
+
+## 8. 2026-09-09 补：工具栏样式 与[全局设置]的真实形态
+
+### 8.1 工具栏是「图标在上、文字在下」的大按钮
+
+参照 `temp/Snipaste_2026-09-09_08-46-05.jpg`（原厂另一台机器上的同族版本）：
+一排大按钮，28px 左右的彩色图标在上、中文标题在下，按钮之间是细竖线分隔符，
+整条工具栏是自上而下的浅蓝灰渐变，**末尾一句蓝色状态文字**（那张图里是「编译成功」）。
+
+重建版之前做成了 16px 小图标 + 文字在右，形状完全不是一回事。现已改成
+`Qt::ToolButtonTextUnderIcon` + 28px 图标。
+
+**踩到的坑：别给 `QToolButton` 加 `min-width`。**
+样式表里写了 `min-width: 52px` 之后，`QStyleSheetStyle` 拿它当**实际宽度**用而不是
+下限，每个按钮都被压成 52+padding，标题被 `QCommonStylePrivate::toolButtonElideText`
+从中间截断成「新建…」。让 Qt 自己按文字算宽度就对了。
+
+**第二个坑：按钮变宽之后一排装不下。** 重建版自己加的那几个视图控件（缩放下拉、
+显示隐藏项、单独预览、画面翻页）如果直接 `tb->addAction`，会被工具栏一并撑成
+大按钮，合计一千七百多像素，末尾那句状态文字被 `QToolBarLayout` 整个收进
+（默认不可见的）溢出菜单，界面上一个字都看不见。
+
+**一项都不许挪走**，所以做法是：把它们装进一个自带 `QHBoxLayout` 的 `QWidget`
+里再 `tb->addWidget()`。容器里的控件不受工具栏 `ToolButtonStyle` 管，按各自
+文字宽度排，省掉一半宽度。三个配套细节：
+
+* 容器要 `setSizePolicy(QSizePolicy::Fixed, …)` —— 默认的 Preferred 会让它把
+  一排用剩的宽度全吃掉，状态文字照样被顶出去；
+* 状态标签用 `setMaximumWidth()` 限宽（`QWidgetItem::sizeHint()` 会按
+  maximumSize 截顶，于是这一项宽度有上界，排得下），超长文字在
+  `onStatusMessage()` 里加省略号、完整内容挂 tooltip；
+* **不能**用 `QSizePolicy::Ignored` 去有多少用多少 —— `QWidgetItem::sizeHint()`
+  遇到 Ignored 直接把宽度报 0，标签被压成零宽，同样什么都看不见。
+
+按钮内边距 8px→5px、分隔符边距 5px→3px，一排（含状态文字）正好落在 1694 宽度内。
+
+### 8.2 [全局设置]：六项，存在工程目录的 `Application Data/ui-config`
+
+版式见 `temp/全局设置.jpg`：淡黄底对话框，**最上面**一条红底加粗警示
+「更新设置要重启软件才能生效.」，中间一张两列树（`全局配置项` / `内容`，隔行浅灰），
+底部右侧 `确定` / `取消`。
+
+行的内容和先后（截图实测）：
+
+| 行 | 键 | 备注 |
+|---|---|---|
+| ▶ 界面尺寸 | `Project/Size` | 可展开的组，两个子项 `宽度:` / `高度:`，合成 `"宽*高"` |
+| 图片资源目录: | `Project/ImageDir` | 目录选择 |
+| 多国语言文件: | `Project/LangugeFile` | **原厂把 Language 拼错了**，照抄 |
+| 工程目录: | `Project/Dir` | 目录选择 |
+| 控件文件: | `Project/TemplateJson` | `json 文件 (*.json)` |
+| 自定义控件目录: | `Project/CustomTemplateDir` | 目录选择 |
+
+五条路径的先后正好是标题的 Unicode 码点升序
+（图 56FE < 多 591A < 工 5DE5 < 控 63A7 < 自 81EA），像是从 `QMap<QString,…>`
+里遍历出来的。重建版按截图钉死，不去猜它内部用什么容器。
+
+**存储位置**（这是这轮最要紧的一处修正）：原厂存在**启动时当前目录**下的
+`Application Data/ui-config`，`QSettings::IniFormat`。启动脚本是 `cd project`
+之后再起 exe，所以实际落在工程目录里，**跟着工程走**。证据三条：
+
+1. `ui-tools.exe` 0xc94ae8 有字面量 `Application Data/ui-config`；
+2. 0xc94467 起是一整排键名 `Project/Size`、`Project/Background`、`Project/LastOpen`、
+   `Project/Dir`、`Project/LangugeFile`、`Project/Style`、`Project/TemplateJson`、
+   `Project/CustomTemplateDir`、`Project/ImageDir`；
+3. 实机文件 `ui_128_64_JL02/模式界面/project/Application Data/ui-config` 的内容与
+   上面逐项对得上（`Size=128*160`、`ImageDir=config`、`LangugeFile=../../../UITools/…xls`）。
+
+重建版早先存在注册表 `QSettings("QtProject","UITools")`，和原厂完全不通 ——
+在原厂工具里配好的路径，重建版看不见，反过来也一样。现已改成同一个文件，两边可以
+互换着用。`Project/Background`（画布背景色）和 `Project/Style`（`Fusion`）这两个键
+原厂有、但不在这个对话框里。
+
+值编辑器在原厂里是个叫 `FileEdit` 的类（moc 元数据 0xcc1060，有 `filePath` 属性和
+`filePathChanged(QString)` 信号）：一个无边框输入框 + 行末一个 `...` 方按钮。
+
+### 8.3 工具栏上多了一个「资源导出」
+
+原厂没有这个按钮 —— 原厂要退出编辑器、双击 `step2` 的脚本弹 UIToolBin 才能出资源。
+重建版把那条链直接接进编辑器：`CMakeLists.txt` 里让 `UITools` 和 `QtToolBin` 共用
+`ToolBinWindow` / `FeatureDialog` / `ResbuilderOptions` / `StyBuilder` 这几个源文件。
+
+**点了直接跑，不弹界面**（`ToolBinWindow::runHeadless()`：把 `ToolBinWindow` 造出来
+但不 `show()`，直接调同一个 `onGenerate()`，过程中的弹框压成日志）。结果写在工具栏
+末尾那句状态文字上 —— 原厂那一排也是在这个位置报「编译成功」的。只有失败才弹框，
+完整输出放在「显示详细信息」里；成功时完整输出挂在状态文字的 tooltip 上。
+
+改工程ID / 不重新生成资源 / 调用脚本 / 旋转 / 版本配置 / 功能设置，走**右键菜单**的
+「资源导出设置…」，弹的还是那一页。
+
+导出前若工程有未保存改动会先问一次 —— 下游读的是**磁盘上的 json**，不是编辑器
+内存里的模型。
+
+回归：
+
+```
+UITools.exe --tools-root <UITools目录> --export-test <工程.json>
+```
+
+走的是同一个 `exportResourceForTest()`，把完整输出打出来，退出码 0 = 成功。
+**它不跑收尾脚本** —— `copy_file.bat` 会往固件工程里拷文件，无人值守时不能碰。
+注意工程要放在层级正确的目录里（`Resbuilder.xml` 的 `excel_path` 是
+`../../../UITools/多国语言_128_64.xls` 这种相对路径），随便找个临时目录会解不到 xls。
+
+### 8.4 [全局设置]里多出来的一组：点阵屏预览配色（原厂没有）
+
+屏是单色的，但不同的点阵屏「亮 / 灭」呈现的颜色差很多 —— OLED 黑底白字、
+STN 黄绿底黑字、蓝屏 LCD 蓝底白字。预览想接近真机就得能配，所以在[全局设置]
+最后加了一个可展开组：
+
+| 行 | 键 | 默认 |
+|---|---|---|
+| 像素点亮颜色: | `Preview/LitColor` | `#ffffff` |
+| 像素熄灭颜色: | `Preview/DarkColor` | `#101010` |
+
+默认值就是加这个功能之前写死在代码里的那两个颜色，所以不配也不会变样。
+
+**只影响预览，一个字节都不进资源文件。** 资源里每个像素只有「亮 / 灭」一个 bit，
+判定走的还是 `Resbuilder.xml` 的 `<bmp_transparent_color>` 那套，和这两个值无关。
+
+生效范围（三处，都走 `Preview::monoLit()` / `Preview::monoDark()`）：
+
+* 画布上控件的填充、反显、图片/文字/数字的点亮像素（`Forms.cpp`）
+* 右栏页面预览（`Docks.cpp`）
+* 页面底色（`ScenesScreen::m_bg`，也就是「灭」的那一片）
+
+和原厂那五条路径不同，这两个**改完立刻生效**，不用重启 —— 配颜色本来就得一边改
+一边看。`CanvasManager::onGlobalBtn()` 里点完确定就 `reloadMonoColors()` +
+重刷所有 `ScenesScreen` + 发 `previewStyleChanged()` 让右栏重画。
+
+验证方法：往工程的 `Application Data/ui-config` 里写
+
+```ini
+[Preview]
+LitColor=#00ff00
+DarkColor=#001040
+```
+
+再 `--shot` 截一张，画布区和右栏页面区的像素直方图里应当只剩这两个颜色
+（外加选中框、网格线那些 UI 装饰）。实测画布 52076 px `#001040` + 9968 px `#00ff00`，
+右栏 22897 px + 1373 px，符合。

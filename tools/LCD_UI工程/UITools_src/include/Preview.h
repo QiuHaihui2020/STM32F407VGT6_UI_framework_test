@@ -23,6 +23,7 @@
 #ifndef PREVIEW_H
 #define PREVIEW_H
 
+#include <QColor>
 #include <QPixmap>
 #include <QString>
 #include <QStringList>
@@ -40,6 +41,21 @@ namespace Preview {
 void setProject(const QString &projectDir, const QString &excelPath);
 /** 清掉所有缓存（工程重载、资源改动后调）。 */
 void invalidate();
+
+/* ---- 点阵屏预览配色 -----------------------------------------------------
+ * 屏是单色的，但不同的点阵屏"亮"和"灭"呈现的颜色差很多：OLED 是黑底白字，
+ * STN 是黄绿底黑字，蓝屏 LCD 是蓝底白字……预览想接近真机就得能配。
+ *
+ * 【只影响预览】这两个颜色**不进任何资源文件**。资源里只有"亮/灭"一个 bit，
+ * 走的还是 Resbuilder.xml 的 <bmp_transparent_color> 那套判定，和这里无关。
+ * 存在[全局设置]的 ui-config 里（Preview/LitColor、Preview/DarkColor）。 */
+
+/** 像素点亮时画成什么颜色（默认白）。 */
+QColor monoLit();
+/** 像素熄灭时画成什么颜色，也是页面的底色（默认近黑）。 */
+QColor monoDark();
+/** 从[全局设置]重新读一遍这两个颜色。改完设置要调。 */
+void reloadMonoColors();
 
 /** ResID（"m1"）-> 该语言的文字。查不到返回空。 */
 QString stringOf(const QString &resId, int langIndex = 0);

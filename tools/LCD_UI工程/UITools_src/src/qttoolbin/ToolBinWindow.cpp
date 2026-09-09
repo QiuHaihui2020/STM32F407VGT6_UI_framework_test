@@ -19,6 +19,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QTextStream>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSettings>
@@ -26,6 +27,8 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 
+#include "BuildDate.h"
+#include "FeatureDialog.h"
 #include "StyBuilder.h"
 
 namespace {
@@ -33,6 +36,13 @@ namespace {
 QString iniPathOf(const QString &projectDir)
 {
     return QDir(projectDir).absoluteFilePath(QStringLiteral("config/ini/project.ini"));
+}
+
+/* 「功能设置」跟着**工程**走：原厂就是存在工程目录的 Resbuilder.xml 里
+ * （见 ResbuilderOptions.h 抬头那段证据）。两个工程各有各的设置。 */
+QString resXmlPathOf(const QString &projectDir)
+{
+    return QDir(projectDir).absoluteFilePath(QStringLiteral("Resbuilder.xml"));
 }
 
 /// 工具目录 = 本 exe 所在目录（重建版三个 exe 放一起）
@@ -46,7 +56,7 @@ QString toolDir()
 ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
     : QWidget(parent), m_projectDir(projectDir)
 {
-    setWindowTitle(tr("UIToolBin工具"));
+    setWindowTitle(tr("UIToolBin工具(Build:%1)").arg(common::buildDate()));
 
     // ---- 运行 ----
     m_run = new QPushButton(tr("生成资源文件(F5)"), this);
@@ -157,12 +167,24 @@ void ToolBinWindow::loadIni()
     m_version->setText(ini.value(QStringLiteral("versionid")).toString());
     ini.endGroup();
 
-    // 多国语言表：命令行模式怎么找，这儿就怎么找
-    const QStringList xls = QDir(toolDir()).entryList(
-        QStringList{ QStringLiteral("*.xls") }, QDir::Files);
-    if (!xls.isEmpty()) {
-        m_excelPath = QDir(toolDir()).absoluteFilePath(xls.first());
+    // 「功能设置」那一页 —— 从工程目录的 Resbuilder.xml 读，和原厂一致
+    m_res.loadFromProject(resXmlPathOf(m_projectDir));
+
+    /* 多国语言表：设置里配了就用它。原厂存的是**相对工程目录**的路径
+     * （../../../UITools/多国语言_128_64.xls），这里解成绝对路径再用。 */
+    if (!m_res.excelPath.isEmpty()) {
+        m_excelPath = QFileInfo(m_res.excelPath).isAbsolute()
+                      ? m_res.excelPath
+                      : QDir(m_projectDir).absoluteFilePath(m_res.excelPath);
+    } else {
+        const QStringList xls = QDir(toolDir()).entryList(
+            QStringList{ QStringLiteral("*.xls") }, QDir::Files);
+        if (!xls.isEmpty()) {
+            m_excelPath = QDir(toolDir()).absoluteFilePath(xls.first());
+        }
     }
+    m_language = m_res.languageMask;
+    m_panelType = m_res.panelType;
 }
 
 void ToolBinWindow::saveIni()
@@ -202,14 +224,36 @@ void ToolBinWindow::log(const QString &s)
 {
     m_log->appendPlainText(s);
     m_log->ensureCursorVisible();
+    /* 【自测模式顺带吐到 stdout】日志本来只进界面上那个输出框，自动化跑
+     * --selftest-generate 失败时只能看到一个退出码，查不出卡在哪一步。 */
+    if (m_silent) {
+        QTextStream(stdout) << s << QLatin1Char('\n');
+        QTextStream(stdout).flush();
+    }
     QApplication::processEvents();
 }
 
 void ToolBinWindow::setBusy(bool on)
 {
     m_run->setEnabled(!on);
-    QApplication::setOverrideCursor(on ? Qt::WaitCursor : Qt::ArrowCursor);
-    if (!on) {
+    /* 【覆盖光标是个栈，不是开关】QApplication::setOverrideCursor 每调一次都
+     * **往栈里压一层**，restoreOverrideCursor 才弹一层。
+     *
+     * 原来这里两个方向都压、只在 off 的时候弹一次：
+     *     push(Wait) -> push(Arrow) -> pop()   栈里还剩一个 Wait
+     * 于是"生成完成"打印出来了，鼠标却一直转圈，而且每生成一次多留一层，
+     * 想点掉都点不掉。
+     *
+     * 现在 on 只压、off 只弹，并且用 m_busy 记状态做幂等 —— 重复调同一个
+     * 方向不会把栈搞失衡（调用点有好几条提前 return 的路径，将来加一条忘了
+     * 配对也不至于又卡住光标）。 */
+    if (on == m_busy) {
+        return;
+    }
+    m_busy = on;
+    if (on) {
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+    } else {
         QApplication::restoreOverrideCursor();
     }
 }
@@ -232,61 +276,27 @@ void ToolBinWindow::onPickJson()
 
 void ToolBinWindow::onFeatureSettings()
 {
-    QDialog d(this);
-    d.setWindowTitle(tr("功能设置"));
-    auto *excel = new QLineEdit(m_excelPath, &d);
-    auto *browse = new QPushButton(tr("…"), &d);
-    browse->setFixedWidth(28);
-    auto *lang = new QLineEdit(QStringLiteral("0x%1").arg(m_language, 8, 16,
-                                                          QLatin1Char('0')), &d);
-    auto *panel = new QComboBox(&d);
-    panel->addItems(QStringList{ QStringLiteral("LCDPANEL"), QStringLiteral("OLEDPANEL"),
-                                 QStringLiteral("TFTPANEL") });
-    const int pi = panel->findText(m_panelType);
-    if (pi >= 0) {
-        panel->setCurrentIndex(pi);
-    }
-
-    auto *row = new QHBoxLayout;
-    row->addWidget(excel, 1);
-    row->addWidget(browse);
-
-    auto *form = new QFormLayout;
-    form->addRow(tr("多国语言表:"), row);
-    form->addRow(tr("语言掩码:"), lang);
-    form->addRow(tr("面板类型:"), panel);
-
-    auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &d);
-    QObject::connect(box, &QDialogButtonBox::accepted, &d, &QDialog::accept);
-    QObject::connect(box, &QDialogButtonBox::rejected, &d, &QDialog::reject);
-    QObject::connect(browse, &QPushButton::clicked, &d, [&]() {
-        const QString f = QFileDialog::getOpenFileName(&d, tr("多国语言表"),
-                                                       excel->text(),
-                                                       tr("Excel 97-2003 (*.xls)"));
-        if (!f.isEmpty()) {
-            excel->setText(f);
-        }
-    });
-
-    auto *v = new QVBoxLayout(&d);
-    v->addLayout(form);
-    v->addWidget(new QLabel(
-        tr("语言掩码 bit i 置位 = 启用第 i+1 号语言，\n"
-           "对应 result.h 里的 Chinese_Simplified=1 …。默认 0x13 = 简中+繁中+英文。"), &d));
-    v->addWidget(box);
-
+    /* 原厂这一页叫「配置界面」，版式见 temp/功能设置.jpg。
+     * 以前这儿只有三项占位（多国语言表 / 语言掩码 / 面板类型），
+     * 字体、透明色、资源文件名、压缩方式这些只能去改代码。 */
+    toolbin::FeatureDialog d(m_res, this);
     if (d.exec() != QDialog::Accepted) {
         return;
     }
-    m_excelPath = excel->text().trimmed();
-    QString t = lang->text().trimmed();
-    bool ok = false;
-    const quint32 m = t.startsWith(QLatin1String("0x"), Qt::CaseInsensitive)
-                      ? t.mid(2).toUInt(&ok, 16) : t.toUInt(&ok, 10);
-    if (ok) {
-        m_language = m;
+    m_res = d.options();
+
+    // 主界面上跟着走的那两处
+    if (!m_res.excelPath.isEmpty()) {
+        m_excelPath = QFileInfo(m_res.excelPath).isAbsolute()
+                      ? m_res.excelPath
+                      : QDir(m_projectDir).absoluteFilePath(m_res.excelPath);
     }
-    m_panelType = panel->currentText();
+    m_language = m_res.languageMask;
+    m_panelType = m_res.panelType;
+    /* 【不另存文件】这一页的落盘就是下一次生成时重写的 Resbuilder.xml ——
+     * 原厂也是这个路子。所以改完要点「生成资源文件」才算存下来。 */
+    log(tr("配置已更新，点「生成资源文件」后写入 %1")
+        .arg(QDir::toNativeSeparators(resXmlPathOf(m_projectDir))));
 }
 
 bool ToolBinWindow::runResBuilder()
@@ -369,9 +379,13 @@ void ToolBinWindow::onGenerate()
 
     // ---- 1. 工程 json -> project.bin / ename.h / Resbuilder.xml / debug.txt ----
     sty::Options opt;
+    /* 先灌「功能设置」那一页（字体表、透明色、压缩方式…），
+     * 再让主界面上那几个控件覆盖它们各自管的项。 */
+    m_res.applyTo(opt);
     opt.pjId = m_pjId->value();
     opt.rotate = m_rotate->currentIndex();
     opt.projectDir = m_projectDir;
+    opt.outDir = m_projectDir;      // 界面这条路产物就落在工程目录
     opt.excelPath = m_excelPath;
     opt.language = m_language;
     opt.panelType = m_panelType;
@@ -464,5 +478,20 @@ bool ToolBinWindow::generateForTest()
 {
     m_lastOk = false;
     onGenerate();
+    return m_lastOk;
+}
+
+bool ToolBinWindow::runHeadless(QString *log)
+{
+    /* onGenerate() 有几条早退分支（没选 json、文件不在）不置 m_lastOk，
+     * 所以进来先清成 false，别把上一次的结果当成这一次的。 */
+    const bool prevSilent = m_silent;
+    m_silent = true;              // 过程中的弹框压成日志，最后由调用方统一报
+    m_lastOk = false;
+    onGenerate();
+    m_silent = prevSilent;
+    if (log) {
+        *log = m_log->toPlainText();
+    }
     return m_lastOk;
 }

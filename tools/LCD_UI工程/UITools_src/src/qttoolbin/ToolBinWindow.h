@@ -21,6 +21,8 @@
 
 #include <QWidget>
 
+#include "ResbuilderOptions.h"
+
 class QComboBox;
 class QLineEdit;
 class QSpinBox;
@@ -45,6 +47,17 @@ public:
     void setSilent(bool on) { m_silent = on; }
     /** 自测用：等同于点一下「生成资源文件」，返回是否全程成功。 */
     bool generateForTest();
+
+    /**
+     * 不显示界面，直接跑一遍完整生成链 —— 编辑器工具栏上的「资源导出」走这条。
+     *
+     * 和点「生成资源文件」是同一个 onGenerate()，只是把过程中的弹框压成日志，
+     * 由调用方统一报结果；产物、配置来源、收尾脚本一律不变。
+     *
+     * @param[out] log 全过程输出，失败时拿去给用户看
+     * @return 全程成功
+     */
+    bool runHeadless(QString *log);
 
 private slots:
     void onGenerate();          ///< 「生成资源文件(F5)」
@@ -79,6 +92,10 @@ private:
     bool     m_allowScript = true;
     bool     m_silent = false;
     bool     m_lastOk = false;
+    /** 当前是不是在忙 —— 让 setBusy() 幂等，别把覆盖光标那个栈压失衡。 */
+    bool     m_busy = false;
+    /** 「功能设置」那一页；存在 <工具目录>/config/ini/resbuilder.ini。 */
+    toolbin::ResbuilderOptions m_res;
 };
 
 #endif // TOOLBINWINDOW_H

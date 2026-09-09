@@ -308,3 +308,188 @@ css 字段映射与万分比换算（`re/verify_css.py` 273/273）、控件负�
 | `action` 块的**内容** | 结构已知（固件 `struct event_action`：`u16 event; u16 action; int id; u8 argc; char argv[]`，对齐 4），生成器也照着写了，但本工程 277 个控件全是 `num=0`，**没有真实样本可对拍** |
 | 调色板前缀顺序 | 集合已复现，顺序没有。单色屏无影响 |
 | `debug.txt` 排版 | 内容对（同一份 .sty 的十六进制转储 + 页表摘要），空白/日期格式与原厂略有出入。它只是调试辅助文件 |
+
+---
+
+## 「功能设置」（原厂窗口标题：配置界面）
+
+版式照原厂那一页复刻，见 `temp/功能设置.jpg`。这一页的每一项最终都落进
+`Resbuilder.xml`，也就是 ResBuilder.exe 的唯一输入。
+
+### 验过的（有原厂产物做依据）
+
+| 结论 | 依据 |
+|---|---|
+| 字段名/格式：`language` 是 8 位小写十六进制、`bmp_transparent_color` 是大写 | 原厂 `UITools/Resbuilder.xml`（240x240 twsbox 那份遗留文件） |
+| 「选中: N」= `<language>` 掩码，选中的行就是置位的位 | 两个独立来源：截图里 `选中: 13` 且 1/2/5 行高亮（0x13 = bit0/1/4）；原厂 xml 里 `0x00000007` 对应简中+繁中+日语 |
+| 「字号」是磅值，`lfHeight = -(字号 x 4 / 3)` | 截图前 6 行 24、第 7 行 12；原厂 xml font00–05 是 -32、font06 起 -16 |
+| 「资源文件名」带出 `res` / `resfilename` / `headerfilename` 三项 | 原厂 xml：`result` / `result.bin` / `result.h` |
+| 默认值改成原厂那张字体表后产物不变 | `result.str` 与改动前**逐字节相同**（0 差异），整链验收其余项判定不变 |
+
+### 没验过的（是推的，不是在原厂工具上试出来的）
+
+| 项 | 现在的做法 | 风险 |
+|---|---|---|
+| 上移/下移/增加/删除 之后表怎么变 | 生成时**固定写 22 条** font00..21，行数不够用内置默认补齐，多出的忽略 | 第 i 行 = font{i} = 掩码第 i 位 = xls 第 1+i 列，挪动顺序会整体改变这个对应关系。界面上四个按钮都挂了提示说明 |
+| 「其他配置: 旋转」勾选框管什么 | 只存不用（实际角度在主界面那个下拉框） | 勾了不生效 |
+| 压缩方式除 `none` 外的取值名 | 列了 `rle` / `quicklz`，取自逆向笔记 | 本版 ResBuilder 只实现 none，选了也不压；下拉框上有提示 |
+| 设置存哪 | `<工具目录>/config/ini/resbuilder.ini` | 原厂存在 `Resbuilder.dat`（941KB，`"1.2"` 开头 + 一串 LOGFONT 记录），格式没逆向过，**两边设置不互通** |
+
+要把这几项坐实，得跑原厂 `UITools/QtToolBin.exe`，在它的界面上逐项改、每改一次
+看 `Resbuilder.xml` 怎么变。那是交互操作，脚本代劳不了。
+
+### 拿原厂工具做的对照实验（2026-09-09）
+
+光看截图复刻界面是不够的。这一轮用**原厂 ResBuilder.exe** 做了受控实验，
+把"差异到底出在谁身上"钉死了。原厂 QtToolBin 是纯弹窗工具（`-h` 直接退出、
+无输出），驱动不了；但 ResBuilder 是命令行的，可以拿来当裁判。
+
+实验都在 `C:\bt` 的工程副本里做，原厂目录只读。
+
+| 实验 | 结果 |
+|---|---|
+| 原厂 ResBuilder + **本版** Resbuilder.xml | result.str / result.h / result.csv **逐字节相同**；result.bin 差 79 字节 |
+| 原厂 ResBuilder + **原厂** Resbuilder.xml（对照组） | result.bin **0 差异** |
+
+同一个 ResBuilder，喂原厂 xml 得 0、喂本版 xml 得 79 —— 差异 **100% 来自
+本版生成的 Resbuilder.xml**，与 ResBuilder 的实现无关。
+
+再定位那 79 字节：4 个在 0xC..0xF（resver，原厂就是随机值），
+75 个从 0x374 起 —— 全在**各页调色板**那一段。也就是说：
+
+**除了 resver 和 ColorList 的排列顺序，本版产物与原厂逐字节相同。**
+（OSD1 单色屏不用调色板，所以这条对本项目没有功能影响；但要做到 100%
+字节替换，得把 ColorList 的排序规律挖出来。）
+
+#### 这一轮改对的四处（都是对照原厂产物查出来的）
+
+| 问题 | 原来 | 原厂 | 怎么发现的 |
+|---|---|---|---|
+| 编码 | `toLocal8Bit()`（本机 GBK） | **UTF-8** | 原厂 `UITools/Resbuilder.xml` 里"多"是 `E5 A4 9A`；本机 ACP 是 936 |
+| 缩进 | 每级 1 个 Tab | 每级 **8 个空格** | 原始字节比对 |
+| 元素顺序 | endian/paneltype/picture_path/excel_path 排在 PageList **之后** | 排在**之前** | 逐行 diff |
+| excel_path | 绝对路径 | **相对** Resbuilder.xml 所在目录 | 逐行 diff |
+
+改完之后 `--verify-resxml` 报「配置项不一致 0 处」：LanguageList、Fonts、
+全部 14 个设置项与原厂逐字节一致。
+
+#### ColorList 排序：还没破解
+
+页 0 的颜色集合两边一样（11 个），顺序不同：
+
+```
+原厂: 0000FF D2EE45 FF557F 368FEE FF0000 AAA555 D9EE94 FFFFFF 000000 FFAA7F 55AA00
+本版: 0000FF 55AA00 FF557F FF0000 D9EE94 FFAA7F FFFFFF D2EE45 368FEE AAA555 000000
+```
+
+线索：两边都以 `0000FF` 开头、第 3 位都是 `FF557F`；原厂的 `000000` 落在第 9 位
+（**不是**补在末尾，本版是"缺了就 append"）。本版的收集顺序是"逐节点：先 css
+各状态的 background_color / border color，再 property 里的文字色/高亮色"。
+
+要继续挖，用这个回路最快（一轮不到一分钟）：
+1. 改 `StyBuilder.cpp` 里 `pageColors` 的收集顺序
+2. 生成到工程副本：`QtToolBin --cli --no-script <json> -o <副本> --excel <abs> --ename <ename.h>`
+3. 用**原厂** ResBuilder 吃它，比 result.bin，目标 0 差异
+
+### ColorList 排序：挖到头了，结论是「查不出规律，且无功能影响」
+
+那 79 字节差异 = 4 字节 resver + 75 字节调色板。这一轮把调色板这条线挖到底。
+
+#### 先把事实钉死
+
+* `result.bin` 偏移 **0x370** 起就是调色板，每项 **4 字节：B G R + 1 字节填充**。
+  例：`45 ee d2 00` = `D2EE45`。
+* 用**原厂 ResBuilder** 分别吃原厂 xml 和本版 xml，解出来的调色板
+  **与各自 xml 里 ColorList 逐项一一对应** —— ResBuilder **不重排**，原样照抄。
+* 两边调色板的**集合完全相同**，仅顺序不同（`原厂独有: []  本版独有: []`）。
+
+所以：**这 75 字节差异 100% 来自本版 ColorList 的排序，别无其它来源。**
+
+#### 试过并否掉的假设（页0/1/2 三页都不满足）
+
+| 假设 | 结果 |
+|---|---|
+| 文档序（先序遍历），节点内 css 先 / property 先 | 否 |
+| 全局分组：所有 bg → 所有 border → 所有 property（及反序） | 否 |
+| BFS 层序 / 逆文档序 | 否 |
+| 值排序：RGB 升降、RGB565 升降、565 字节交换、BGR、灰度、字符串序 | 否 |
+| 单一全局顺序（每页取子集）| 否。页0 与页1 的共有色次序一致，但页2 与两者都不一致 |
+| Qt `QHash<QString>` 桶序：seed 暴搜 0..2²⁰ × Qt 表大小序列 × 头插/尾插 | 否。只有"桶数 1024 装 8 色"这种人人独占一桶的过拟合解，换页即失效 |
+
+反证也很硬：页1 的第 1 项是 `005500`，它首次出现在**文档序第 71 个节点**
+（一个 vslider）；而图层自身的背景 `8DEEDB`（第 1 个节点）却排在第 4 位。
+任何"按遍历先后收集"的方案都解释不了。
+
+第二样本也没有：工具目录里那份 twsbox 的 `Resbuilder.xml` 是**空工程**
+（`<PageList/>`，0 个 Color），无法用来判断确定性。
+
+最可能的解释是原厂用了某种 Qt 关联容器（`QSet`/`QHash`）收集颜色、直接按容器序
+输出，而 Qt5 的 `qHash(QString)` 默认带**进程级随机种子** —— 那样的话原厂自己
+重跑一次顺序也会变，根本不存在可复刻的"正确顺序"。这和已知的
+"控件 id 低 16 位是 per-page QMap 查表、每次生成都不同"是同一类现象。
+
+#### 为什么可以就此打住
+
+本工程 `Resbuilder.xml` 里 **104 张图片全是 `fmt="OSD1"`**，即 1bpp 位图 ——
+每个像素只有"点亮/不亮"两种状态，**像素里不存调色板下标**。调色板对 OSD1
+资源是一段没人按下标引用的数据，顺序变了不影响任何显示结果。
+
+（若将来上彩屏、出现 `fmt="RGB565"` 之类按调色板取色的图，这条要重新评估。）
+
+#### 要继续的话，唯一有意义的下一步
+
+用**原厂 QtToolBin** 对同一个工程连跑两次，比两次的 ColorList：
+
+* 两次**不同** → 坐实是随机序，本项到此为止，改成"记录已知差异"即可；
+* 两次**相同** → 说明有确定性算法，再拿这两份样本继续找规律。
+
+原厂 QtToolBin 是纯弹窗工具（`-h` 直接退出、无命令行），这一步得手工点两次
+「生成资源文件」，脚本代劳不了。
+
+#### 结案（2026-09-09，用原厂工具连跑两次实测）
+
+用**原厂 QtToolBin** 对同一工程连点两次「生成资源文件」，结果：
+
+| 对比 | 结果 |
+|---|---|
+| 同一次进程内的两次生成 | `Resbuilder.xml` **逐字节完全相同** |
+| 与前一天那份原厂参考（另一次进程） | **三页顺序全变**，但集合一模一样 |
+
+```
+页0 上次: 0000FF D2EE45 FF557F 368FEE FF0000 AAA555 D9EE94 FFFFFF 000000 FFAA7F 55AA00
+页0 这次: FFAA7F 000000 FF0000 368FEE AAA555 D9EE94 D2EE45 0000FF FF557F FFFFFF 55AA00
+```
+
+这正是 Qt `QHash` + 随机 hash 种子的特征：**同进程内种子固定**（所以连跑两次一致），
+**换进程重新随机**（所以隔天跑就全变）。
+
+**结论：不存在"原厂的正确 ColorList 顺序"——原厂自己每次启动都不一样。**
+本项永久结案，不再尝试复刻。和"控件 id 低 16 位每次生成都不同"是同一类现象。
+
+守住真正重要的那条线即可：`re/verify_palette_order.py` 检查**集合**一致
+（少一个颜色 = 某个控件的背景/边框色没收进去，那是真 bug），顺序差异记为已知。
+
+附带收获：这次生成把工程目录里那份被 oled 覆盖过的参考产物（09-08 16:19，
+project.bin 45248 字节）刷新成了 TFT 的正确版本，整链验收的那 1 项假失败随之消失。
+
+#### 同一个成因的第二处：`<fontNN>` 的**属性次序**
+
+2026-09-09 再次生成参考之后，`--verify-resxml` 报了「Fonts 不一致（原厂 5816
+字符 / 本版 5816）」。逐行看下去，**每个属性的值都一样，只是排列不同**：
+
+```
+原厂: <font00 lfOrientation lfClipPrecision lfWidth lfHeight lfFaceName lfCharSet
+             lfUnderline lfOutPrecision lfItalic lfWeight lfQuality lfStrikeOut
+             lfPitchAndFamily lfEscapement />
+本版: <font00 lfQuality lfPitchAndFamily lfOrientation lfHeight lfWeight lfUnderline
+             lfOutPrecision lfItalic lfClipPrecision lfFaceName lfCharSet
+             lfEscapement lfStrikeOut lfWidth />
+```
+
+本版这个次序是当初照着**某一次**原厂产物抄下来硬编码的。现在参考换成了另一次
+进程的产物，次序就对不上了 —— 和 ColorList 一样，原厂把 LOGFONT 的字段塞在
+Qt 关联容器里，输出时按容器序写，每个进程一个样。
+
+XML 属性本来就是无序的，ResBuilder 解出来完全相同。所以 `--verify-resxml` 改成
+**把属性名排序后再比**（`src/qttoolbin/main.cpp` 里的 `canonSection`），
+这样比的是"配置内容一不一致"，而不是"这次原厂碰巧怎么排"。改完 0 处不一致。

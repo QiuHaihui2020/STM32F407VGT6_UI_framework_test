@@ -90,6 +90,8 @@ public:
     void setZoom(int percent);
 
     QColor backgroundColor() const { return m_bg; }
+    /** 页底色。跟[全局设置]里「像素熄灭颜色」走；右键「画布背景色…」也改它。 */
+    void   setBackgroundColor(const QColor &c) { m_bg = c; update(); }
     /** 像素网格开关。之前画布只看 m_zoom，工具栏那个开关点了没反应。 */
     void setShowGrid(bool on);
 
@@ -225,10 +227,14 @@ public:
     /** 画布可见性开关，转发给所有页。 */
     void setShowHidden(bool on);
     bool showHidden() const { return m_showHidden; }
+    /** 网格开关。ops-test 要看它有没有被[全局设置]误改。 */
+    bool showGrid() const { return m_showGrid; }
     void setSolo(bool on);
     bool solo() const { return m_solo; }
     /** 翻到当前页的上一个/下一个画面。 */
     void stepScreen(int delta);
+    /** 直接跳到当前页的第 index 个画面（工具栏那个画面下拉走这条）。 */
+    void gotoScreen(int index);
 
     bool openProject(const QString &path, QString *err);
     bool saveProjectAs(const QString &path, QString *err);
@@ -251,6 +257,8 @@ signals:
     void structureChanged();
     /** 画布右键菜单里的"查找对像"。 */
     void findRequested();
+    /** 预览配色变了（[全局设置]里改的）。只重画，不动工程数据。 */
+    void previewStyleChanged();
     /** 有控件被拖到画布上。转发自当前页的 ScenesScreen。 */
     void controlDropped(UiNode *parent, const QString &cls, const QString &type,
                         const QPoint &pos);
@@ -263,6 +271,9 @@ public slots:
     void onCreateNewProject();
     void onUpdateNewProjectSize();
     void onGlobalBtn();
+    /** [全局设置]点了确定之后要做的事。单独拆出来是为了能无人值守回归 ——
+     *  GlobalSettings::exec() 是模态的，测不了。 */
+    void applyGlobalSettings();
     void onSshoot();
     void onZoomProject();
     void onAboutBtn();

@@ -273,8 +273,8 @@ protected:
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing, false);
         const QRect body = rect().adjusted(4, 4, -4, -4);
-        /* 单色屏灭的时候是黑的 —— 和画布同一个底色 */
-        p.fillRect(body, Qt::black);
+        /* 灭的时候是什么颜色由[全局设置]配 —— 和画布同一个底色 */
+        p.fillRect(body, Preview::monoDark());
         if (m_page) {
             p.save();
             p.translate(body.topLeft());
@@ -339,12 +339,13 @@ private:
         /* 底：只有魔数 0x555AAA 才填充；反显也要先把整块点亮 */
         if (Preview::fillOf(bgCss) == Preview::MonoFill::Set
             || tm == Preview::MonoText::Invert) {
-            p.fillRect(box, Qt::white);
+            p.fillRect(box, Preview::monoLit());
         }
 
         if (tm != Preview::MonoText::Hidden) {
             const QPixmap content = Preview::contentOf(
-                n, tm == Preview::MonoText::Invert ? Qt::black : Qt::white);
+                n, tm == Preview::MonoText::Invert ? Preview::monoDark()
+                                                   : Preview::monoLit());
             if (!content.isNull()) {
                 /* 原尺寸摆放（右栏就是 1:1），超出部分裁掉 —— 和固件一致 */
                 int x = box.left();

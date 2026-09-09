@@ -37,6 +37,7 @@
 #include <QSettings>
 
 #include "MainWindow.h"
+#include "Preview.h"
 
 #include "ActionList.h"
 #include "BusyIndicator.h"
@@ -54,6 +55,7 @@
 #include "findDlg.h"
 #include "StyFile.h"
 #include "ProjectModel.h"
+#include "ToolBinWindow.h"
 
 int main(int argc, char *argv[])
 {
@@ -119,9 +121,13 @@ int main(int argc, char *argv[])
     QCommandLineOption optPvDump(QStringList() << QStringLiteral("preview-dump"),
                                  QStringLiteral("把每个控件的内容预览存成 PNG 再退出"),
                                  QStringLiteral("dir"));
+    QCommandLineOption optExport(QStringList() << QStringLiteral("export-test"),
+                                 QStringLiteral("走工具栏「资源导出」那条路跑一遍再退出"
+                                                "（不跑收尾脚本）"));
     p.addOption(optZoom);
     p.addOption(optSel);
     p.addOption(optPvDump);
+    p.addOption(optExport);
     p.addPositionalArgument(QStringLiteral("project"),
                             QStringLiteral("要打开的工程 json"));
     p.process(app);
@@ -259,6 +265,13 @@ int main(int argc, char *argv[])
         }
         touch(new GlobalSettings);
         {
+            /* 工具栏上的「资源导出」弹的就是它。现在 QtToolBin 那几个源文件
+             * 同时链进了 UITools，构造时会去读 project.ini 和 Resbuilder.xml，
+             * 路径算错了会当场炸，所以拉进冒烟里。 */
+            auto *d = new ToolBinWindow(dir.isEmpty() ? QDir::currentPath() : dir);
+            touch(d);
+        }
+        {
             auto *d = new ZoomProject;
             d->setOldSize(QSize(128, 64));
             touch(d);
@@ -321,6 +334,10 @@ int main(int argc, char *argv[])
         out << rt << QLatin1Char('\n') << sty.describe() << QLatin1Char('\n');
         return ok ? 0 : 2;
     }
+
+    /* 点阵屏预览配色存在工程目录的 ui-config 里，建窗口之前先读进来，
+     * 不然第一帧画出来的还是默认的黑白。 */
+    Preview::reloadMonoColors();
 
     MainWindow w;
 
@@ -429,6 +446,22 @@ int main(int argc, char *argv[])
             out << QStringLiteral("内容预览导出 %1 张 -> %2\n").arg(n).arg(dir);
             out.flush();
             QCoreApplication::exit(n > 0 ? 0 : 8);
+        });
+        return app.exec();
+    }
+
+    /* 「资源导出」那颗按钮现在是点了直接跑、不弹界面的，出了问题界面上只剩
+     * 一句状态文字。这条命令行走的是**同一个** exportResourceForTest()，
+     * 把完整输出打出来，能无人值守回归。 */
+    if (p.isSet(optExport)) {
+        QTimer::singleShot(300, &app, [&w, &out]() {
+            QString rep;
+            const bool ok = w.exportResourceForTest(&rep);
+            out << rep << QLatin1Char('\n');
+            out << QStringLiteral("资源导出：%1\n")
+                   .arg(ok ? QStringLiteral("成功") : QStringLiteral("失败"));
+            out.flush();
+            QCoreApplication::exit(ok ? 0 : 9);
         });
         return app.exec();
     }

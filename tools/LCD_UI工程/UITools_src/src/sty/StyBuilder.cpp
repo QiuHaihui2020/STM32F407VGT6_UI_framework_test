@@ -1004,20 +1004,53 @@ Output Builder::build(const Options &opt)
         // 生成 result.h、靠字体表挑字符串位图的字体，必须原样写出来。
         s += QLatin1String("\t\t<LanguageList>\r\n");
         for (int i = 0; i < 22; ++i) {
+            /* 语言名在「功能设置」里可改；没给就用内置表 */
             s += QStringLiteral("\t\t\t<language_name LANG=\"%1\">%2</language_name>\r\n")
-                 .arg(QString::fromUtf8(kLangKeys[i]), QString::fromUtf8(kLangNames[i]));
+                 .arg(opt.langKeys.value(i, QString::fromUtf8(kLangKeys[i])),
+                      opt.langNames.value(i, QString::fromUtf8(kLangNames[i])));
         }
         s += QLatin1String("\t\t</LanguageList>\r\n\t\t<Fonts>\r\n");
         for (int i = 0; i < 22; ++i) {
+            /* 每种语言一套 LOGFONT ——「功能设置」里那张表就是它。
+             * 没配就退回老规矩：宋体 -16、常规、不斜体不下划线。 */
             s += QStringLiteral(
                      "\t\t\t<font%1 lfQuality=\"0\" lfPitchAndFamily=\"2\" lfOrientation=\"0\""
-                     " lfHeight=\"-16\" lfWeight=\"400\" lfUnderline=\"0\" lfOutPrecision=\"0\""
-                     " lfItalic=\"0\" lfClipPrecision=\"0\" lfFaceName=\"%2\" lfCharSet=\"134\""
-                     " lfEscapement=\"0\" lfStrikeOut=\"0\" lfWidth=\"0\"/>\r\n")
+                     " lfHeight=\"%2\" lfWeight=\"%3\" lfUnderline=\"%4\" lfOutPrecision=\"0\""
+                     " lfItalic=\"%5\" lfClipPrecision=\"0\" lfFaceName=\"%6\" lfCharSet=\"134\""
+                     " lfEscapement=\"0\" lfStrikeOut=\"%7\" lfWidth=\"0\"/>\r\n")
                  .arg(i, 2, 10, QLatin1Char('0'))
-                 .arg(QString::fromUtf8("\xe5\xae\x8b\xe4\xbd\x93"));   // 宋体
+                 .arg(opt.fontHeights.value(i, -16))
+                 .arg(opt.fontWeights.value(i, 400))
+                 .arg(opt.fontUnderlines.value(i, 0))
+                 .arg(opt.fontItalics.value(i, 0))
+                 .arg(opt.fontFaces.value(
+                          i, QString::fromUtf8("\xe5\xae\x8b\xe4\xbd\x93")))   // 宋体
+                 .arg(opt.fontStrikeOuts.value(i, 0));
         }
-        s += QLatin1String("\t\t</Fonts>\r\n\t\t<PageList>\r\n");
+        s += QLatin1String("\t\t</Fonts>\r\n");
+        /* 【顺序照原厂】这四项在 <PageList> **之前**，其余设置项在之后。
+         * 原厂 Resbuilder.xml 里 <Items> 的子元素次序是：
+         *   LanguageList / Fonts / endian / paneltype / picture_path /
+         *   excel_path / PageList / language / bmp_transparent_color / ...
+         * 顺序不一样文件就不是逐字节相同，谈不上顶替原厂。 */
+        {
+            const QString pp = opt.picturePath.isEmpty() ? QStringLiteral("NULL")
+                                                         : opt.picturePath;
+            s += QStringLiteral("\t\t<endian>%1</endian>\r\n").arg(opt.endian);
+            s += QStringLiteral("\t\t<paneltype>%1</paneltype>\r\n").arg(opt.panelType);
+            s += QStringLiteral("\t\t<picture_path>%1</picture_path>\r\n").arg(pp);
+            /* 【excel_path 写相对工程目录的路径】原厂那份写的是
+             * ../../../UITools/多国语言_128_64.xls，不是绝对路径 —— 工程整个
+             * 挪个位置或者换台机器还能用。命令行 --excel 给的一般是绝对路径，
+             * 这里折算回去。给的本来就是相对路径就原样保留。 */
+            const QString xmlDir = opt.outDir.isEmpty() ? opt.projectDir : opt.outDir;
+            QString xls = opt.excelPath;
+            if (!xls.isEmpty() && QFileInfo(xls).isAbsolute() && !xmlDir.isEmpty()) {
+                xls = QDir::fromNativeSeparators(QDir(xmlDir).relativeFilePath(xls));
+            }
+            s += QStringLiteral("\t\t<excel_path>%1</excel_path>\r\n").arg(xls);
+        }
+        s += QLatin1String("\t\t<PageList>\r\n");
         for (int pi = 0; pi < npg; ++pi) {
             s += QStringLiteral("\t\t\t<Page id=\"%1\">\r\n").arg(pi);
             s += QLatin1String("\t\t\t\t<ColorList>\r\n");
@@ -1040,29 +1073,54 @@ Output Builder::build(const Options &opt)
             s += QLatin1String("\t\t\t\t</CellList>\r\n\t\t\t</Page>\r\n");
         }
         s += QLatin1String("\t\t</PageList>\r\n");
-        s += QStringLiteral("\t\t<endian>LITTLEENDIAN</endian>\r\n"
-                            "\t\t<paneltype>%1</paneltype>\r\n"
-                            "\t\t<picture_path>NULL</picture_path>\r\n"
-                            "\t\t<excel_path>%2</excel_path>\r\n"
-                            "\t\t<language>0x%3</language>\r\n"
-                            "\t\t<bmp_transparent_color>0x00FFFFFF</bmp_transparent_color>\r\n"
-                            "\t\t<png_background_color>0x00000000</png_background_color>\r\n"
-                            "\t\t<spec_color_list>NULL</spec_color_list>\r\n"
-                            "\t\t<png2jpg_list>NULL</png2jpg_list>\r\n"
-                            "\t\t<res>result</res>\r\n"
-                            "\t\t<resfilename>result.bin</resfilename>\r\n"
-                            "\t\t<headerfilename>result.h</headerfilename>\r\n"
-                            "\t\t<image_compress_method>none</image_compress_method>\r\n"
-                            "\t\t<string_compress_method>none</string_compress_method>\r\n"
-                            "\t\t<palette_type>rgb</palette_type>\r\n"
-                            "\t\t<percent>100%</percent>\r\n"
-                            "\t\t<excel_crc/>\r\n\t\t<excel_row/>\r\n"
-                            "\t\t<rotate>%4</rotate>\r\n\t</Items>\r\n</Resbuilder>\r\n")
-             .arg(opt.panelType)
-             .arg(opt.excelPath)
-             .arg(opt.language, 8, 16, QLatin1Char('0'))
+        /* 【一项一行拼，不要挤在一个 QStringLiteral 里】占位符超过 9 个 .arg 就
+         * 接不上了，而且 <percent>100%</percent> 里那个 % 混在带占位符的串里
+         * 很容易被看成占位符。 */
+        const QString resName = opt.res.isEmpty() ? QStringLiteral("result") : opt.res;
+        // 原厂写的是大写十六进制（0x00FFFFFF），照它来
+        auto hex8 = [](quint32 v) {
+            return QStringLiteral("0x%1").arg(
+                QString::number(v, 16).toUpper().rightJustified(8, QLatin1Char('0')));
+        };
+        s += QStringLiteral("\t\t<language>0x%1</language>\r\n")
+             .arg(opt.language, 8, 16, QLatin1Char('0'));
+        s += QStringLiteral("\t\t<bmp_transparent_color>%1</bmp_transparent_color>\r\n")
+             .arg(hex8(opt.bmpTransparentColor));
+        s += QStringLiteral("\t\t<png_background_color>%1</png_background_color>\r\n")
+             .arg(hex8(opt.pngBackgroundColor));
+        s += QLatin1String("\t\t<spec_color_list>NULL</spec_color_list>\r\n");
+        s += QLatin1String("\t\t<png2jpg_list>NULL</png2jpg_list>\r\n");
+        s += QStringLiteral("\t\t<res>%1</res>\r\n").arg(resName);
+        s += QStringLiteral("\t\t<resfilename>%1.bin</resfilename>\r\n").arg(resName);
+        s += QStringLiteral("\t\t<headerfilename>%1.h</headerfilename>\r\n").arg(resName);
+        s += QStringLiteral("\t\t<image_compress_method>%1</image_compress_method>\r\n")
+             .arg(opt.imageCompress);
+        s += QStringLiteral("\t\t<string_compress_method>%1</string_compress_method>\r\n")
+             .arg(opt.stringCompress);
+        s += QStringLiteral("\t\t<palette_type>%1</palette_type>\r\n").arg(opt.paletteType);
+        s += QLatin1String("\t\t<percent>100%</percent>\r\n");
+        s += QLatin1String("\t\t<excel_crc/>\r\n\t\t<excel_row/>\r\n");
+        s += QStringLiteral("\t\t<rotate>%1</rotate>\r\n\t</Items>\r\n</Resbuilder>\r\n")
              .arg(opt.rotate);
-        out.resbuilderXml = s.toLocal8Bit();      // 原厂就是本地代码页，路径里有中文
+        /* 【缩进是每级 8 个空格，不是 Tab】上面为了好读一直写的 \t，这里统一
+         * 换成 8 空格 —— 原厂那份就是这么排的（<Items> 前 8 个 0x20、
+         * <LanguageList> 16 个、<language_name> 24 个，见工程目录里那份的原始
+         * 字节）。Tab 和空格差一个字节都算产物不一致。
+         * 内容里不会出现 Tab（都是路径、语言名、数字），整串替换是安全的。 */
+        s.replace(QLatin1Char('\t'), QLatin1String("        "));
+
+        /* 【UTF-8，不是本地代码页】以前这里写的是 toLocal8Bit()，注释还说
+         * "原厂就是本地代码页" —— 那个结论是错的。
+         *
+         * 证据：原厂随工具一起发的 UITools/Resbuilder.xml（2026-08-31，在原厂
+         * 机器上生成）里，excel_path 的"多"是 E5 A4 9A、lfFaceName 的"宋体"是
+         * E5 AE 8B E4 BD 93，都是 **UTF-8**；而本机 ANSI 代码页是 936(GBK)，
+         * toLocal8Bit() 在这儿会写成 GBK。XML 头自己声明的也是 encoding='UTF-8'。
+         *
+         * 后果不是纸面问题：工程路径/字体名里有中文时，写 GBK 的话原厂
+         * ResBuilder.exe 按 UTF-8 解就是乱码，找不到 xls 也挑不对字体 ——
+         * 这套工具就没法顶替原厂那套。 */
+        out.resbuilderXml = s.toUtf8();
     }
 
     // ---- 10. debug.txt ----

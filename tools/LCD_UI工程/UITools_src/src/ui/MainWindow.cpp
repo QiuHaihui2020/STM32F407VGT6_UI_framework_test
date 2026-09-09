@@ -14,12 +14,15 @@
 #include "ProjectModel.h"
 #include "StyFile.h"
 #include "EditorOps.h"
+#include "BuildDate.h"
 #include "Preview.h"
 #include "findDlg.h"
 #include "I18nLanguage.h"
 #include "ImageFileDialog.h"
+#include "ToolBinWindow.h"
 
 #include <QAction>
+#include <QFrame>
 #include <QToolBar>
 #include <QToolButton>
 #include <QDockWidget>
@@ -27,6 +30,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QSpinBox>
+#include <QAbstractItemView>
 #include <QComboBox>
 #include <QListWidgetItem>
 #include <QFileDialog>
@@ -65,40 +69,29 @@ QScrollArea > QWidget > QWidget { background: #F1F1F1; }
 QTabWidget::pane { background: #CEE2CE; border: 1px solid #9BBF9B; }
 QTabBar::tab { background: #DCEEDC; border: 1px solid #9BBF9B; padding: 2px 8px; }
 QTabBar::tab:selected { background: #CEE2CE; }
-QToolBar { background: #F6F6F6; border-bottom: 1px solid #D0D0D0; spacing: 2px; }
-QToolButton { padding: 3px 6px; border: 1px solid transparent; }
-QToolButton:hover { border: 1px solid #A0C0E0; background: #EAF2FB; }
-)";
-
-/**
- * 构建日期，形如 2026-09-08。
- *
- * 原厂标题是 "UI编辑工具(Build:...) <工程名>"，这里跟着来。
- * 用 __DATE__（编译那天）而不是运行时的今天 —— 标题上的日期得能标出
- * "你手上这个 exe 是哪天出的"，天天变的话就失去意义了。
- * __DATE__ 是 "Sep  8 2026" 这种格式，这里转成年-月-日。
- */
-static QString buildDate()
-{
-    static const char kMon[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-    const QString d = QString::fromLatin1(__DATE__);      // "MMM DD YYYY"
-    const int m = (QByteArray(kMon).indexOf(d.left(3).toLatin1()) / 3) + 1;
-    const int day = d.mid(4, 2).trimmed().toInt();
-    const int year = d.right(4).toInt();
-    if (m < 1 || m > 12 || day < 1 || year < 2000) {
-        return d;                                          // 格式不认就原样显示
-    }
-    return QStringLiteral("%1-%2-%3")
-           .arg(year, 4, 10, QLatin1Char('0'))
-           .arg(m, 2, 10, QLatin1Char('0'))
-           .arg(day, 2, 10, QLatin1Char('0'));
+/* 工具栏：图标在上、文字在下的大按钮（版式见 temp/Snipaste_2026-09-09_08-46-05.jpg）*/
+QToolBar {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                stop:0 #FBFDFF, stop:1 #E2E9F2);
+    border-bottom: 1px solid #B6C4D6;
+    spacing: 0px;
+    padding: 1px;
 }
+QToolBar::separator { width: 1px; background: #C8D2DE; margin: 5px 3px; }
+/* 【别给 QToolButton 加 min-width】QStyleSheetStyle 会拿它当**实际宽度**用，
+ * 不是当下限：加了 min-width:52px 之后每个按钮都被压成 52+padding，标题就被
+ * QCommonStylePrivate::toolButtonElideText 从中间截断成「新建…」。让 Qt 自己按文字算。 */
+QToolButton { padding: 2px 5px; border: 1px solid transparent; }
+QToolButton:hover { border: 1px solid #A0C0E0; background: #EAF2FB; }
+QToolButton:pressed { border: 1px solid #7C9EC4; background: #D7E6F7; }
+QToolButton:disabled { color: #A0A0A0; }
+)";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setObjectName(QStringLiteral("MainWindow"));
-    setWindowTitle(tr("UI编辑工具(Build:%1)").arg(buildDate()));
+    setWindowTitle(tr("UI编辑工具(Build:%1)").arg(common::buildDate()));
     /* 尺寸按原厂截图实测：客户区 1687x969（工具栏 31 + 内容 969），
      * 四列 263 / 232 / 927 / 255。 */
     resize(1694, 1032);
@@ -228,6 +221,10 @@ void MainWindow::buildDocks()
     });
     /* 【只重画，不置脏】"预览文字"只存在工具配置里，工程数据没动过，
      * 所以不能走 markDirty —— 否则标题平白带上 *、退出还问要不要保存。 */
+    /* [全局设置]里改了点阵屏预览配色：右栏那些页面图也要重画一遍 */
+    connect(m_mgr, &CanvasManager::previewStyleChanged, this, [this]() {
+        m_pages->reload();
+    });
     connect(m_com, &BaseProperty::previewOnlyChanged, this, [this]() {
         if (ScenesScreen *s = m_mgr->currentScreen()) {
             s->rebuild();
@@ -235,6 +232,27 @@ void MainWindow::buildDocks()
         m_pages->reload();
     });
 }
+
+namespace {
+
+/** 工具栏子控件里用的竖分隔线，和 QToolBar::addSeparator() 画出来的一个样。 */
+QWidget *makeVSep(QWidget *parent)
+{
+    auto *line = new QFrame(parent);
+    line->setFrameShape(QFrame::VLine);
+    line->setFrameShadow(QFrame::Plain);
+    line->setStyleSheet(QStringLiteral("color: #C8D2DE;"));
+    line->setContentsMargins(4, 5, 4, 5);
+    return line;
+}
+
+} // namespace
+
+/** QComboBox 右边那个下拉箭头占的宽度，算下拉框该多宽时要加上。 */
+static const int kComboArrowWidth = 22;
+
+/** 工具栏末尾那句状态文字的宽度上限，见 buildToolBar() 里的说明。 */
+static const int kStatusMaxWidth = 230;
 
 void MainWindow::buildToolBar()
 {
@@ -244,22 +262,34 @@ void MainWindow::buildToolBar()
 
     QToolBar *tb = addToolBar(tr("主工具栏"));
     tb->setObjectName(QStringLiteral("mainToolBar"));
-    tb->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    tb->setIconSize(QSize(16, 16));
+    /* 原厂是"图标在上、文字在下"的大按钮，一排排到底（temp/Snipaste_2026-09-09_08-46-05.jpg）。
+     * 之前做成了 16px 小图标 + 文字在右，一眼就不是那个东西。 */
+    tb->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    tb->setIconSize(QSize(28, 28));
     tb->setFloatable(false);
     tb->setMovable(true);          // 原厂左端有那个可拖的点阵手柄
-    tb->setFixedHeight(31);        // 实测 y=31..61
+    tb->setMinimumHeight(58);      // 28 图标 + 文字 + 上下留白
 
     /* 图标从 exe 的 qrc 里扔出来的 77 个中挑最接近原厂那一排的 */
-    QAction *aNew    = tb->addAction(icon("category_vcs.png"),     tr("新建工程(&P)"));
-    QAction *aOpen   = tb->addAction(icon("document-open.png"),    tr("打开工程(&O)"));
-    QAction *aSave   = tb->addAction(icon("Save_Icon.png"),        tr("保存工程(&S)"));
-    QAction *aSaveAs = tb->addAction(icon("document-save-as.png"), tr("另存为(&A)"));
+    QAction *aNew    = tb->addAction(icon("category_vcs.png"),     tr("新建工程(P)"));
+    QAction *aOpen   = tb->addAction(icon("document-open.png"),    tr("打开工程(O)"));
+    QAction *aSave   = tb->addAction(icon("Save_Icon.png"),        tr("保存工程(S)"));
+    QAction *aSaveAs = tb->addAction(icon("document-save-as.png"), tr("另存为(A)"));
     tb->addSeparator();
-    QAction *aNewPage = tb->addAction(icon("canvas-diagram.png"),      tr("新建页面(&N)"));
-    QAction *aDelPage = tb->addAction(icon("removesubmitfield.png"),   tr("删除当前页(&D)"));
+    QAction *aNewPage = tb->addAction(icon("canvas-diagram.png"),      tr("新建页面(N)"));
+    QAction *aDelPage = tb->addAction(icon("removesubmitfield.png"),   tr("删除页面(D)"));
     tb->addSeparator();
-    QAction *aShot   = tb->addAction(icon("Screenshot.png"),          tr("截屏(&P)"));
+    /* 【原厂没有这个按钮】原厂要退出编辑器、再双击 step2 的脚本弹 UIToolBin
+     * 才能出资源。这里把那一页直接搬进来（同一个 ToolBinWindow 类，同一条
+     * 生成链），改完布局当场就能导出，省掉来回切窗口。 */
+    QAction *aExport = tb->addAction(icon("build.png"),               tr("资源导出"));
+    aExport->setToolTip(QStringLiteral(
+        "把当前工程导出成资源文件（project.bin / ename.h / result.bin …），"
+        "点了直接跑，不弹界面。等同于 step2 那个 UIToolBin 里的「生成资源文件」。\n"
+        "要改工程ID / 调用脚本 / 功能设置，走右键菜单的「资源导出设置…」"));
+    aExport->setShortcut(QKeySequence(Qt::Key_F5));
+    tb->addSeparator();
+    QAction *aShot   = tb->addAction(icon("Screenshot.png"),          tr("截屏(P)"));
     aShot->setToolTip(QStringLiteral("截取程序的界面,并保存成PNG图片"));
     tb->addSeparator();
     QAction *aGlobal = tb->addAction(icon("preferences-system.png"),  tr("全局设置"));
@@ -268,23 +298,67 @@ void MainWindow::buildToolBar()
     aZoom->setToolTip(QStringLiteral(
         "对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零."));
     tb->addSeparator();
-    QAction *aAbout  = tb->addAction(icon("mode_help@2x.png"),        tr("关于(&I)"));
+    QAction *aAbout  = tb->addAction(icon("mode_help@2x.png"),        tr("关于(I)"));
 
-    /* ---- 以下是原厂没有的，全部追加在原厂那一排之后，不打乱原有形状 ----
+    tb->addSeparator();
+
+    /* ---- 以下是原厂没有的，跟在原厂那一排后面，同一排 --------------------
      * 点阵屏工程 128x64 在 927px 宽的画布上就是左上角一个指甲盖，没有缩放
      * 基本没法编；一个图层下又常挂着好几个全屏尺寸的互斥布局，不做隔离就是
-     * 一团糊。这两个开关是干这个用的。 */
-    tb->addSeparator();
-    tb->addWidget(new QLabel(tr(" 缩放 "), tb));
-    m_zoomBox = new QComboBox(tb);
+     * 一团糊。这几个开关是干这个用的。
+     *
+     * 【为什么装在一个子控件里，而不是直接 tb->addAction】第一排换成
+     * "图标在上、文字在下"的大按钮之后，工具栏会把每个直属按钮都撑成那个
+     * 高度和宽度，11 个原厂按钮 + 这几个就一千七百多像素，末尾那句状态文字
+     * 直接被挤出窗口。装进一个自带 QHBoxLayout 的 QWidget 里，它们就不受
+     * 工具栏的 ToolButtonStyle 管，按各自的文字宽度排，省下一半宽度，
+     * 既保住了原厂那一排的形状，也不用把任何一项挪走或藏起来。 */
+    auto *viewBar = new QWidget(tb);
+    /* 【必须钉死横向策略】QWidget 默认是 Preferred，QToolBarLayout 会把一排
+     * 用剩的宽度全塞给它，末尾那句状态文字就被顶出窗口了。 */
+    viewBar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    auto *viewLay = new QHBoxLayout(viewBar);
+    viewLay->setContentsMargins(2, 0, 2, 0);
+    viewLay->setSpacing(2);
+
+    /** 紧凑小按钮：绑 QAction，勾选态/提示都跟着走。 */
+    auto compactBtn = [viewBar](QAction *act) {
+        auto *b = new QToolButton(viewBar);
+        b->setDefaultAction(act);
+        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        b->setAutoRaise(true);
+        return b;
+    };
+
+    /* 「预览缩放」标题在上、百分比下拉在下，竖着排 —— 和旁边那排
+     * "图标在上、文字在下"的大按钮同一个节奏，也比横着排省宽度。 */
+    auto *zoomCol = new QWidget(viewBar);
+    auto *zoomLay = new QVBoxLayout(zoomCol);
+    zoomLay->setContentsMargins(0, 0, 0, 0);
+    zoomLay->setSpacing(1);
+    auto *zoomCap = new QLabel(tr("预览缩放"), zoomCol);
+    zoomCap->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    /* 【两个都得定死高度】工具栏只按 sizeHint 给这一列高度，不定死的话
+     * 下拉框会缩到最小高度、标题的下半截被它盖掉。 */
+    zoomCap->setFixedHeight(17);
+    zoomLay->addWidget(zoomCap);
+    m_zoomBox = new QComboBox(zoomCol);
     m_zoomBox->setEditable(false);
+    /* 宽度对齐上面那行标题的文字宽度 —— 这一列看着就是齐的一小块。
+     * 别写死像素：字体换了（原厂是宋体 9pt，别的机器上未必）宽度要跟着走。 */
+    m_zoomBox->setFixedWidth(
+        zoomCap->fontMetrics().size(Qt::TextSingleLine, zoomCap->text()).width());
+    m_zoomBox->setFixedHeight(22);
+    /* 收窄之后"适应窗口"在收起态显示不全，但下拉列表不该跟着窄 —— 单独放宽 */
+    m_zoomBox->view()->setMinimumWidth(72);
     for (int z : { 25, 50, 75, 100, 150, 200, 300, 400, 600, 800 }) {
         m_zoomBox->addItem(QStringLiteral("%1%").arg(z), z);
     }
     m_zoomBox->addItem(tr("适应窗口"), 0);
     m_zoomBox->setCurrentIndex(m_zoomBox->findData(100));
     m_zoomBox->setToolTip(tr("画布显示倍率（Ctrl+滚轮也行）。只影响显示，坐标始终按 1:1 存盘"));
-    tb->addWidget(m_zoomBox);
+    zoomLay->addWidget(m_zoomBox);
+    viewLay->addWidget(zoomCol);
     connect(m_zoomBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int i) {
                 const int z = m_zoomBox->itemData(i).toInt();
@@ -305,36 +379,61 @@ void MainWindow::buildToolBar()
         }
     });
 
-    auto *aHidden = tb->addAction(tr("显示隐藏项"));
+    auto *aHidden = new QAction(tr("显示隐藏项"), this);
     aHidden->setCheckable(true);
     aHidden->setToolTip(tr("连属性里标了「默认隐藏」的控件也画出来"));
     connect(aHidden, &QAction::toggled, m_mgr, &CanvasManager::setShowHidden);
+    viewLay->addWidget(compactBtn(aHidden));
 
-    auto *aSolo = tb->addAction(tr("单独预览"));
+    auto *aSolo = new QAction(tr("单独预览"), this);
     aSolo->setCheckable(true);
     aSolo->setChecked(true);
     aSolo->setToolTip(tr("只画选中项所属的那一个顶层布局。这套工程一页里有 1~9 个"
                          "整屏布局互相盖死，不这么干什么都看不清"));
     connect(aSolo, &QAction::toggled, m_mgr, &CanvasManager::setSolo);
+    viewLay->addWidget(compactBtn(aSolo));
 
-    /* 画面翻页：单独预览一次只看一个，得能快速翻，不然找"音量界面在哪个布局"
-     * 要去树里一个个猜。 */
-    tb->addSeparator();
-    auto *aPrev = tb->addAction(QStringLiteral("◀"));
-    aPrev->setToolTip(tr("上一个画面"));
-    m_screenLabel = new QLabel(tb);
-    m_screenLabel->setMinimumWidth(150);
-    m_screenLabel->setContentsMargins(6, 0, 6, 0);
-    tb->addWidget(m_screenLabel);
-    auto *aNext = tb->addAction(QStringLiteral("▶"));
-    aNext->setToolTip(tr("下一个画面"));
-    connect(aPrev, &QAction::triggered, this, [this]() { m_mgr->stepScreen(-1); });
-    connect(aNext, &QAction::triggered, this, [this]() { m_mgr->stepScreen(+1); });
+    /* 画面导航：单独预览一次只看一个，得能快速切，不然找"音量界面在哪个布局"
+     * 要去树里一个个猜。版式和上面的「预览缩放」一致 —— 标题在上、下拉在下。
+     * 【没有左右箭头】下拉本身就能直接跳到任意一个，箭头是多余的一步；
+     * CanvasManager::stepScreen() 保留（--ops-test 里在测它，内部走 gotoScreen）。 */
+    viewLay->addWidget(makeVSep(viewBar));
+
+    auto *screenCol = new QWidget(viewBar);
+    auto *screenLay = new QVBoxLayout(screenCol);
+    screenLay->setContentsMargins(0, 0, 0, 0);
+    screenLay->setSpacing(1);
+    m_screenCap = new QLabel(tr("当前画面"), screenCol);
+    m_screenCap->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    m_screenCap->setFixedHeight(17);
+    screenLay->addWidget(m_screenCap);
+    m_screenBox = new QComboBox(screenCol);
+    m_screenBox->setEditable(false);
+    m_screenBox->setFixedHeight(22);
+    m_screenBox->setToolTip(tr("当前页里的顶层布局。选一个就等于预览它，"
+                               "和左右两个箭头是同一件事"));
+    screenLay->addWidget(m_screenBox);
+    viewLay->addWidget(screenCol);
+    connect(m_screenBox, QOverload<int>::of(&QComboBox::activated),
+            m_mgr, &CanvasManager::gotoScreen);
     connect(m_mgr, &CanvasManager::screenListChanged, this, &MainWindow::refreshScreenLabel);
 
-    /* 原厂状态文字就挂在工具栏末尾，没有独立状态栏 */
+
+    tb->addWidget(viewBar);
+
+    /* 原厂状态文字就挂在工具栏末尾（截图右边那句「编译成功」），没有独立状态栏 */
     m_status = new QLabel(tr("初始化编辑环境完成"), tb);
-    m_status->setContentsMargins(12, 0, 6, 0);
+    m_status->setContentsMargins(10, 0, 6, 0);
+    m_status->setStyleSheet(QStringLiteral("color: #1A4FA0;"));
+    /* 【必须限宽】状态文字长短不定。一旦这一排的合计 sizeHint 超出窗口宽度，
+     * QToolBarLayout 就把末尾的它整个收进 >> 溢出菜单，界面上一个字都看不见。
+     *
+     * 不能用 QSizePolicy::Ignored 来"有多少用多少"—— QWidgetItem::sizeHint()
+     * 遇到 Ignored 直接把宽度报 0，标签会被压成零宽，同样什么都看不见。
+     * 正确做法是设 maximumWidth：QWidgetItem::sizeHint() 会按 maximumSize 截顶，
+     * 于是这一项的宽度有上界，排得下；超长的文字在 onStatusMessage 里加省略号。 */
+    m_status->setMinimumWidth(0);
+    m_status->setMaximumWidth(kStatusMaxWidth);
     tb->addWidget(m_status);
 
     aNew->setShortcut(QKeySequence::New);
@@ -345,6 +444,7 @@ void MainWindow::buildToolBar()
     connect(aOpen,    &QAction::triggered, m_mgr, &CanvasManager::onOpenProject);
     connect(aSave,    &QAction::triggered, m_mgr, &CanvasManager::onSaveProject);
     connect(aSaveAs,  &QAction::triggered, m_mgr, &CanvasManager::onSaveAsProject);
+    connect(aExport,  &QAction::triggered, this,  &MainWindow::onExportResource);
     connect(aShot,    &QAction::triggered, m_mgr, &CanvasManager::onSshoot);
     connect(aGlobal,  &QAction::triggered, m_mgr, &CanvasManager::onGlobalBtn);
     connect(aZoom,    &QAction::triggered, m_mgr, &CanvasManager::onZoomProject);
@@ -364,6 +464,11 @@ void MainWindow::buildToolBar()
     auto *aGrid = new QAction(tr("网格开关"), this);
     connect(aGrid, &QAction::triggered, m_mgr, &CanvasManager::onSelectGrid);
     addAction(aGrid);
+    auto *aExportUi = new QAction(tr("资源导出设置…"), this);
+    aExportUi->setToolTip(tr("弹 UIToolBin 那一页：工程ID / 不重新生成资源 / "
+                             "调用脚本 / 旋转 / 版本配置 / 功能设置"));
+    connect(aExportUi, &QAction::triggered, this, &MainWindow::onExportResourceDialog);
+    addAction(aExportUi);
     auto *aConf = new QAction(tr("工程配置…"), this);
     connect(aConf, SIGNAL(triggered()), m_mgr, SLOT(onConfProject()));
     addAction(aConf);
@@ -505,7 +610,7 @@ void MainWindow::refreshTitle()
      * 构建日期用 __DATE__，编译那天定死，不是运行时的今天 —— 这样用户报
      * 问题时报的标题就能对上是哪个版本。 */
     setWindowTitle(tr("UI编辑工具(Build:%1) %2%3")
-                   .arg(buildDate(), m_mgr->model()->name(),
+                   .arg(common::buildDate(), m_mgr->model()->name(),
                         m_mgr->model()->dirty() ? QStringLiteral(" *") : QString()));
 }
 
@@ -1975,31 +2080,57 @@ int MainWindow::runOpsTest(QString *report)
      * 既没有图片文字，也不是单色屏的样子 —— 画布那边早就改成"黑底白点 +
      * 真内容"了，右栏一直停在老版本。断言两条：
      *   1) 真有点亮的像素（= 内容画出来了，不是一片空白）
-     *   2) 每个像素只有黑或白（= 没有残留的彩色块；屏上只有亮/灭） */
+     *   2) 每个像素非亮即灭（= 没有残留的彩色块；屏上只有这两种状态）
+     *
+     * 【不能写死黑白】「点亮/熄灭」的颜色现在是[全局设置]里可配的
+     * （见 docs/FACTORY_UI.md 8.4），配成绿底蓝字这条断言照样得成立。
+     * 所以拿 Preview::monoLit()/monoDark() 当基准比，而不是比灰阶。 */
     if (m_pages) {
         const QImage img = m_pages->grabPageForTest(m_mgr->currentPage());
         check(QStringLiteral("右栏页面视图不是空图"),
               !img.isNull() && img.width() > 1 && img.height() > 1,
               QStringLiteral("%1x%2").arg(img.width()).arg(img.height()));
         if (!img.isNull()) {
-            int lit = 0, colored = 0;
+            const QRgb litRgb = Preview::monoLit().rgb();
+            const QRgb darkRgb = Preview::monoDark().rgb();
+            int lit = 0, other = 0;
             for (int y = 0; y < img.height(); ++y) {
                 for (int x = 0; x < img.width(); ++x) {
-                    const QColor c = img.pixelColor(x, y);
-                    if (c.red() != c.green() || c.green() != c.blue()) {
-                        ++colored;                 // 不是灰阶 = 彩色残留
-                    } else if (c.red() > 200) {
+                    const QRgb c = img.pixel(x, y) | 0xFF000000u;
+                    if (c == litRgb) {
                         ++lit;
+                    } else if (c != darkRgb) {
+                        ++other;               // 既不是亮也不是灭 = 有残留
                     }
                 }
             }
             check(QStringLiteral("右栏页面视图画出了内容（有点亮像素）"),
                   lit > 20,
                   QStringLiteral("点亮 %1 个像素").arg(lit));
-            check(QStringLiteral("右栏页面视图是单色的（没有彩色块残留）"),
-                  colored == 0,
-                  QStringLiteral("非灰阶像素 %1 个").arg(colored));
+            check(QStringLiteral("右栏页面视图只有亮/灭两种像素"),
+                  other == 0,
+                  QStringLiteral("既非亮也非灭的像素 %1 个").arg(other));
         }
+    }
+
+    /* --- 18f. 进出[全局设置]不许冲掉当前的预览状态 ---
+     * 出过这个 bug：对话框关掉之后无条件读 canvas/defaultZoom、canvas/grid
+     * 两个**没人写**的键，等于每次点确定都把缩放拉回 100%、网格复位。
+     * 用户放大到 400% 编到一半进去看一眼，出来就白放大了。 */
+    {
+        const int zoomBefore = 250;
+        m_mgr->setZoom(zoomBefore);
+        const bool gridBefore = m_mgr->showGrid();
+        m_mgr->applyGlobalSettings();
+        check(QStringLiteral("进出全局设置不改预览缩放"),
+              m_mgr->zoom() == zoomBefore,
+              QStringLiteral("进去前 %1%，出来 %2%").arg(zoomBefore).arg(m_mgr->zoom()));
+        check(QStringLiteral("进出全局设置不改网格开关"),
+              m_mgr->showGrid() == gridBefore,
+              QStringLiteral("进去前 %1，出来 %2")
+                  .arg(gridBefore ? QStringLiteral("开") : QStringLiteral("关"),
+                       m_mgr->showGrid() ? QStringLiteral("开") : QStringLiteral("关")));
+        m_mgr->setZoom(100);
     }
 
     /* --- 18g. 改过参数要算"工程改过" ---
@@ -2076,23 +2207,39 @@ int MainWindow::runOpsTest(QString *report)
 /** 工具栏上那个「画面 2/5 布局_11」。 */
 void MainWindow::refreshScreenLabel()
 {
-    if (!m_screenLabel) {
+    if (!m_screenBox || !m_screenCap) {
         return;
     }
+    /* 重填下拉的过程中 activated 不会发（那是用户操作才发的），但 clear()
+     * 会带出 currentIndexChanged；这里统一屏蔽，免得刷新界面反过来改选中。 */
+    QSignalBlocker block(m_screenBox);
+    m_screenBox->clear();
+
     ScenesScreen *s = m_mgr->currentScreen();
-    if (!s) {
-        m_screenLabel->clear();
+    const QVector<UiNode *> all = s ? s->screens() : QVector<UiNode *>();
+    const int i = s ? s->currentScreenIndex() : -1;
+    if (all.isEmpty()) {
+        m_screenCap->setText(tr("当前画面"));
+        m_screenBox->setEnabled(false);
         return;
     }
-    const QVector<UiNode *> all = s->screens();
-    const int i = s->currentScreenIndex();
-    if (all.isEmpty() || i < 0) {
-        m_screenLabel->setText(tr("画面 -"));
-        return;
+    m_screenBox->setEnabled(true);
+    for (UiNode *n : all) {
+        m_screenBox->addItem(m_mgr->model()->displayName(n));
     }
-    m_screenLabel->setText(tr("画面 %1/%2  %3")
-                           .arg(i + 1).arg(all.size())
-                           .arg(m_mgr->model()->displayName(all.at(i))));
+    m_screenBox->setCurrentIndex(qMax(0, i));
+    /* 「当前画面 2/5」—— 原来那行文字里的序号信息不能丢，挪到标题上 */
+    m_screenCap->setText(tr("当前画面 %1/%2").arg(qMax(0, i) + 1).arg(all.size()));
+
+    /* 宽度：标题和下拉对齐成一小块。取两者所需的较大值，布局名长了也看得全。 */
+    const QFontMetrics fm = m_screenBox->fontMetrics();
+    int w = m_screenCap->fontMetrics()
+                .size(Qt::TextSingleLine, m_screenCap->text()).width();
+    for (int k = 0; k < m_screenBox->count(); ++k) {
+        w = qMax(w, fm.size(Qt::TextSingleLine, m_screenBox->itemText(k)).width()
+                    + kComboArrowWidth);
+    }
+    m_screenBox->setFixedWidth(qBound(60, w, 140));
 }
 
 void MainWindow::onNodeSelected(UiNode *node)
@@ -2111,9 +2258,15 @@ void MainWindow::onNodeSelected(UiNode *node)
 
 void MainWindow::onStatusMessage(const QString &msg)
 {
-    if (m_status) {
-        m_status->setText(msg);
+    if (!m_status) {
+        return;
     }
+    /* 标签限了宽（见 buildToolBar()），长句子自己加省略号，完整内容挂 tooltip。
+     * QLabel 不会自动省略，不处理的话就是硬生生切掉半个字。 */
+    const int budget = kStatusMaxWidth - m_status->contentsMargins().left()
+                       - m_status->contentsMargins().right();
+    m_status->setText(m_status->fontMetrics().elidedText(msg, Qt::ElideRight, budget));
+    m_status->setToolTip(msg);
 }
 
 /**
@@ -2178,6 +2331,122 @@ void MainWindow::onDobuleClickedImage(QListWidgetItem *a0)
         s->setBackgroundImage(path);
     }
     onStatusMessage(a0->text());
+}
+
+/**
+ * 导出前的公共部分：拿到工程 json 的路径，必要时先存盘。
+ *
+ * 【为什么一定要先存】下游读的是**磁盘上的 json**，不是编辑器内存里的模型。
+ * 不先存，导出的就是上一次保存时的样子。
+ *
+ * @return 工程 json 的绝对路径；空表示用户取消或工程还没保存过。
+ */
+QString MainWindow::prepareExport()
+{
+    const QString json = m_mgr->model()->filePath();
+    if (json.isEmpty()) {
+        QMessageBox::warning(this, tr("资源导出"),
+                             tr("工程还没保存过，先「保存工程」再导出."));
+        return QString();
+    }
+    if (!m_mgr->model()->dirty()) {
+        return json;
+    }
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("资源导出"));
+    box.setText(tr("工程有改动还没保存，导出读的是磁盘上的文件.\n先保存吗?"));
+    QAbstractButton *save = box.addButton(tr("保存并导出"), QMessageBox::AcceptRole);
+    QAbstractButton *skip = box.addButton(tr("直接导出"), QMessageBox::DestructiveRole);
+    box.addButton(tr("取消"), QMessageBox::RejectRole);
+    box.exec();
+    if (box.clickedButton() == save) {
+        m_mgr->onSaveProject();
+        return m_mgr->model()->dirty() ? QString() : json;   // 存盘被取消就别导
+    }
+    return (box.clickedButton() == skip) ? json : QString();
+}
+
+/**
+ * 工具栏「资源导出」—— 点了**直接跑**，不弹界面。
+ *
+ * 跑的是 QtToolBin.exe 里的同一个 ToolBinWindow（CMake 里两个目标共用这几个
+ * 源文件），只是这里把它造出来不显示、直接调 runHeadless()：读
+ * config\ini\project.ini、写 project.bin / ename.h / Resbuilder.xml /
+ * debug.txt、调 ResBuilder.exe、再跑收尾脚本 —— 和 step2 那条路一字不差。
+ *
+ * 结果写在工具栏末尾那句状态文字上（原厂那一排也是在这儿报「编译成功」）；
+ * 只有失败才弹框，并把完整输出附在详情里。
+ */
+void MainWindow::onExportResource()
+{
+    const QString json = prepareExport();
+    if (json.isEmpty()) {
+        return;
+    }
+
+    onStatusMessage(tr("正在导出资源…"));
+    /* 这一趟是同步的（要等 ResBuilder 和收尾脚本），先把状态文字刷出去，
+     * 不然用户点完看到的还是上一句。 */
+    QApplication::processEvents();
+
+    /* 有父窗口、never show() —— 界面不会出现，析构时自己从父窗口摘掉 */
+    ToolBinWindow page(QFileInfo(json).absolutePath(), this);
+    QString log;
+    const bool ok = page.runHeadless(&log);
+
+    if (ok) {
+        onStatusMessage(tr("资源导出完成"));
+        /* 完整输出挂 tooltip 上，想看细节鼠标停一下就行，不打断操作 */
+        if (m_status) {
+            m_status->setToolTip(log);
+        }
+        return;
+    }
+
+    onStatusMessage(tr("资源导出失败"));
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Critical);
+    box.setWindowTitle(tr("资源导出"));
+    box.setText(tr("资源导出失败，点「显示详细信息」看完整输出."));
+    box.setDetailedText(log);
+    box.exec();
+}
+
+bool MainWindow::exportResourceForTest(QString *report)
+{
+    const QString json = m_mgr->model()->filePath();
+    if (json.isEmpty()) {
+        if (report) {
+            *report = QStringLiteral("工程没有文件路径，先 openProject()");
+        }
+        return false;
+    }
+    ToolBinWindow page(QFileInfo(json).absolutePath(), this);
+    page.setRunScriptEnabled(false);      // 别往固件工程里拷东西
+    return page.runHeadless(report);
+}
+
+/**
+ * 右键菜单「资源导出设置…」—— 弹出 UIToolBin 那一页。
+ *
+ * 工程ID、不重新生成资源、调用脚本、旋转、版本配置、功能设置这些只有这一页
+ * 能改；改完在这一页上点「生成资源文件」，和工具栏那个按钮跑的是同一条链。
+ */
+void MainWindow::onExportResourceDialog()
+{
+    const QString json = prepareExport();
+    if (json.isEmpty()) {
+        return;
+    }
+    QDialog dlg(this);
+    auto *page = new ToolBinWindow(QFileInfo(json).absolutePath(), &dlg);
+    dlg.setWindowTitle(page->windowTitle());
+    auto *lay = new QVBoxLayout(&dlg);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->addWidget(page);
+    dlg.resize(page->size());
+    dlg.exec();
 }
 
 void MainWindow::onDumpSty()

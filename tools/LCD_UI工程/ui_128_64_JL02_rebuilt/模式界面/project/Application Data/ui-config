@@ -6,3 +6,7 @@ ImageDir=config
 LangugeFile=../../../UITools_rebuilt/\x591a\x56fd\x8bed\x8a00_128_64.xls
 TemplateJson=../../../UITools_rebuilt/control/control.json
 LastOpen=@ByteArray(./SmallColorTFT.json)
+
+[Preview]
+LitColor=#bada02
+DarkColor=#565821

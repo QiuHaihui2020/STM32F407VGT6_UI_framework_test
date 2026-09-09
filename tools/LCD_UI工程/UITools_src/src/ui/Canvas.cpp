@@ -1,4 +1,5 @@
 #include "Canvas.h"
+#include "Preview.h"
 
 #include <QSettings>
 
@@ -38,9 +39,9 @@
 /* ===================== ScenesScreen ===================== */
 
 ScenesScreen::ScenesScreen(QWidget *parent)
-    /* 单色屏灭的时候就是黑的，画布底色跟着来 —— 这样画布上看到的
+    /* 页底色 = 像素熄灭的颜色（[全局设置]里配），这样画布上看到的
      * 明暗关系就是屏上的明暗关系。 */
-    : QFrame(parent), m_bg(QColor(0x10, 0x10, 0x10))
+    : QFrame(parent), m_bg(Preview::monoDark())
 {
     setFrameShape(QFrame::Box);
     setFrameShadow(QFrame::Plain);
@@ -722,13 +723,22 @@ void CanvasManager::stepScreen(int delta)
     if (!s) {
         return;
     }
+    const int cur = qMax(0, s->currentScreenIndex());
+    gotoScreen(cur + delta);
+}
+
+void CanvasManager::gotoScreen(int index)
+{
+    ScenesScreen *s = currentScreen();
+    if (!s) {
+        return;
+    }
     const QVector<UiNode *> all = s->screens();
     if (all.isEmpty()) {
         return;
     }
-    const int cur = qMax(0, s->currentScreenIndex());
-    const int to = qBound(0, cur + delta, all.size() - 1);
-    if (to == cur && delta != 0) {
+    const int to = qBound(0, index, all.size() - 1);
+    if (to == s->currentScreenIndex()) {
         return;
     }
     s->selectNode(all.at(to));
@@ -958,9 +968,31 @@ void CanvasManager::onGlobalBtn()
     if (dlg.exec() != QDialog::Accepted) {
         return;
     }
-    // 设置立刻生效：网格开关和间距都在这里
-    m_showGrid = GlobalSettings::value(QStringLiteral("canvas/grid"), 1).toInt() != 0;
-    setZoom(GlobalSettings::value(QStringLiteral("canvas/defaultZoom"), 100).toInt());
+    applyGlobalSettings();
+}
+
+void CanvasManager::applyGlobalSettings()
+{
+    /* 【这里只碰[全局设置]里真有的项】
+     *
+     * 以前这儿还有两行：
+     *     m_showGrid = GlobalSettings::value("canvas/grid", 1).toInt() != 0;
+     *     setZoom(GlobalSettings::value("canvas/defaultZoom", 100).toInt());
+     * 这两个键是早先那版**自己编的**全局设置留下的残骸。界面照原厂重做之后
+     * （五条路径 + 界面尺寸），对话框里根本没有网格和缩放这两项，也就没人写
+     * 这两个键 —— 每次读到的都是默认值。结果是：放大到 400% 编到一半，进一次
+     * [全局设置]再出来，缩放被拉回 100%、网格开关也被复位。用户什么都没改，
+     * 状态却被冲掉了。删掉。
+     *
+     * 剩下的点阵屏预览配色是本版新加的、对话框里确实有的项，立刻生效 ——
+     * 它只影响画面怎么画，和原厂那句"更新设置要重启软件才能生效"管的
+     * 那几条路径不是一回事，配颜色本来就得一边改一边看。 */
+    Preview::reloadMonoColors();
+    for (ScenesScreen *sc : m_screens) {
+        sc->setBackgroundColor(Preview::monoDark());
+        sc->rebuild();
+    }
+    emit previewStyleChanged();
     emit statusMessage(tr("全局设置已保存"));
 }
 

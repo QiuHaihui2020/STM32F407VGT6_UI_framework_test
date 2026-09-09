@@ -68,6 +68,15 @@ add_executable(UITools WIN32
     # 画布上看到的就是烧进设备的那份点阵
     src/res/TextRaster.cpp
     src/res/ResConfig.cpp
+    # 工具栏上的「资源导出」直接嵌 QtToolBin 那一页 —— 两个目标共用同一份
+    # 源码，导出走的就是 step2 那条链，不会两边各跑一套逻辑跑出两种产物
+    src/qttoolbin/ToolBinWindow.cpp
+    src/qttoolbin/ToolBinWindow.h
+    src/qttoolbin/FeatureDialog.cpp
+    src/qttoolbin/FeatureDialog.h
+    src/qttoolbin/ResbuilderOptions.cpp
+    src/qttoolbin/ResbuilderOptions.h
+    src/sty/StyBuilder.cpp
     ${UITOOLS_CORE}
     ${UITOOLS_UI}
     ${UITOOLS_GEN}
@@ -79,6 +88,8 @@ target_include_directories(UITools PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/res
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sty
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/qttoolbin
 )
 
 target_link_libraries(UITools PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
@@ -136,11 +147,19 @@ add_executable(QtToolBin WIN32
     src/qttoolbin/main.cpp
     src/qttoolbin/ToolBinWindow.cpp
     src/qttoolbin/ToolBinWindow.h
+    src/qttoolbin/FeatureDialog.cpp
+    src/qttoolbin/FeatureDialog.h
+    src/qttoolbin/ResbuilderOptions.cpp
+    src/qttoolbin/ResbuilderOptions.h
+    src/res/ResConfig.cpp
+    src/res/ResConfig.h
     src/sty/StyBuilder.cpp
 )
 target_include_directories(QtToolBin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sty
     ${CMAKE_CURRENT_SOURCE_DIR}/src/qttoolbin
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/res
 )
 target_link_libraries(QtToolBin PRIVATE
     Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)

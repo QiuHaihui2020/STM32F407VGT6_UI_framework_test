@@ -7,7 +7,8 @@
  * 两个名字都保留原样 —— 改了就对不上元数据。
  *
  * 【布局照原厂复刻】跑原厂 exe 截图比对得到：
- *   - **没有菜单栏**，只有一排"图标+文字"的工具栏按钮，末尾跟一个状态文字标签
+ *   - **没有菜单栏**，只有一排"图标在上、文字在下"的工具栏按钮，末尾跟一个状态文字标签
+ *     （版式见 temp/Snipaste_2026-09-09_08-46-05.jpg）
  *       新建工程(P) 打开工程(O) 保存工程(S) 另存为(A) │ 新建页面(N) 删除当前页(D)
  *       │ 截屏(P) │ 全局设置 工程缩放 │ 关于(I)      初始化编辑环境完成
  *   - 左边两列 dock：TreeDock（结点/属性/ID号 三列树）+ 第二列（控件列表 + 属性区）
@@ -57,6 +58,15 @@ public:
     int dumpPreviewForTest(const QString &dir);
 
     /**
+     * 自测用：走工具栏「资源导出」那条路（不弹任何界面）。
+     *
+     * 和 onExportResource() 的差别只有两处：不弹存盘确认（工程刚读进来不脏），
+     * **不跑收尾脚本** —— copy_file.bat 会往固件工程里拷文件，无人值守时不能碰。
+     * @return 全程成功；report 里是完整输出。
+     */
+    bool exportResourceForTest(QString *report);
+
+    /**
      * 自测用：把"操作逻辑与限制"整套跑一遍（见 main.cpp 的 --ops-test）。
      *
      * 这些规则原厂是靠弹框拦人的，弹框在无人值守下会把进程挂死，所以跑之前
@@ -84,8 +94,14 @@ private slots:
     /** 刷新工具栏上的画面指示。 */
     void refreshScreenLabel();
     void onDumpSty();
+    /** 工具栏「资源导出(F5)」：不弹界面，直接跑完整条生成链。 */
+    void onExportResource();
+    /** 右键菜单「资源导出设置…」：弹 UIToolBin 那一页，改工程ID/脚本/功能设置。 */
+    void onExportResourceDialog();
 
 private:
+    /** 导出前的公共部分：取工程 json 路径，必要时先存盘。空 = 别继续。 */
+    QString prepareExport();
     void refreshPropertyContext(const QString &projectJson);
     void buildToolBar();
     void buildDocks();
@@ -102,7 +118,8 @@ private:
     ComProperty      *m_com = nullptr;
     findDlg          *m_find = nullptr;        ///< 查找对像框，非模态，复用同一个
     QComboBox        *m_zoomBox = nullptr;     ///< 工具栏末尾的缩放下拉（原厂没有）
-    QLabel           *m_screenLabel = nullptr; ///< 「画面 2/5 布局_11」
+    QComboBox        *m_screenBox = nullptr;   ///< 「当前画面」下拉（原厂没有）
+    QLabel           *m_screenCap = nullptr;   ///< 上面那行「当前画面 2/5」
     QLabel           *m_status = nullptr;      ///< 工具栏末尾的状态文字
 };
 

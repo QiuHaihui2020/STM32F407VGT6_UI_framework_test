@@ -61,10 +61,11 @@ bool ResConfig::load(const QString &path, QString *error)
     f.close();
     baseDir = QFileInfo(path).absolutePath();
 
-    // 编码陷阱：原厂写的 XML 头声明 encoding='UTF-8'，但里面的中文路径其实是
-    // **本地代码页**（GBK）字节 —— 原厂自己是按 ANSI 读回去的，所以一直没事。
-    // 直接按 UTF-8 解会得到一堆 U+FFFD，后面找不到图片。这里先验一下是不是
-    // 合法 UTF-8，不是就按本地代码页解，然后把 QString 直接喂给 reader
+    // 编码：原厂写的确实是 UTF-8（原厂随工具发的 UITools/Resbuilder.xml 里
+    // "多"是 E5 A4 9A、"宋体"是 E5 AE 8B E4 BD 93），和 XML 头声明的一致。
+    // 但历史上本工具自己写出过 GBK 的版本（toLocal8Bit，见 StyBuilder.cpp 里
+    // 那段说明），所以读的时候仍然两种都认：先按 UTF-8 试，解出替换字符或者
+    // 回写对不上原字节就改按本地代码页。然后把 QString 直接喂给 reader
     // （给 QString 时 QXmlStreamReader 不再看编码声明）。
     QString text = QString::fromUtf8(raw);
     if (text.contains(QChar(0xFFFD)) || text.toUtf8() != raw) {
