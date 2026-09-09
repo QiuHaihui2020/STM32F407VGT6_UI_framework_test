@@ -12,3 +12,4 @@ build/
 *.iex
 *.dbgconf
 __pycache__/
+dcx2496_uires/

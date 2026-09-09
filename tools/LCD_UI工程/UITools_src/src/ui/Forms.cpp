@@ -129,7 +129,16 @@ FormResizer::FormResizer(QWidget *parent)
     m_lastGeo = geometry();
 }
 
-FormResizer::~FormResizer() = default;
+FormResizer::~FormResizer()
+{
+    /* 手柄挂在父控件上，Qt 不会跟着本对象一起销毁 —— 不删的话它们会留在
+     * 画布上，m_target 还指着刚释放的本对象。画布每缩放一次都会 rebuild，
+     * 孤儿手柄越攒越多，之后任何一次重绘/截图都在踩已释放内存。 */
+    for (const QPointer<SizeHandleRect> &h : m_handles) {
+        delete h.data();                 // QPointer 已置空的（父控件先走）跳过
+    }
+    m_handles.clear();
+}
 
 void FormResizer::createHandles()
 {
@@ -146,10 +155,23 @@ void FormResizer::createHandles()
 
 void FormResizer::layoutHandles()
 {
-    for (SizeHandleRect *h : m_handles) {
+    for (const QPointer<SizeHandleRect> &h : m_handles) {
+        if (!h) {
+            continue;
+        }
         h->updatePosition();
-        h->setVisible(m_selected);
+        h->setVisible(m_selected && m_showChrome);
     }
+}
+
+void FormResizer::setShowChrome(bool on)
+{
+    if (m_showChrome == on) {
+        return;
+    }
+    m_showChrome = on;
+    layoutHandles();               // 手柄是独立子窗口，得单独收起来
+    update();
 }
 
 void FormResizer::setSelected(bool on)
@@ -352,11 +374,31 @@ void BaseForm::paintEvent(QPaintEvent *)
         }
     }
 
+    /* 背景图片：css 里的 background-image。
+     * 【这是屏上真会画的东西】StyBuilder 把它编进 css 的 +24 字段（图片资源号），
+     * 固件按那个号取图铺在控件底下。以前画布压根不画它 —— 用户在属性面板里
+     * 选完图，画布上什么变化都没有，看着就像"设置不生效"。
+     * 铺在填充之上、内容之下，和固件的层次一致。 */
+    if (m_node) {
+        const QString bgi = m_node->cssField(0, QStringLiteral("background_image"),
+                                             QStringLiteral("background-image")).toString();
+        const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit());
+        if (!bg.isNull()) {
+            const int z = qMax(1, m_zoom);
+            p.drawPixmap(0, 0, bg.width() * z / 100, bg.height() * z / 100, bg);
+        }
+    }
+
     /* 内边框线：宽度和颜色都在 css 里，颜色只决定"画不画"（和背景相反） */
     paintBorder(p);
 
     /* ---- 以下是编辑器自己的辅助线，不是屏上的东西 ----
-     * 用细虚线 + 半透明，别和内容抢眼。选中时才实线。 */
+     * 用细虚线 + 半透明，别和内容抢眼。选中时才实线。
+     * 工具栏的「隐藏辅助线」关掉的就是这一段 —— 放大之后这些描边比内容还显眼，
+     * 想看真实效果就得能藏起来。 */
+    if (!m_showChrome) {
+        return;
+    }
     QPen pen(isSelected() ? QColor(0x2b, 0x7d, 0xd1) : QColor(255, 255, 255, 60));
     pen.setStyle(isSelected() ? Qt::SolidLine : Qt::DotLine);
     p.setPen(pen);
@@ -398,7 +440,9 @@ void BaseForm::paintBorder(QPainter &p)
     }
     p.save();
     p.setPen(Qt::NoPen);
-    p.setBrush(Qt::white);
+    /* 内边框是**屏上真画出来的东西**（jlui_draw_rect），所以用点亮色，
+     * 不是写死白色 —— 和填充、文字走同一套配色。 */
+    p.setBrush(Preview::monoLit());
     if (l > 0) {
         p.drawRect(QRect(0, 0, l, height()));
     }
@@ -891,6 +935,10 @@ void NewList::onAddManyLine()
             row->markDirty();
         }
         row->name = EditorOps::uniqueName(m_node, row->name);
+        /* 【ID 号也要重分配】行是从第一行整棵克隆出来的，ename 一起带过来了；
+         * 不换的话 ename.h 里同一个宏会 #define 好几次，业务代码引用到哪一个
+         * 全看运气。和粘贴是同一类问题，走同一个函数。 */
+        EditorOps::reassignEnames(row, m_node);
         m_node->children.append(qMakePair(QStringLiteral("listwidget"), row));
     }
     m_node->markDirty();

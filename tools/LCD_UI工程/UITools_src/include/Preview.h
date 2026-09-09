@@ -61,6 +61,13 @@ void reloadMonoColors();
 QString stringOf(const QString &resId, int langIndex = 0);
 
 /**
+ * 按工程里存的图片路径（相对工程目录，如 "config/pic_lcd/v_block.bmp"）
+ * 取它的单色位图。给 css 的"背景图片"用 —— 那也是屏上真会画出来的东西。
+ * 路径为空、文件不在都返回空 QPixmap。
+ */
+QPixmap pictureOf(const QString &path, const QColor &lit);
+
+/**
  * 把一个节点的"内容"画成位图，画布按控件矩形贴上去。
  * 画不出来（没有可画的内容、图片缺失…）就返回空 QPixmap，调用方照旧只画框。
  * @param lit 点亮像素用的颜色

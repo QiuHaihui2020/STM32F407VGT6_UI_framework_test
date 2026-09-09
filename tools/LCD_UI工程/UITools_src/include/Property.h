@@ -101,6 +101,9 @@ private:
     QPushButton *m_pick = nullptr;
     QPushButton *m_clear = nullptr;
     QString      m_path;
+    QString      m_caption;      ///< 没选图时按钮上显示的字
+    /** 按当前 m_path 刷新按钮的样子（缩略图 / 提示文字）。 */
+    void refreshFace();
 };
 
 /** "背景颜色" 行。 */
@@ -257,6 +260,11 @@ public:
 
     /** 自测：当前的警告正文（空 = 没有警告）。 */
     QString warningTextForTest() const { return m_tipText; }
+    /** 自测用：只把字填进 ID 输入框并让它拿到焦点，**不**触发提交 ——
+     *  模拟"用户刚敲完还没点别处"。配合 EditorOps::commitPendingEdit() 用。 */
+    void typeIdForTest(const QString &text);
+    /** 自测用：ID 输入框里当前显示的字。 */
+    QString idTextForTest() const;
     /**
      * 自测：把警告气泡真弹一次，返回"文字放得下吗"。
      *

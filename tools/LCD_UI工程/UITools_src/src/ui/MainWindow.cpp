@@ -19,6 +19,7 @@
 #include "findDlg.h"
 #include "I18nLanguage.h"
 #include "ImageFileDialog.h"
+#include "ImageListView.h"
 #include "ToolBinWindow.h"
 
 #include <QAction>
@@ -393,6 +394,15 @@ void MainWindow::buildToolBar()
     connect(aSolo, &QAction::toggled, m_mgr, &CanvasManager::setSolo);
     viewLay->addWidget(compactBtn(aSolo));
 
+    auto *aChrome = new QAction(tr("隐藏辅助线"), this);
+    aChrome->setCheckable(true);
+    aChrome->setToolTip(tr("把编辑器自己画的控件描边、选中框、控件名和像素网格"
+                           "全藏起来，画布上只剩屏上真会显示的像素。"
+                           "放大看真实效果时用，藏起来就点不准控件了，看完记得关掉"));
+    connect(aChrome, &QAction::toggled, this,
+            [this](bool on) { m_mgr->setShowChrome(!on); });
+    viewLay->addWidget(compactBtn(aChrome));
+
     /* 画面导航：单独预览一次只看一个，得能快速切，不然找"音量界面在哪个布局"
      * 要去树里一个个猜。版式和上面的「预览缩放」一致 —— 标题在上、下拉在下。
      * 【没有左右箭头】下拉本身就能直接跳到任意一个，箭头是多余的一步；
@@ -486,6 +496,10 @@ void MainWindow::setToolsRoot(const QString &path)
 
 void MainWindow::closeEvent(QCloseEvent *e)
 {
+    /* 退出前也要提交：不然"改完直接点叉"会把改动连同"要不要保存"的提示
+     * 一起吞掉 —— 模型没被标脏，工具会以为没什么可存的。 */
+    EditorOps::commitPendingEdit();
+
     /* ★ 原厂退出要问两次：先"是否真的退出程序?"，再问没保存的改动。
      * 重建版之前是直接关，改了一下午的东西点个叉就没了。 */
     QMessageBox box(this);
@@ -612,6 +626,11 @@ void MainWindow::refreshTitle()
     setWindowTitle(tr("UI编辑工具(Build:%1) %2%3")
                    .arg(common::buildDate(), m_mgr->model()->name(),
                         m_mgr->model()->dirty() ? QStringLiteral(" *") : QString()));
+}
+
+void MainWindow::setShowChromeForTest(bool on)
+{
+    m_mgr->setShowChrome(on);
 }
 
 void MainWindow::setCanvasZoomForTest(int percent)
@@ -788,19 +807,35 @@ int MainWindow::runOpsTest(QString *report)
         }
     };
 
-    ScenesScreen *sc = m_mgr->currentScreen();
-    if (!sc || !sc->page()) {
-        *report = QStringLiteral("没有可测的页面");
-        return 1;
+    /* 【别死盯当前页】activePage 是工程里存的，用户上次停在哪一页就是哪一页 ——
+     * 新建一个空页面存盘之后，当前页就是那个空页，整套测试直接报"缺样本"。
+     * 这里挑第一个凑齐图层/布局/控件样本的页来测。 */
+    ScenesScreen *sc = nullptr;
+    UiNode *page = nullptr;
+    UiNode *layer = nullptr, *layout = nullptr, *frame = nullptr, *list = nullptr;
+    for (int pi = 0; pi < m_mgr->model()->pages().size(); ++pi) {
+        ScenesScreen *cand = m_mgr->screen(pi);
+        if (!cand || !cand->page()) {
+            continue;
+        }
+        UiNode *pg = cand->page();
+        UiNode *la = firstOfClass(pg, "NewLayer");
+        UiNode *lo = firstOfClass(pg, "NewLayout");
+        UiNode *fr = firstOfClass(pg, "NewFrame");
+        if (!la || !lo || !fr) {
+            continue;
+        }
+        m_mgr->setCurrentPage(pi);
+        sc = cand;
+        page = pg;
+        layer = la;
+        layout = lo;
+        frame = fr;
+        list = firstOfClass(pg, "NewList");
+        break;
     }
-    UiNode *page = sc->page();
-
-    UiNode *layer  = firstOfClass(page, "NewLayer");
-    UiNode *layout = firstOfClass(page, "NewLayout");
-    UiNode *frame  = firstOfClass(page, "NewFrame");
-    UiNode *list   = firstOfClass(page, "NewList");
-    if (!layer || !layout || !frame) {
-        *report = QStringLiteral("工程里缺图层/布局/控件样本，测不了");
+    if (!sc) {
+        *report = QStringLiteral("工程里没有一页凑齐图层/布局/控件样本，测不了");
         return 1;
     }
 
@@ -898,6 +933,56 @@ int MainWindow::runOpsTest(QString *report)
         }
     }
 
+    /* 【补一次事件循环】上面那串增删操作用的是 deleteLater()，真实交互里
+     * 事件循环一直在转、旧对象立刻就回收了；--ops-test 是一口气跑完的，
+     * 不补这一下，后面抓画布时旧控件还堆着。 */
+    QApplication::processEvents();
+
+    /* --- 18e. 「隐藏辅助线」要真的把辅助线藏掉 ---
+     * 判据：关掉之后整页画出来的像素**只能是**点亮色或熄灭色 —— 虚线描边是
+     * 半透明白、选中框和 8 个缩放手柄是蓝色、像素网格是灰，都不属于这两种。
+     * 开着的时候则必然有别的颜色。
+     *
+     * 【抓整页，别抓单个 BaseForm】BaseForm 没开 autoFillBackground，
+     * QWidget::grab() 不会先清底，没画到的地方是未初始化内存 —— 拿它算像素
+     * 等于测垃圾，开关翻不翻数字都一样。ScenesScreen 会 fillRect(m_bg)。
+     * 页面四周那圈 QFrame::Box 边框不是内容，往里缩 2px 避开。 */
+    if (ScenesScreen *sc2 = m_mgr->currentScreen()) {
+        auto offPalette = [](const QImage &im) {
+            const QRgb l = Preview::monoLit().rgb();
+            const QRgb d = Preview::monoDark().rgb();
+            int n = 0;
+            for (int y = 2; y < im.height() - 2; ++y) {
+                for (int x = 2; x < im.width() - 2; ++x) {
+                    const QRgb c = im.pixel(x, y) | 0xFF000000u;
+                    if (c != l && c != d) {
+                        ++n;
+                    }
+                }
+            }
+            return n;
+        };
+        /* 【别在这儿改倍率】setZoom() 会让每一页 rebuild()，把所有 BaseForm
+         * 删了重建 —— 本函数里别处还攥着 BaseForm 指针，改完就是野指针，
+         * 实测直接 0xC0000005/0xC0000374。像素网格要 >=300% 才画，这里看不到，
+         * 但虚线描边和 8 个手柄在 100% 一样在，够判定了。 */
+        const QVector<UiNode *> allScreens2 = sc2->screens();
+        if (!allScreens2.isEmpty()) {
+            sc2->selectNode(allScreens2.first());
+        }
+        m_mgr->setShowChrome(true);
+        const int withChrome = offPalette(sc2->grab().toImage());
+        m_mgr->setShowChrome(false);
+        const int without = offPalette(sc2->grab().toImage());
+        m_mgr->setShowChrome(true);
+        check(QStringLiteral("辅助线开着时画面上有非亮/灭的像素（描边/手柄）"),
+              withChrome > 0,
+              QStringLiteral("%1 个").arg(withChrome));
+        check(QStringLiteral("隐藏辅助线之后整页只剩亮/灭两种像素"),
+              without == 0,
+              QStringLiteral("还剩 %1 个非亮/灭像素").arg(without));
+    }
+
     /* --- 7. 宽高不能为零 --- */
     sc->rebuild();
     if (BaseForm *f = sc->formFor(frame)) {
@@ -993,13 +1078,22 @@ int MainWindow::runOpsTest(QString *report)
                   landed ? landed->cls : QString());
             if (landed && !landed->children.isEmpty()) {
                 UiNode *drop = landed->children.last().second;
-                const QPoint want = lf->mapTo(sc, lf->rect().center())
-                                    - sc->formFor(landed)->mapTo(sc, QPoint(0, 0));
-                check(QStringLiteral("落点写进了新控件的 rect"),
-                      drop->rectOf(0).topLeft() == want,
-                      QStringLiteral("rect=(%1,%2) 期望=(%3,%4)")
-                          .arg(drop->rectOf(0).x()).arg(drop->rectOf(0).y())
-                          .arg(want.x()).arg(want.y()));
+                /* 【必须重新取 BaseForm】拖放建出了新节点 = 结构变了，画布会
+                 * 整体 rebuild()，上面那个 lf 已经从画布上摘下来了 ——
+                 * 再拿它 mapTo(sc, …) 会一路往上找不到 sc，走到空指针。 */
+                BaseForm *lf2 = sc->formFor(layout);
+                BaseForm *landedForm = sc->formFor(landed);
+                check(QStringLiteral("结构变化后画布上还找得到这两个布局"),
+                      lf2 != nullptr && landedForm != nullptr);
+                if (lf2 && landedForm) {
+                    const QPoint want = lf2->mapTo(sc, lf2->rect().center())
+                                        - landedForm->mapTo(sc, QPoint(0, 0));
+                    check(QStringLiteral("落点写进了新控件的 rect"),
+                          drop->rectOf(0).topLeft() == want,
+                          QStringLiteral("rect=(%1,%2) 期望=(%3,%4)")
+                              .arg(drop->rectOf(0).x()).arg(drop->rectOf(0).y())
+                              .arg(want.x()).arg(want.y()));
+                }
             }
         }
 
@@ -2113,6 +2207,59 @@ int MainWindow::runOpsTest(QString *report)
         }
     }
 
+    /* --- 18i. 背景图片：弹窗给相对路径，而且画布真的画出来 ---
+     * 出过的问题：这一行点开的是系统文件对话框，回来的是**绝对路径**，
+     * 而工程 json 里存的是 "config/pic_lcd/v_block.bmp" 这种相对工程目录的
+     * 形式；再加上画布压根没画 background-image —— 用户选完图什么都没发生，
+     * 看着就是"设置不了"。原厂点开的是 ImageListView（标题
+     * "图片编辑(双击选中图片并更新到控件)"，见 docs/FACTORY_UI.md 8.6）。 */
+    {
+        const QString projDir = QFileInfo(m_mgr->model()->filePath()).absolutePath();
+        ImageListView dlg(this);
+        dlg.setProjectDir(projDir);
+        check(QStringLiteral("背景图片弹窗列得出图片"),
+              dlg.imageCountForTest() > 0,
+              QStringLiteral("%1 张").arg(dlg.imageCountForTest()));
+        const bool picked = dlg.pickForTest(0);
+        check(QStringLiteral("双击能选中一张图"), picked, dlg.selected());
+        const QString rel = dlg.selected();
+        check(QStringLiteral("弹窗给的是相对工程目录的路径，不是绝对路径"),
+              !rel.isEmpty() && !QFileInfo(rel).isAbsolute()
+              && QFileInfo(QDir(projDir).filePath(rel)).exists(),
+              rel);
+
+        /* 写进布局的 css，画布上必须多出点亮像素 */
+        auto litCount = [](const QImage &im) {
+            const QRgb l = Preview::monoLit().rgb();
+            int n = 0;
+            for (int y = 0; y < im.height(); ++y) {
+                for (int x = 0; x < im.width(); ++x) {
+                    if ((im.pixel(x, y) | 0xFF000000u) == l) {
+                        ++n;
+                    }
+                }
+            }
+            return n;
+        };
+        const QString keep = layout->cssField(0, QStringLiteral("background_image"),
+                                              QStringLiteral("background-image")).toString();
+        const int litBefore = litCount(sc->grab().toImage());
+        const bool wrote = layout->setCssField(0, QStringLiteral("background_image"),
+                                               QStringLiteral("background-image"), rel);
+        check(QStringLiteral("背景图片写得进 css"), wrote);
+        if (wrote) {
+            sc->rebuild();
+            const int litAfter = litCount(sc->grab().toImage());
+            check(QStringLiteral("设了背景图片，画布上真的多出点亮像素"),
+                  litAfter > litBefore,
+                  QStringLiteral("设之前 %1 -> 设之后 %2").arg(litBefore).arg(litAfter));
+            /* 还原，别把这一项留在工程里 */
+            layout->setCssField(0, QStringLiteral("background_image"),
+                                QStringLiteral("background-image"), keep);
+            sc->rebuild();
+        }
+    }
+
     /* --- 18f. 进出[全局设置]不许冲掉当前的预览状态 ---
      * 出过这个 bug：对话框关掉之后无条件读 canvas/defaultZoom、canvas/grid
      * 两个**没人写**的键，等于每次点确定都把缩放拉回 100%、网格复位。
@@ -2183,6 +2330,76 @@ int MainWindow::runOpsTest(QString *report)
         refreshTitle();
         check(QStringLiteral("存过之后 * 会消失"),
               !windowTitle().contains(QLatin1Char('*')), windowTitle());
+    }
+
+    /* --- 18j. 新建的控件必须自带一个唯一的 ID 号 ---
+     * 原厂建出来"唯一ID号"就是填好的（BaseForm / BaseForm_1 / …），空着的话
+     * 生成资源时这个控件拿不到 ename.h 里的宏，业务代码引用不到它。 */
+    {
+        onNodeSelected(layout);
+        const int n0 = countNodes(page);
+        m_components->createControl(QStringLiteral("NewFrame"), QStringLiteral("Text"),
+                                    QStringLiteral("文字"));
+        check(QStringLiteral("建出来了"), countNodes(page) == n0 + 1);
+        UiNode *made = layout->children.isEmpty() ? nullptr
+                                                  : layout->children.last().second;
+        QString madeEname;
+        if (made) {
+            for (const UiProperty &pp : made->props) {
+                if (pp.name == QLatin1String("id")) {
+                    madeEname = pp.ename;
+                    break;
+                }
+            }
+        }
+        check(QStringLiteral("新建控件自带默认 ID 号（不是空的）"),
+              !madeEname.isEmpty(), madeEname);
+        /* 全工程不许重名 —— 重了就是两个宏撞一起 */
+        QHash<QString, int> seen;
+        int dup = 0;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                for (const UiProperty &pp : x->props) {
+                    if (pp.name == QLatin1String("id") && !pp.ename.isEmpty()) {
+                        if (++seen[pp.ename.toUpper()] > 1) {
+                            ++dup;
+                        }
+                    }
+                }
+                return true;
+            });
+        }
+        QStringList dupNames;
+        for (auto it = seen.constBegin(); it != seen.constEnd(); ++it) {
+            if (it.value() > 1) {
+                dupNames << QStringLiteral("%1 x%2").arg(it.key()).arg(it.value());
+            }
+        }
+        check(QStringLiteral("ID 号全工程唯一（大小写不敏感）"), dup == 0,
+              dupNames.join(QLatin1String(", ")));
+    }
+
+    /* --- 18k. 改完不点别处就保存，也得算数 ---
+     * 属性面板的输入框是 editingFinished 才写回模型，而工具栏按钮是 NoFocus，
+     * 点"保存"不会让输入框失焦 —— 用户改完直接点保存，值就丢了。
+     * 保存/导出/退出前统一调 EditorOps::commitPendingEdit() 兜住。 */
+    {
+        onNodeSelected(frame);
+        const QString probe = QStringLiteral("OPSTEST_ENAME_1");
+        m_com->typeIdForTest(probe);
+        auto enameOfFrame = [frame]() {
+            for (const UiProperty &pp : frame->props) {
+                if (pp.name == QLatin1String("id")) {
+                    return pp.ename;
+                }
+            }
+            return QString();
+        };
+        check(QStringLiteral("刚敲完还没提交时，模型里确实还是旧值"),
+              enameOfFrame() != probe, enameOfFrame());
+        EditorOps::commitPendingEdit();
+        check(QStringLiteral("保存前的强制提交能把输入框里的值写进模型"),
+              enameOfFrame() == probe, enameOfFrame());
     }
 
     /* --- 19. 这一通改完，工程还得能存能读 --- */
@@ -2343,6 +2560,8 @@ void MainWindow::onDobuleClickedImage(QListWidgetItem *a0)
  */
 QString MainWindow::prepareExport()
 {
+    /* 改完参数直接点"资源导出"也要算数 —— 见 EditorOps::commitPendingEdit() */
+    EditorOps::commitPendingEdit();
     const QString json = m_mgr->model()->filePath();
     if (json.isEmpty()) {
         QMessageBox::warning(this, tr("资源导出"),

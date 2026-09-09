@@ -17,6 +17,7 @@
 #ifndef FORMS_H
 #define FORMS_H
 
+#include <QPointer>
 #include <QWidget>
 #include <QRect>
 #include <QPoint>
@@ -58,7 +59,9 @@ protected:
 
 private:
     Direction m_dir;
-    QWidget  *m_target = nullptr;
+    /* 【必须是 QPointer】目标控件可能先于本手柄被销毁（见 FormResizer 抬头），
+     * 裸指针的话下面那些 !m_target 判空全是摆设。 */
+    QPointer<QWidget> m_target;
     bool      m_dragging = false;
     QPoint    m_pressGlobal;
     QRect     m_startGeo;
@@ -76,6 +79,19 @@ public:
     bool isSelected() const { return m_selected; }
     void setSelected(bool on);
 
+    /**
+     * 画不画编辑器自己的辅助线：虚线描边、选中框、控件名，
+     * 以及选中时那 8 个缩放手柄。
+     *
+     * 关掉之后控件上只剩屏上真会显示的东西（背景填充、css 内边框线、
+     * 图片/文字/数字）。放大看真实效果时用 —— 工具栏「隐藏辅助线」就是它。
+     *
+     * 【为什么在 FormResizer 这一层】手柄是挂在**父控件**上的独立子窗口
+     * （SizeHandleRect），不是 BaseForm 自己画的，只能在这儿一起管。
+     */
+    void setShowChrome(bool on);
+    bool showChrome() const { return m_showChrome; }
+
 signals:
     /* ★ 原始签名：void formWindowSizeChanged(QRect oldGeo, QRect newGeo) */
     void formWindowSizeChanged(QRect oldGeo, QRect newGeo);
@@ -87,12 +103,18 @@ protected:
     /** 由子类在几何变化后调用，负责发 formWindowSizeChanged 并刷新手柄。 */
     void notifyGeometryChanged(const QRect &oldGeo);
 
+    bool m_selected = false;
+    bool m_showChrome = true;      ///< 见 setShowChrome()
+
 private:
     void createHandles();
     void layoutHandles();
 
-    bool m_selected = false;
-    QVector<SizeHandleRect *> m_handles;
+    /* 【手柄不是本控件的子窗口】它们挂在**父控件**上（要画在本控件外面），
+     * 所以本控件析构时 Qt 不会带走它们 —— ~FormResizer() 里手动删。
+     * 用 QPointer 是因为反过来也可能：父控件被销毁时 Qt 会先删掉手柄，
+     * 那时本控件再去 delete 就是二次释放。 */
+    QVector<QPointer<SizeHandleRect>> m_handles;
     QRect m_lastGeo;
 };
 
@@ -140,6 +162,7 @@ public:
      */
     void setDisplayZoom(int percent);
     int  displayZoom() const { return m_zoom; }
+
 
     /**
      * 画布和对象树共用的右键菜单。

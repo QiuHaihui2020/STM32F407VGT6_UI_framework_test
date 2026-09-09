@@ -1,5 +1,7 @@
 #include "ProjectModel.h"
 
+#include <QSet>
+
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
@@ -725,6 +727,28 @@ int ProjectModel::nextNodeSeq() const
     int n = 0;
     forEachNonPage(m_pages, [&n](UiNode *, int) { ++n; return true; });
     return n;
+}
+
+QString ProjectModel::uniqueEname(const QString &base) const
+{
+    QSet<QString> used;
+    forEachNonPage(m_pages, [&used](UiNode *x, int) {
+        for (const UiProperty &p : x->props) {
+            if (p.name == QLatin1String("id") && !p.ename.isEmpty()) {
+                used.insert(p.ename.toUpper());
+            }
+        }
+        return true;
+    });
+    if (!used.contains(base.toUpper())) {
+        return base;
+    }
+    for (int i = 1; ; ++i) {
+        const QString cand = QStringLiteral("%1_%2").arg(base).arg(i);
+        if (!used.contains(cand.toUpper())) {
+            return cand;
+        }
+    }
 }
 
 int ProjectModel::nodeSeq(const UiNode *node) const

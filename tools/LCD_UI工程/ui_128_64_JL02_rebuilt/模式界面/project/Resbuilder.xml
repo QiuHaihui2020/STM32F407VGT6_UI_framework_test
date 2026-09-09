@@ -269,6 +269,18 @@
                                         <Cell>m78</Cell>
                                 </CellList>
                         </Page>
+                        <Page id="3">
+                                <ColorList>
+                                        <Color>8DEEDB</Color>
+                                        <Color>D9EE94</Color>
+                                        <Color>000000</Color>
+                                </ColorList>
+                                <PictureList>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\dcx2496_uires\screen_previews\scrn_000_LOGO.bmp</Picture>
+                                </PictureList>
+                                <CellList>
+                                </CellList>
+                        </Page>
                 </PageList>
                 <language>0x00000013</language>
                 <bmp_transparent_color>0x00FFFFFF</bmp_transparent_color>

@@ -572,6 +572,11 @@ void reloadMonoColors()
     invalidate();
 }
 
+QPixmap pictureOf(const QString &path, const QColor &lit)
+{
+    return path.isEmpty() ? QPixmap() : litPixmap(abs(path), lit);
+}
+
 QPixmap contentOf(UiNode *n, const QColor &lit)
 {
     if (!n) {

@@ -49,7 +49,23 @@ ScenesScreen::ScenesScreen(QWidget *parent)
     setAcceptDrops(true);      // 控件列表里拖过来的东西落在这儿
 }
 
-ScenesScreen::~ScenesScreen() = default;
+ScenesScreen::~ScenesScreen()
+{
+    /* 【必须在这里把子控件的 destroyed 连接掐掉】
+     *
+     * 子控件（BaseForm）是在 QWidget::~QWidget() 里被删的，而那一步发生在
+     * **本对象的成员已经析构完之后**（析构顺序：本类析构体 -> 本类成员 ->
+     * 基类 QWidget::~QWidget 删子控件 -> QObject::~QObject 断连）。
+     * buildRecursive() 给每个控件挂了 destroyed 回调去清 m_forms/m_userHidden，
+     * 到那一步回调再进来，摸的就是已经析构的 QHash —— ASan 报
+     * heap-use-after-free in QHash<UiNode*,BaseForm*>::value，进程退出时崩。
+     *
+     * 析构体是最后一个"成员还活着"的时机，在这儿断连正好。 */
+    for (BaseForm *f : m_forms) {
+        disconnect(f, nullptr, this, nullptr);
+    }
+    m_forms.clear();
+}
 
 void ScenesScreen::setPage(UiNode *page)
 {
@@ -80,6 +96,16 @@ void ScenesScreen::setZoom(int percent)
 void ScenesScreen::rebuild()
 {
     for (BaseForm *f : m_forms) {
+        /* 【必须当场脱离画布，不能只 deleteLater】deleteLater 要等事件循环
+         * 转一圈才真销毁，在那之前旧控件还是画布的**可见子控件**，还会被
+         * 重绘。而重建的常见诱因就是删了个节点—— 旧控件的 m_node 这时
+         * 已经是野指针，一画就踩已释放内存（--ops-test 全程不回事件循环，
+         * 旧控件成批堆着，grab/截屏 时稳定堆损坏 0xC0000374）。
+         * 不能直接 delete：本函数常常是被控件自己的信号叫起来的，
+         * 当场删发信号的对象会栈上崩。所以先摘干净再排队销毁。 */
+        f->setSelected(false);         // 顺带收起挂在画布上的 8 个缩放手柄
+        f->hide();
+        f->setParent(nullptr);
         f->deleteLater();
     }
     m_forms.clear();
@@ -110,9 +136,30 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
     BaseForm *f = createFormForClass(n->cls, parentWidget);
     /* 倍率要在 bind() 之前给：bind 里会调 syncRectFromNode() 摆位置 */
     f->setDisplayZoom(m_zoom);
+    f->setShowChrome(m_showChrome);
     f->bind(n);
     f->show();
     m_forms.insert(n, f);
+    /* 【控件没了就得从索引里摘掉】BaseForm::onDeleteMe() 只 deleteLater()
+     * 自己，不通知这边；等事件循环真销毁它，m_forms 里就是个野指针，
+     * 之后任何遍历（重绘、setShowChrome、grab/截屏）都在踩已释放内存。
+     * 挂在 destroyed 上而不是让删除路径自己收尾 —— 删除的入口不止一个。
+     * lambda 里的 n 只当键用，不解引用，所以节点已经释放也安全。 */
+    connect(f, &QObject::destroyed, this, [this, n, f]() {
+        /* 【必须先确认表里存的还是它】rebuild() 的做法是"旧的 deleteLater +
+         * 立刻建新的"，同一个节点键上很快就换成了新控件；等事件循环真去销毁
+         * 旧控件时才轮到这个 lambda —— 那时无条件按键删，删掉的是**新**控件
+         * 那一项，后面 formFor() 就返回空指针。
+         * f 只做地址比较，不解引用，指向已释放对象也安全。 */
+        if (m_forms.value(n) != f) {
+            return;
+        }
+        m_forms.remove(n);
+        m_userHidden.remove(n);
+        if (m_selected == n) {
+            m_selected = nullptr;
+        }
+    });
     /* 在画布上直接点控件，也要让树/属性面板跟着走（原厂就是这个行为）。
      * BaseForm::mousePressEvent 只调 setSelected(true)，既不通知外面、
      * 也不取消别的控件的选中框，所以这里拦一道press。事件过滤器跑在
@@ -123,6 +170,13 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
      * 往上转发一次 —— 树、页面栏、属性面板都挂在主窗口那一层。 */
     connect(f, &BaseForm::structureChanged, this, [this]() {
         m_selected = nullptr;          // 被删掉的那个可能就是它，别留悬空指针
+        /* 【必须重建画布】结构类操作动的是节点树本身。删除尤其致命：
+         * UiNode 析构会递归 delete children，整棵子树一起没；而画布上那些
+         * **子控件**的 BaseForm 还活着，m_node 全是野指针。以前这里只往上
+         * 转发一次信号，主窗口那边也只 reload 树和页面栏，谁都没重建画布 ——
+         * 于是删完一个带子节点的控件，下一次重绘/截图（onSshoot 就是
+         * ScenesScreen::grab()）就在踩已释放内存，实测稳定堆损坏 0xC0000374。 */
+        rebuild();
         emit structureChanged();
     });
     connect(f, &BaseForm::findRequested, this, &ScenesScreen::findRequested);
@@ -460,6 +514,18 @@ bool ScenesScreen::simulateDropForTest(const QPoint &pos, const QString &cls,
     return e.isAccepted();
 }
 
+void ScenesScreen::setShowChrome(bool on)
+{
+    if (m_showChrome == on) {
+        return;
+    }
+    m_showChrome = on;
+    for (BaseForm *f : m_forms) {
+        f->setShowChrome(on);
+    }
+    update();                      // 网格是本页自己画的
+}
+
 void ScenesScreen::setShowGrid(bool on)
 {
     if (m_showGrid == on) {
@@ -529,7 +595,7 @@ void ScenesScreen::paintEvent(QPaintEvent *e)
      * 【以前这里只判 m_zoom】工具栏的"网格开关"翻的是 CanvasManager 的
      * m_showGrid，画布压根没看那个标志，所以点了只有状态栏文字会变，
      * 画面纹丝不动。 */
-    if (m_showGrid && m_zoom >= 300) {
+    if (m_showChrome && m_showGrid && m_zoom >= 300) {
         p.setPen(QColor(0xff, 0xff, 0xff, 40));
         const int step = m_zoom / 100;
         for (int x = 0; x < width(); x += step) {
@@ -570,6 +636,8 @@ void ScenesScreen::mousePressEvent(QMouseEvent *e)
 CanvasManager::CanvasManager(QObject *parent)
     : QObject(parent)
 {
+    /* 粘贴/列表加行要给克隆出来的节点重分配 ID 号，去重范围得是整个工程 */
+    EditorOps::setModel(&m_model);
 }
 
 CanvasManager::~CanvasManager() = default;
@@ -627,6 +695,7 @@ void CanvasManager::rebuildScreens()
     for (UiNode *page : m_model.pages()) {
         auto *s = new ScenesScreen(m_stackHost);
         s->setShowGrid(m_showGrid);
+        s->setShowChrome(m_showChrome);
         s->setShowHidden(m_showHidden);
         s->setSolo(m_solo);
         s->setZoom(m_zoom);
@@ -704,6 +773,15 @@ void CanvasManager::setShowHidden(bool on)
         s->setShowHidden(on);
     }
     emit statusMessage(on ? tr("显示默认隐藏项") : tr("隐藏默认隐藏项"));
+}
+
+void CanvasManager::setShowChrome(bool on)
+{
+    m_showChrome = on;
+    for (ScenesScreen *s : m_screens) {
+        s->setShowChrome(on);
+    }
+    emit statusMessage(on ? tr("辅助线：显示") : tr("辅助线：隐藏"));
 }
 
 void CanvasManager::setSolo(bool on)
@@ -884,6 +962,9 @@ void CanvasManager::onOpenProject()
 
 void CanvasManager::onSaveProject()
 {
+    /* 【先把输入框里的改动逼出来】工具栏按钮是 NoFocus，点"保存"不会让
+     * 属性面板上那个输入框失焦，editingFinished 不发，刚敲的值还没进模型。 */
+    EditorOps::commitPendingEdit();
     if (m_model.filePath().isEmpty()) {
         onSaveAsProject();
         return;
@@ -896,6 +977,9 @@ void CanvasManager::onSaveProject()
 
 void CanvasManager::onSaveAsProject()
 {
+    /* 【先把输入框里的改动逼出来】工具栏按钮是 NoFocus，点"保存"不会让
+     * 属性面板上那个输入框失焦，editingFinished 不发，刚敲的值还没进模型。 */
+    EditorOps::commitPendingEdit();
     const QString f = QFileDialog::getSaveFileName(
         nullptr, QStringLiteral("保存工程文件"), m_model.name() + QStringLiteral(".json"),
         QStringLiteral("ui-tools 工程 (*.json)"));

@@ -54,6 +54,8 @@ public:
     bool selectNthNodeForTest(int n);
     /** 自测/截图用：直接设画布倍率。 */
     void setCanvasZoomForTest(int percent);
+    /** 自测/截图用：等同于工具栏那个「隐藏辅助线」。 */
+    void setShowChromeForTest(bool on);
     /** 诊断用：把每个控件的内容预览单独存成 PNG，看明暗/位置对不对。 */
     int dumpPreviewForTest(const QString &dir);
 

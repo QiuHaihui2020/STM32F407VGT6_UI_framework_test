@@ -342,6 +342,16 @@ private:
             p.fillRect(box, Preview::monoLit());
         }
 
+        /* 背景图片：和画布同一套判定（见 Forms.cpp） */
+        {
+            const QString bgi = n->cssField(0, QStringLiteral("background_image"),
+                                            QStringLiteral("background-image")).toString();
+            const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit());
+            if (!bg.isNull()) {
+                p.drawPixmap(box.topLeft(), bg);
+            }
+        }
+
         if (tm != Preview::MonoText::Hidden) {
             const QPixmap content = Preview::contentOf(
                 n, tm == Preview::MonoText::Invert ? Preview::monoDark()
@@ -714,6 +724,19 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
         n->rect.moveTo(qMax(0, pos.x()), qMax(0, pos.y()));
     }
     n->setRectOf(0, n->rect);
+
+    /* 【新建就得带一个唯一的 ID 号】原厂建出来的控件"唯一ID号"这一栏不是空的。
+     * 空着的话属性面板会提示 Ename is empty，生成资源时这个控件也拿不到
+     * ename.h 里的宏 —— 业务代码根本引用不到它。
+     * 取名规则见 ProjectModel::uniqueEname()。模板自带 ename 的（自定义控件）
+     * 不覆盖，只补空的。 */
+    if (UiProperty *idp = n->findProp(QStringLiteral("id"))) {
+        if (idp->ename.isEmpty()) {
+            idp->ename = m_mgr->model()->uniqueEname();
+            idp->dirty = true;
+            n->markDirty();
+        }
+    }
 
     parent->children.append(qMakePair(EditorOps::childKeyFor(parent), n));
     parent->markDirty();

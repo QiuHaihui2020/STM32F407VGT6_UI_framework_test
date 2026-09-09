@@ -1,10 +1,12 @@
 #include "EditorOps.h"
 #include "ProjectModel.h"
 
+#include <QApplication>
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
+#include <QWidget>
 
 namespace {
 
@@ -15,6 +17,9 @@ bool        g_clipValid = false;
 QString     g_clipKey;
 
 QString g_customDir;
+
+/** 当前工程模型，reassignEnames() 用它把去重范围扩到整个工程。 */
+ProjectModel *g_model = nullptr;
 
 bool    g_silent = false;
 QString g_lastMsg;
@@ -208,9 +213,83 @@ UiNode *pasteInto(UiNode *parent)
     /* 键按**目标**父节点定，不是按源节点原来挂在哪儿 —— 从列表的
      * listwidget 里复制一个布局，贴到普通布局下面时键要变成 layout。 */
     Q_UNUSED(g_clipKey)
+    /* 【ID 号必须重分配】剪贴板里连 ename 一起带过来了，直接贴上去
+     * ename.h 会出现两个同名宏。 */
+    reassignEnames(n, parent);
     parent->children.append(qMakePair(childKeyFor(parent), n));
     parent->markDirty();
     return n;
+}
+
+void setModel(ProjectModel *m)
+{
+    g_model = m;
+}
+
+void reassignEnames(UiNode *sub, UiNode *parent)
+{
+    if (!sub) {
+        return;
+    }
+    /* 收集**整个工程**已经用掉的 ename。
+     * 【不能只顺着 parent 往上爬】爬到页节点就到头了（页的 parent 是 nullptr），
+     * 跨页的名字扫不到 —— 在页 0 的列表里加行，分到的 BaseForm 会和页 1、
+     * 页 3 里已有的撞车。有模型就用模型，没有（单元测试之类）再退回爬树。 */
+    QSet<QString> used;
+    auto collect = [&used, sub](UiNode *x) {
+        /* sub 这棵子树待会儿要重分配，它现在的名字不算"已用" */
+        for (UiNode *a = x; a; a = a->parent) {
+            if (a == sub) {
+                return true;
+            }
+        }
+        for (const UiProperty &p : x->props) {
+            if (p.name == QLatin1String("id") && !p.ename.isEmpty()) {
+                used.insert(p.ename.toUpper());
+            }
+        }
+        return true;
+    };
+    if (g_model) {
+        for (UiNode *pg : g_model->pages()) {
+            pg->forEach(collect);
+        }
+    } else {
+        UiNode *root = parent ? parent : sub;
+        while (root->parent) {
+            root = root->parent;
+        }
+        root->forEach(collect);
+    }
+
+    sub->forEach([&used](UiNode *x) {
+        for (UiProperty &p : x->props) {
+            if (p.name != QLatin1String("id")) {
+                continue;
+            }
+            const QString base = QStringLiteral("BaseForm");
+            QString cand = base;
+            for (int i = 1; used.contains(cand.toUpper()); ++i) {
+                cand = QStringLiteral("%1_%2").arg(base).arg(i);
+            }
+            p.ename = cand;
+            p.dirty = true;
+            used.insert(cand.toUpper());
+            x->markDirty();
+            break;
+        }
+        return true;
+    });
+}
+
+void commitPendingEdit()
+{
+    /* clearFocus() 会让控件收到 FocusOut：QLineEdit 借此发 editingFinished，
+     * QSpinBox / 可编辑的 QComboBox 也在这时 interpretText()。
+     * 一句话覆盖所有编辑器，不用挨个去认类型。 */
+    if (QWidget *w = QApplication::focusWidget()) {
+        w->clearFocus();
+    }
 }
 
 } // namespace EditorOps

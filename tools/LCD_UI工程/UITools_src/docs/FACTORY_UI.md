@@ -572,3 +572,175 @@ DarkColor=#001040
 再 `--shot` 截一张，画布区和右栏页面区的像素直方图里应当只剩这两个颜色
 （外加选中框、网格线那些 UI 装饰）。实测画布 52076 px `#001040` + 9968 px `#00ff00`，
 右栏 22897 px + 1373 px，符合。
+
+### 8.5 工具栏「隐藏辅助线」，以及顺藤摸出来的四个内存 bug
+
+放大之后画布上编辑器自己画的东西比内容还显眼：控件的虚线描边、选中框、
+控件名、8 个缩放手柄、像素网格。工具栏加了一个可勾选的「隐藏辅助线」，
+关掉之后画面上**只剩屏上真会显示的像素**。
+
+实现分两层，因为手柄不是控件自己的子窗口：
+
+* `FormResizer::setShowChrome()` —— 描边/选中框/控件名，外加 8 个
+  `SizeHandleRect`（它们挂在**父控件**上，要画在控件外面）
+* `ScenesScreen::setShowChrome()` —— 转发给本页所有控件，并关掉像素网格
+* `CanvasManager::setShowChrome()` —— 转发给所有页
+
+验证：`UITools.exe --zoom 400 --select 3 --no-chrome --shot x.png`，
+画布区的像素直方图里应当只剩点亮色和熄灭色。实测开着时 12898 个非亮/灭像素
+（描边+网格+手柄），关掉之后 **0 个**。ops-test 里也加了这两条断言。
+
+#### 加这条断言时炸出来的四个 bug（都是既有的，不是这次改坏的）
+
+断言要抓一次画布（`ScenesScreen::grab()`），而**工具栏的「截屏」
+（`CanvasManager::onSshoot()`）走的就是这一句** —— 所以这四个都是用户能踩到的。
+靠 MSVC 的 AddressSanitizer（`/fsanitize=address`，见 `C:\bt\asan.bat` 那套
+构建参数）拿到确切现场，不是猜的：
+
+1. **删掉控件后，`ScenesScreen::m_forms` 里留野指针。**
+   `BaseForm::onDeleteMe()` 只 `deleteLater()` 自己，不通知画布。
+   → 建控件时挂 `QObject::destroyed` 自动清理（`m_forms`/`m_userHidden`/`m_selected`）。
+
+2. **结构变了没人重建画布。** 删除会连同整棵子树一起 `delete`（`UiNode`
+   析构递归删 children），但那些**子控件**的 `BaseForm` 还活着、`m_node`
+   全是野指针，全链路上没有一处重建。
+   → `ScenesScreen` 收到 `BaseForm::structureChanged` 时 `rebuild()`。
+
+3. **`rebuild()` 只 `deleteLater()`，旧控件在事件循环转回来之前仍是可见子控件**，
+   还会被重绘 —— 而重建的常见诱因正是"删了个节点"。
+   → 先 `setSelected(false); hide(); setParent(nullptr);` 再排队销毁。
+   不能直接 `delete`：`rebuild()` 常常是被控件自己的信号叫起来的。
+
+4. **`FormResizer` 析构不带走自己的手柄。** 手柄挂在父控件上，Qt 不会跟着删，
+   留在画布上、`m_target` 指着已释放的控件；画布每缩放一次 rebuild 一次，
+   孤儿越攒越多。
+   → `~FormResizer()` 手动删；`m_handles`/`m_target` 改 `QPointer`，
+   防父控件先走时的二次释放。
+
+修 1 的时候还自己制造过一个：`destroyed` 回调**按节点键**无条件删，而
+`rebuild()` 是"旧的 deleteLater + 立刻建新的"，同一个键上已经换成新控件了 ——
+回调一进来把新的那项删掉，`formFor()` 返回空指针。加了身份判断（`m_forms.value(n) != f` 就直接返回）。
+
+还有 `ScenesScreen::~ScenesScreen()`：子控件是在 `QWidget::~QWidget()` 里删的，
+那时本对象的成员**已经析构完**（顺序：本类析构体 → 本类成员 → QWidget 删子控件
+→ QObject 断连），`destroyed` 回调再进来摸 `m_forms` 就是 use-after-free，
+进程退出时崩。析构体是最后一个"成员还活着"的时机，在那儿把连接掐掉。
+
+改完 ASan 下四种模式（ops-test 两个工程、对话框冒烟、json 往返、自截）
+**零报错**，ops-test 从 126/108 涨到 131/113 全过。
+
+### 8.6 「背景图片」原来根本设不上 —— 三处都不对
+
+用户反馈"控件的背景图片设置不了，原厂可以，而且原厂是弹窗选的"。查下来
+**三处**都不对，缺一处这个功能就是废的：
+
+#### 1. 弹的窗口就不对
+
+原厂有两个长得很像的图片对话框，靠 exe 里的字符串能分开（0xc98819 起）：
+
+| 类 | 字符串 | 用途 |
+|---|---|---|
+| `ImageFileDialog` | `图片编辑`、`onAddSelectedItems/onDelSelectedItems`、`已经添加的图片数:`、上移/下移图标 | 图片列表，**多选** |
+| `ImageListView` | `图片编辑(双击选中图片并更新到控件)`、`双击选中图片并更新到控件显示.`、`目录` | 背景图片，**双击单选** |
+
+重建版这一行点开的是 `QFileDialog::getOpenFileName`（系统文件对话框），
+和原厂完全不是一回事。现在改成 `ImageListView`：左「目录」树、右缩略图、
+双击即选中并关闭，版式和图片列表那个一致。
+
+#### 2. 存进去的路径形式不对（这条最致命）
+
+工程 json 里 `background-image` 存的是**相对工程目录**的
+`config/pic_lcd/v_block.bmp`（实测该字段 277 条，2 条非空，都是这个形式）。
+而系统文件对话框回来的是绝对路径 —— 存进去之后：
+
+* 预览按相对路径拼绝对路径，拼出来是错的，找不到图；
+* `StyBuilder` 是拿这个字符串去 `picId` 表里查图片资源号的
+  （`css` 偏移 +24），查不到就写 `0xFFFFFFFF` = 没有背景图。
+
+也就是说：**选了也等于没选，产物里根本不带这张图**。
+`ImageListView::selected()` 一律返回相对工程目录的正斜杠形式。
+
+#### 3. 画布压根不画 background-image
+
+`Forms.cpp` 只画了填充、内边框线、图片/文字/数字，没有背景图这一层；
+右栏页面预览同理。所以就算前两条都对，用户选完图**画面上也没有任何变化**，
+从现象上看就是"设置不了"。
+
+现在 `Preview::pictureOf()` 按同一套单色判定取图，画在填充之上、内容之下
+（和固件的层次一致），画布和右栏都画。
+
+顺带：按钮上现在直接显示文件名（`背景图片: v_block.bmp`），空的时候提示
+"没有背景图片，点一下选一张" —— 原来光一个"背景图片"四个字，看不出设没设。
+
+#### 回归
+
+ops-test 新增一节（TFT 136 项 / oled 118 项全过）：
+
+```
+[通过] 背景图片弹窗列得出图片                        —— 65 张
+[通过] 双击能选中一张图                              —— config/m1.png
+[通过] 弹窗给的是相对工程目录的路径，不是绝对路径      —— config/m1.png
+[通过] 背景图片写得进 css
+[通过] 设了背景图片，画布上真的多出点亮像素            —— 设之前 1223 -> 设之后 2434
+```
+
+### 8.7 「唯一ID号」：新建控件要自带、改完不点别处也要算数
+
+用户报了两条，查下来第二条其实是第一条那个坑的**表象**：
+
+> 1、新建控件，会有一个默认的不重复的 id 号的，你的是空的
+> 2、新建的图层设置了 id 号后，点击导出，生成的头文件里对的 id 是没有的
+
+#### 默认 ID 号：`BaseForm` / `BaseForm_1` / `BaseForm_2` …
+
+原厂建出来的控件「唯一ID号」不是空的。证据两条，互相印证：
+
+* `ui-tools.exe` 里 `'BaseForm'`(0xc94f30) 紧挨着 `'Ename is empty'`(0xc94f3b)，
+  同一编译单元（上面是 `'ComProperty'` / `'CssProperty'`）里还有格式串 `'%1_%2'`；
+* 用户在编辑器里新建的那一页，图层/布局拿到的正是 `BaseForm_1` / `BaseForm_2`；
+  页 1 里还有个更早的裸 `BaseForm`（没后缀）和 `NewFrame_23/24/25`。
+
+规则：`base` 没被占就用 `base`，否则 `base_1`、`base_2` 往后找，
+**大小写不敏感**（`ename.h` 里的宏名是全大写的，`BaseForm` 和 `BASEFORM`
+会撞成同一个宏）。实现在 `ProjectModel::uniqueEname()`，
+`CompoentControls::appendChild()` 建节点时补空的（模板自带 ename 的不覆盖）。
+
+#### 「设了 ID 号导出后头文件里没有」= 值压根没提交
+
+先排除了导出这一侧：页 3 那个图层的 `BASEFORM_1`，本版和原厂的 `ename.h`
+里都有，值也一样（`0XC494B2`）。所以不是生成漏了。
+
+真正的原因是用户报的第三条：
+
+> 修改属性后，如果鼠标没有点击其他地方，直接点击保存，发现参数没有保存
+
+属性面板上所有输入框都是 **`editingFinished`** 才写回模型（和原厂一致），
+而**工具栏按钮是 `Qt::NoFocus`** —— 点「保存」/「资源导出」不会让输入框失焦，
+`editingFinished` 不发，刚敲进去的值还停在控件里。
+
+修法：`EditorOps::commitPendingEdit()`（对 `QApplication::focusWidget()` 调
+`clearFocus()`，一句话覆盖 QLineEdit / QSpinBox / 可编辑 QComboBox），
+在**保存 / 另存为 / 资源导出 / 退出前的脏检查**四处都先调一遍。
+
+#### 顺带抓出来的：克隆节点会复制 ID 号
+
+新加的「ID 号全工程唯一」断言当场报了 3 个重复 —— **列表加行**是从第一行
+整棵克隆的，`ename` 一起带了过来；**粘贴**同理。两个宏同名 `#define` 两次，
+业务代码引用到哪一个全看运气。两处都改成走 `EditorOps::reassignEnames()`。
+
+写这个函数时我自己又踩了一个：一开始顺着 `UiNode::parent` 往上爬去收集
+已用名字 —— **爬到页节点就到头了**（页的 `parent` 是 `nullptr`），跨页的名字
+扫不到，在页 0 的列表里加行分到的 `BaseForm` 和页 1/页 3 已有的撞车。
+改成让 `EditorOps` 持有当前 `ProjectModel`（`CanvasManager` 构造时挂上），
+去重范围覆盖整个工程。
+
+#### 回归
+
+ops-test 新增四条，TFT **141 项** / oled **131 项** 全过：
+
+```
+[通过] 新建控件自带默认 ID 号（不是空的）        —— BaseForm_10
+[通过] ID 号全工程唯一（大小写不敏感）
+[通过] 刚敲完还没提交时，模型里确实还是旧值      —— BT_BAT
+[通过] 保存前的强制提交能把输入框里的值写进模型   —— OPSTEST_ENAME_1
+```

@@ -726,3 +726,57 @@ TextOutW(hdc, 0, 0, text)
 
 `result.csv` 是这张表的原样导出：**UTF-16LE + BOM**，字段分隔 `",\t"`，
 每行末尾也有一个 `",\t"`，行尾 CRLF。重建版输出与原厂**逐字节相同**。
+
+## 2026-09-09 补：加了一个空页面之后才暴露的三处格式错误
+
+用户在编辑器里新建了一个页面（`页面_3`，只有一个空图层）再导出，整链验收从
+「不合格 0 项」变成有差异。查下来是**三处一直写错、但以前看不出来**的地方 ——
+原来那三页的数据恰好让错误和正确的结果相同。
+
+### 1. `.str` 头部 0x08：是页数，不是语言数
+
+```
+RES_HEAD_T { u8 magic[4]; u16 version; u16 bPanelType; u16 totalPage; u16 rsv; u32 resver; }
+                                                        ^^^^^^^^^ 0x08
+```
+
+固件 `User/ui_framework/liba/res/resfile.c` 里这个字段就叫 `totalPage`，
+`.res` 和 `.str` 共用同一个头。语言数在后面 `RES_ENTRY_T` 的 `langsum`
+字节里，那个才是 `open_string_pic()` 拿去除 `wCount` 的。
+
+本版 `buildStr()` 在这里写的是语言数。这套工程正好 **3 页 3 语言**，
+两种写法数值都是 3。加到 4 页之后：原厂写 4，本版还写 3。
+
+### 2. 调色板：ColorList 之后必须补上透明色
+
+完整规则（四页实测逐字节复现）：
+
+```
+palette = [0x55AAA5] + <该页 ColorList> + [bmp_transparent_color 若前面没有]
+        + <255 项默认表，去掉已出现的>        共 256 项，每项 4 字节 B G R 00
+```
+
+中间那一项以前漏了。页 0~2 的 ColorList 里本来就带 `FFFFFF`（= 本工程的
+`bmp_transparent_color`），补不补结果一样；新页面的 ColorList 只有
+`000000 / D9EE94 / 8DEEDB`，原厂第 4 项写了 `FFFFFF`，本版直接接默认表 ——
+**后面整段错开 4 字节**，`result.bin` 一下多出 449 处对不上。
+
+### 3. `result.xml`：空列表要写自闭合
+
+原厂空的时候写 `<CellList/>`，本版写成 `<CellList>` + `</CellList>` 一对空标签。
+以前每一页都有内容，看不出来。图片列表同理（同一个写出器）。
+
+### 修完之后
+
+| 文件 | 差字节 | 说明 |
+|---|---|---|
+| `project.bin` | 67 | 原厂 `char format[16]` 的未初始化栈内存 + 随之而来的 3 个 CRC |
+| `ename.h` | 0 | 逐字节相同 |
+| `result.bin` | 91 | resver + ColorList 排序（`verify_palette_order` 判定"无法解释 0 处"）|
+| `result.str` | 4 | resver |
+| `result.h` / `result.csv` | 0 | 逐字节相同 |
+| `result.xml` | 171 | 全部是 ColorList 排序；去掉 `<Color>` 行后**差异 0 行** |
+
+**教训**：只用一个工程当参考，"碰巧相等"会把错误藏起来。这三处都是靠用户
+在真实使用中改了工程结构才暴露的 —— 参考工程的形态越单一，验收越容易过，
+也越容易过得没意义。

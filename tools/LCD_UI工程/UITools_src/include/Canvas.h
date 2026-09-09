@@ -109,6 +109,9 @@ public:
     bool simulateDropForTest(const QPoint &pos, const QString &cls, const QString &type,
                              UiNode **landedOn = nullptr);
     bool showGrid() const { return m_showGrid; }
+    /** 画不画编辑器的辅助线（控件描边/选中框/控件名/像素网格）。 */
+    void setShowChrome(bool on);
+    bool showChrome() const { return m_showChrome; }
     /** 画布底图（"修改背景"里双击选的那张）。空串 = 只用背景色。 */
     void setBackgroundImage(const QString &path);
 
@@ -168,6 +171,7 @@ private:
     bool    m_solo = true;
     QColor  m_bg;
     QPixmap m_bgImage;
+    bool    m_showChrome = true;   ///< 见 setShowChrome()
     QHash<UiNode *, BaseForm *> m_forms;
 };
 
@@ -229,6 +233,14 @@ public:
     bool showHidden() const { return m_showHidden; }
     /** 网格开关。ops-test 要看它有没有被[全局设置]误改。 */
     bool showGrid() const { return m_showGrid; }
+    /**
+     * 辅助线总开关，转发给所有页。
+     *
+     * 关掉之后画布上只剩屏上真会显示的像素：控件的虚线描边、选中框、
+     * 控件名、像素网格全不画。放大到 400% 看真实效果时用。
+     */
+    void setShowChrome(bool on);
+    bool showChrome() const { return m_showChrome; }
     void setSolo(bool on);
     bool solo() const { return m_solo; }
     /** 翻到当前页的上一个/下一个画面。 */
@@ -298,6 +310,7 @@ private:
     int    m_zoom = 100;
     bool   m_showHidden = false;
     bool   m_solo = true;
+    bool   m_showChrome = true;
 };
 
 #endif // CANVAS_H

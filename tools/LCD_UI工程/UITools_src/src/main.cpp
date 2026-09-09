@@ -117,6 +117,9 @@ int main(int argc, char *argv[])
     QCommandLineOption optSel(QStringList() << QStringLiteral("select"),
                               QStringLiteral("自截前选中第 N 个节点（看隔离效果）"),
                               QStringLiteral("N"));
+    QCommandLineOption optNoChrome(QStringList() << QStringLiteral("no-chrome"),
+                                   QStringLiteral("自截前隐藏辅助线"
+                                                  "（控件描边/选中框/控件名/像素网格）"));
     p.addOption(optOps);
     QCommandLineOption optPvDump(QStringList() << QStringLiteral("preview-dump"),
                                  QStringLiteral("把每个控件的内容预览存成 PNG 再退出"),
@@ -127,6 +130,7 @@ int main(int argc, char *argv[])
     p.addOption(optZoom);
     p.addOption(optSel);
     p.addOption(optPvDump);
+    p.addOption(optNoChrome);
     p.addOption(optExport);
     p.addPositionalArgument(QStringLiteral("project"),
                             QStringLiteral("要打开的工程 json"));
@@ -280,7 +284,9 @@ int main(int argc, char *argv[])
         touch(new MenuItemDialog);
         {
             auto *d = new ImageListView;
-            d->setRootDir(dir.isEmpty() ? QDir::currentPath() : dir);
+            d->setProjectDir(dir.isEmpty() ? QDir::currentPath() : dir);
+            /* 出图时能看到缩略图和当前这张被选中的效果 */
+            d->setSelected(QStringLiteral("config/pic_lcd/v_block.bmp"));
             touch(d);
         }
         {
@@ -472,6 +478,9 @@ int main(int argc, char *argv[])
         const int selN = p.isSet(optSel) ? p.value(optSel).toInt() : -1;
         if (zoomTo > 0) {
             w.setCanvasZoomForTest(zoomTo);
+        }
+        if (p.isSet(optNoChrome)) {
+            w.setShowChromeForTest(false);
         }
         if (selN >= 0) {
             w.selectNthNodeForTest(selN);

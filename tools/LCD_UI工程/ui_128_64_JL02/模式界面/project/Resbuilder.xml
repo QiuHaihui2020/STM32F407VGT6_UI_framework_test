@@ -26,28 +26,28 @@
                         <language_name LANG="Arabic">阿拉伯语</language_name>
                 </LanguageList>
                 <Fonts>
-                        <font00 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="Cambria" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font01 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font02 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font03 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font04 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font05 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-32" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font06 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font07 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font08 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font09 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font10 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font11 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font12 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font13 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font14 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font15 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font16 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font17 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font18 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font19 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font20 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
-                        <font21 lfOrientation="0" lfClipPrecision="0" lfWidth="0" lfHeight="-16" lfFaceName="宋体" lfCharSet="134" lfUnderline="0" lfOutPrecision="0" lfItalic="0" lfWeight="400" lfQuality="0" lfStrikeOut="0" lfPitchAndFamily="2" lfEscapement="0"/>
+                        <font00 lfFaceName="Cambria" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font01 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font02 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font03 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font04 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font05 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-32" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font06 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font07 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font08 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font09 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font10 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font11 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font12 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font13 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font14 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font15 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font16 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font17 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font18 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font19 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font20 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
+                        <font21 lfFaceName="宋体" lfPitchAndFamily="2" lfQuality="0" lfHeight="-16" lfEscapement="0" lfUnderline="0" lfStrikeOut="0" lfWeight="400" lfOrientation="0" lfCharSet="134" lfWidth="0" lfClipPrecision="0" lfItalic="0" lfOutPrecision="0"/>
                 </Fonts>
                 <endian>LITTLEENDIAN</endian>
                 <paneltype>LCDPANEL</paneltype>
@@ -56,218 +56,229 @@
                 <PageList>
                         <Page id="0">
                                 <ColorList>
-                                        <Color>FFAA7F</Color>
-                                        <Color>000000</Color>
-                                        <Color>FF0000</Color>
-                                        <Color>368FEE</Color>
-                                        <Color>AAA555</Color>
-                                        <Color>D9EE94</Color>
-                                        <Color>D2EE45</Color>
-                                        <Color>0000FF</Color>
-                                        <Color>FF557F</Color>
                                         <Color>FFFFFF</Color>
                                         <Color>55AA00</Color>
+                                        <Color>FFAA7F</Color>
+                                        <Color>D9EE94</Color>
+                                        <Color>FF557F</Color>
+                                        <Color>FF0000</Color>
+                                        <Color>0000FF</Color>
+                                        <Color>368FEE</Color>
+                                        <Color>D2EE45</Color>
+                                        <Color>000000</Color>
+                                        <Color>AAA555</Color>
                                 </ColorList>
                                 <PictureList>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqjazz.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V2.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqrock.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqcountry.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM1.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM8.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V6.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqclas.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V9.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V7.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V4.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM9.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V5.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqjazz.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BT_CONNW_SI.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqcountry.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM3.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqrock.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V4.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUMX.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqclas.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM8.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\vol.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V2.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V7.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V9.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM2.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM4.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM6.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V8.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM6.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\vol.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUMT.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM5.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0024JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM2.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V3.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqpop.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM7.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqnor.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BT_CONNW_SI.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V1.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BT_CONN_SI.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V3.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUMX.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V0.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqpop.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM7.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM1.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUMT.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\NUM0.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V6.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqnor.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
                                 </PictureList>
                                 <CellList>
-                                        <Cell>m35</Cell>
-                                        <Cell>m31</Cell>
+                                        <Cell>m34</Cell>
                                         <Cell>m30</Cell>
+                                        <Cell>m36</Cell>
                                         <Cell>m37</Cell>
+                                        <Cell>m38</Cell>
+                                        <Cell>m31</Cell>
+                                        <Cell>m35</Cell>
                                         <Cell>m33</Cell>
                                         <Cell>m1</Cell>
                                         <Cell>m32</Cell>
-                                        <Cell>m34</Cell>
-                                        <Cell>m36</Cell>
-                                        <Cell>m38</Cell>
                                 </CellList>
                         </Page>
                         <Page id="1">
                                 <ColorList>
-                                        <Color>AAFF7F</Color>
-                                        <Color>000000</Color>
-                                        <Color>005500</Color>
-                                        <Color>FF0000</Color>
-                                        <Color>FFAA00</Color>
-                                        <Color>00FF7F</Color>
-                                        <Color>368FEE</Color>
-                                        <Color>AAA555</Color>
-                                        <Color>D9EE94</Color>
-                                        <Color>D2EE45</Color>
                                         <Color>FFFFFF</Color>
+                                        <Color>FFAA00</Color>
+                                        <Color>AAFF7F</Color>
+                                        <Color>D9EE94</Color>
+                                        <Color>FF0000</Color>
                                         <Color>8DEEDB</Color>
+                                        <Color>368FEE</Color>
+                                        <Color>00FF7F</Color>
+                                        <Color>D2EE45</Color>
+                                        <Color>000000</Color>
+                                        <Color>AAA555</Color>
+                                        <Color>005500</Color>
                                 </ColorList>
                                 <PictureList>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN2.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V9.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop2.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V2.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN_DOT.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqpop.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V8.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop1.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN1.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN3.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\vol.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\folderm.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqrock.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN8.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop4.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\v_block.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V0.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V7.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\pause_sec.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN4.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop5.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V4.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN6.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V5.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\play_sec.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop3.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN9.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0024JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0028JL.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop7.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\Della.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V6.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\v_slider.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqnor.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V1.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN7.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN5.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\MMUSIC.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqjazz.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\folderm.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V2.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN6.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqcountry.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop2.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqpop.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\v_block.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\vol.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN2.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop3.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop1.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\pause_sec.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN3.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\play_sec.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V8.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqnor.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\SDMMC.bmp</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V3.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\MUDISK.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqcountry.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqjazz.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop6.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN0.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0028JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\Della.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN8.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop4.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN7.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqclas.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\eqrock.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V7.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\v_slider.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop6.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V1.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\MUDISK.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN9.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN0.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V4.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V0.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V5.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0024JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN1.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\MMUSIC.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\RN_DOT.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V9.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\V6.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\mloop5.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
                                 </PictureList>
                                 <CellList>
-                                        <Cell>m36</Cell>
-                                        <Cell>m90</Cell>
-                                        <Cell>m35</Cell>
-                                        <Cell>m68</Cell>
-                                        <Cell>m66</Cell>
                                         <Cell>m91</Cell>
-                                        <Cell>m33</Cell>
                                         <Cell>m37</Cell>
-                                        <Cell>m67</Cell>
-                                        <Cell>m31</Cell>
                                         <Cell>m92</Cell>
-                                        <Cell>m34</Cell>
-                                        <Cell>m69</Cell>
-                                        <Cell>m38</Cell>
-                                        <Cell>m2</Cell>
                                         <Cell>m32</Cell>
+                                        <Cell>m90</Cell>
+                                        <Cell>m66</Cell>
+                                        <Cell>m2</Cell>
+                                        <Cell>m31</Cell>
+                                        <Cell>m68</Cell>
+                                        <Cell>m69</Cell>
+                                        <Cell>m67</Cell>
+                                        <Cell>m33</Cell>
+                                        <Cell>m35</Cell>
+                                        <Cell>m34</Cell>
+                                        <Cell>m36</Cell>
+                                        <Cell>m38</Cell>
                                 </CellList>
                         </Page>
                         <Page id="2">
                                 <ColorList>
                                         <Color>000000</Color>
-                                        <Color>D9EE94</Color>
                                         <Color>FFAA7F</Color>
-                                        <Color>8DEEDB</Color>
-                                        <Color>368FEE</Color>
-                                        <Color>AA007F</Color>
-                                        <Color>FFFFFF</Color>
+                                        <Color>D9EE94</Color>
                                         <Color>AAA555</Color>
+                                        <Color>AA007F</Color>
+                                        <Color>368FEE</Color>
+                                        <Color>8DEEDB</Color>
+                                        <Color>FFFFFF</Color>
                                 </ColorList>
                                 <PictureList>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\pause_en.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0024JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
-                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL2.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL1.BMP</Picture>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\pause_en.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL4.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\BATTLVL3.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0024JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0025JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
                                 </PictureList>
                                 <CellList>
-                                        <Cell>m64</Cell>
-                                        <Cell>m87</Cell>
-                                        <Cell>m56</Cell>
-                                        <Cell>m61</Cell>
-                                        <Cell>m32</Cell>
-                                        <Cell>m77</Cell>
-                                        <Cell>m73</Cell>
-                                        <Cell>m72</Cell>
-                                        <Cell>m59</Cell>
-                                        <Cell>m65</Cell>
-                                        <Cell>m79</Cell>
-                                        <Cell>m76</Cell>
-                                        <Cell>m81</Cell>
-                                        <Cell>m78</Cell>
-                                        <Cell>m84</Cell>
-                                        <Cell>m71</Cell>
-                                        <Cell>m93</Cell>
-                                        <Cell>m74</Cell>
-                                        <Cell>m70</Cell>
-                                        <Cell>m58</Cell>
-                                        <Cell>m85</Cell>
-                                        <Cell>m80</Cell>
-                                        <Cell>m55</Cell>
-                                        <Cell>m63</Cell>
-                                        <Cell>m82</Cell>
-                                        <Cell>m57</Cell>
                                         <Cell>m60</Cell>
+                                        <Cell>m82</Cell>
+                                        <Cell>m81</Cell>
+                                        <Cell>m64</Cell>
+                                        <Cell>m59</Cell>
+                                        <Cell>m72</Cell>
                                         <Cell>m89</Cell>
-                                        <Cell>m75</Cell>
+                                        <Cell>m65</Cell>
+                                        <Cell>m70</Cell>
+                                        <Cell>m73</Cell>
+                                        <Cell>m93</Cell>
+                                        <Cell>m32</Cell>
+                                        <Cell>m79</Cell>
+                                        <Cell>m63</Cell>
+                                        <Cell>m84</Cell>
+                                        <Cell>m87</Cell>
+                                        <Cell>m74</Cell>
+                                        <Cell>m71</Cell>
+                                        <Cell>m61</Cell>
+                                        <Cell>m80</Cell>
+                                        <Cell>m78</Cell>
+                                        <Cell>m76</Cell>
+                                        <Cell>m77</Cell>
                                         <Cell>m86</Cell>
+                                        <Cell>m58</Cell>
+                                        <Cell>m55</Cell>
+                                        <Cell>m75</Cell>
+                                        <Cell>m57</Cell>
+                                        <Cell>m56</Cell>
+                                        <Cell>m85</Cell>
                                 </CellList>
+                        </Page>
+                        <Page id="3">
+                                <ColorList>
+                                        <Color>000000</Color>
+                                        <Color>D9EE94</Color>
+                                        <Color>8DEEDB</Color>
+                                </ColorList>
+                                <PictureList>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02\模式界面\project\config\dcx2496_uires\screen_previews\scrn_000_LOGO.bmp</Picture>
+                                </PictureList>
+                                <CellList/>
                         </Page>
                 </PageList>
                 <language>0x00000013</language>

@@ -247,6 +247,22 @@ QVector<quint32> ResBuilderCore::pagePalette(int pageIndex) const
         out.append(c.toUInt(&ok, 16));
         usedSet.insert(c.toUpper());
     }
+    /* 【透明色一定要占一格】原厂在 ColorList 之后、默认表之前，必定补上
+     * bmp_transparent_color（本工程 0x00FFFFFF），前面已经有了就不重复。
+     *
+     * 这条以前没发现：页 0~2 的 ColorList 里本来就带 FFFFFF，补不补结果一样。
+     * 用户新建了一个页面（ColorList 只有 000000/D9EE94/8DEEDB）之后才暴露 ——
+     * 原厂第 4 项是 FFFFFF，本版直接接默认表，往后整整错开 4 字节，
+     * result.bin 一下多出 449 处对不上。四页现在都能逐字节复现。 */
+    {
+        const quint32 trans = m_cfg.bmpTransparentColor & 0x00FFFFFFu;
+        const QString hex = QString::asprintf("%06X", trans);
+        if (!usedSet.contains(hex)) {
+            out.append(trans);
+            usedSet.insert(hex);
+        }
+    }
+
     const int room = PALETTE_COLORS - out.size();
     int taken = 0;
     for (int i = 0; i < DEFAULT_PALETTE_COUNT && taken < room; ++i) {
@@ -361,7 +377,14 @@ QByteArray ResBuilderCore::buildStr() const
     out.append("RU21", 4);
     putU16(out, 0x0101);
     putU16(out, m_cfg.panelTypeCode());
-    putU16(out, quint16(nLang));                // .str 这里放语言数
+    /* 【这里是页数，不是语言数】固件 RES_HEAD_T 这个位置叫 totalPage
+     * （User/ui_framework/liba/res/resfile.c），.res 和 .str 共用同一个头。
+     * 语言数在后面 RES_ENTRY_T 的 langsum 字节里，那个才是 open_string_pic
+     * 拿去除 wCount 的。
+     *
+     * 以前这里写的是语言数，一直没暴露 —— 这套工程正好 3 页 3 语言，两种
+     * 写法数值相同。用户新建了第 4 个页面之后才露出来：原厂写 4，本版写 3。 */
+    putU16(out, quint16(m_cfg.pages.size()));
     putU16(out, 0);
     putU32(out, 0);                             // resver 回填
 
@@ -514,20 +537,37 @@ QByteArray ResBuilderCore::makeXml() const
             s += QStringLiteral("                <Color id=\"%1\">%2</Color>\r\n")
                  .arg(i).arg(hex);
         }
-        s += QLatin1String("            </ColorList>\r\n            <PictureList>\r\n");
-        for (const PictureItem &it : m_pics.at(p)) {
-            s += QStringLiteral("                <Picture id=\"%1\">%2</Picture>\r\n")
-                 .arg(it.id).arg(QDir::toNativeSeparators(it.path));
+        s += QLatin1String("            </ColorList>\r\n");
+
+        /* 【空列表要写成自闭合】原厂空的时候写 <CellList/>，不是一对空标签。
+         * 以前三页都非空，看不出来；用户新建一个空页面之后 result.xml 就多出
+         * 一行对不上。图片列表同理（同一个写出器，一样的写法）。 */
+        if (m_pics.at(p).isEmpty()) {
+            s += QLatin1String("            <PictureList/>\r\n");
+        } else {
+            s += QLatin1String("            <PictureList>\r\n");
+            for (const PictureItem &it : m_pics.at(p)) {
+                s += QStringLiteral("                <Picture id=\"%1\">%2</Picture>\r\n")
+                     .arg(it.id).arg(QDir::toNativeSeparators(it.path));
+            }
+            s += QLatin1String("            </PictureList>\r\n");
         }
-        s += QLatin1String("            </PictureList>\r\n            <CellList>\r\n");
+
+        QString cells;
         for (const StringItem &it : m_strings) {
             if (!m_cfg.pages.at(p).cells.contains(it.cell)) {
                 continue;
             }
-            s += QStringLiteral("                <Cell id=\"%1\">%2</Cell>\r\n")
-                 .arg(it.id).arg(it.cell);
+            cells += QStringLiteral("                <Cell id=\"%1\">%2</Cell>\r\n")
+                     .arg(it.id).arg(it.cell);
         }
-        s += QLatin1String("            </CellList>\r\n        </Page>\r\n");
+        if (cells.isEmpty()) {
+            s += QLatin1String("            <CellList/>\r\n");
+        } else {
+            s += QLatin1String("            <CellList>\r\n") + cells
+                 + QLatin1String("            </CellList>\r\n");
+        }
+        s += QLatin1String("        </Page>\r\n");
     }
     s += QLatin1String("    </PageList>\r\n</Resbuilder>\r\n");
 

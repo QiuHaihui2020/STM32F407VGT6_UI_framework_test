@@ -25,6 +25,7 @@
 
 class QWidget;
 class UiNode;
+class ProjectModel;
 
 namespace EditorOps {
 
@@ -93,6 +94,27 @@ bool    clipEmpty();
 /** 把剪贴板内容克隆一份挂到 parent 下。parent 不收就返回 nullptr。 */
 UiNode *pasteInto(UiNode *parent);
 
+/**
+ * 给 sub 这棵子树里每个节点重新分配一个不撞车的"唯一ID号"。
+ *
+ * 【为什么粘贴必须重分配】剪贴板里存的是节点的 json 副本，ename 一起带过来了；
+ * 直接贴上去，ename.h 里就会出现两个同名宏（`#define X ...` 两次），
+ * 业务代码引用到哪一个全看运气。原厂粘出来的控件 ID 号也是新的。
+ *
+ * 去重范围是**整棵工程树**（从 parent 一路往上找到根），不是只看兄弟节点。
+ */
+void reassignEnames(UiNode *sub, UiNode *parent);
+
+/**
+ * 把当前工程模型交给 EditorOps —— reassignEnames() 要靠它把去重范围扩到
+ * **整个工程**。
+ *
+ * 【为什么不能顺着 UiNode::parent 往上爬】爬到页节点就到头了（页的 parent
+ * 是 nullptr），跨页的 ename 根本扫不到：在页 0 的列表里加一行，分到的
+ * BaseForm 会和页 1、页 3 里已有的撞车。
+ */
+void setModel(ProjectModel *m);
+
 /** 在 parent 的孩子里取一个不重名的名字。 */
 QString uniqueName(const UiNode *parent, const QString &base);
 
@@ -102,6 +124,18 @@ QString uniqueName(const UiNode *parent, const QString &base);
  * 存进去下次启动就能在"自定义控件"那一组里看到。 */
 void    setCustomWidgetDir(const QString &dir);
 QString customWidgetDir();
+
+/**
+ * 把焦点里那个编辑器还没提交的改动逼出来。
+ *
+ * 属性面板上的输入框都是 editingFinished 才写回模型（和原厂一致），而
+ * **工具栏按钮是 Qt::NoFocus** —— 点"保存"/"资源导出"不会让输入框失焦，
+ * editingFinished 不发，刚敲进去的值还停在控件里没进模型。
+ * 用户看到的现象就是"改完直接点保存，参数没保存，得先点一下别处"。
+ *
+ * 凡是要读模型的动作（保存/另存为/资源导出/退出前的脏检查）都先调它。
+ */
+void commitPendingEdit();
 
 } // namespace EditorOps
 

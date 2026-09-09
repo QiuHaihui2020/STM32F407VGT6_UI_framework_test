@@ -5,6 +5,7 @@
 #include "Preview.h"
 #include "I18nLanguage.h"
 #include "ImageFileDialog.h"
+#include "ImageListView.h"
 
 #include <QJsonArray>
 #include <QMessageBox>
@@ -313,6 +314,9 @@ void DragButton::mouseMoveEvent(QMouseEvent *e)
 
 /* ===================== FileEdit ===================== */
 
+/** 按钮上那张缩略图的外框；比它大的按比例缩，小的保持原尺寸。 */
+static const QSize kBgThumbMax(96, 28);
+
 FileEdit::FileEdit(QWidget *parent)
     : QWidget(parent)
 {
@@ -320,6 +324,8 @@ FileEdit::FileEdit(QWidget *parent)
     lay->setContentsMargins(0, 0, 0, 0);
     lay->setSpacing(2);
     m_main = new QPushButton(QStringLiteral("背景图片"), this);
+    /* 缩略图有高度，按钮得留得下，不然图被压扁 */
+    m_main->setMinimumHeight(kBgThumbMax.height() + 6);
     m_pick = new QPushButton(this);
     m_pick->setIcon(QIcon(QStringLiteral(":/icon/icons/fileopen.png")));
     m_pick->setFixedWidth(34);
@@ -332,12 +338,24 @@ FileEdit::FileEdit(QWidget *parent)
     lay->addWidget(m_pick, 0);
     lay->addWidget(m_clear, 0);
 
+    /* 【必须用原厂那个弹窗，不能用系统文件对话框】
+     *
+     * 原厂点"背景图片"弹的是 ImageListView（标题"图片编辑(双击选中图片并更新
+     * 到控件)"，左目录树右缩略图，双击选中），和图片列表那个弹窗一个版式。
+     *
+     * 更要命的是路径形式：工程 json 里存的是**相对工程目录**的
+     * "config/pic_lcd/v_block.bmp"，而 QFileDialog 给的是绝对路径 ——
+     * 存进去之后预览找不到图、ResBuilder 也收不到这张图（StyBuilder 是按
+     * 相对路径去 picId 表里查号的），等于设了个寂寞。 */
     auto choose = [this]() {
-        const QString f = QFileDialog::getOpenFileName(
-            this, tr("选择图片"), QString(), tr("图片 (*.bmp *.png *.jpg)"));
-        if (!f.isEmpty()) {
-            setFilePath(f);
+        const PropertyContext &ctx = PropertyContext::instance();
+        ImageListView dlg(this);
+        dlg.setProjectDir(ctx.projectDir);
+        dlg.setSelected(m_path);
+        if (dlg.exec() != QDialog::Accepted || dlg.selected().isEmpty()) {
+            return;
         }
+        setFilePath(dlg.selected());
     };
     connect(m_clear, &QPushButton::clicked, this, [this]() { setFilePath(QString()); });
     connect(m_main, &QPushButton::clicked, this, choose);
@@ -348,7 +366,8 @@ FileEdit::~FileEdit() = default;
 
 void FileEdit::setCaption(const QString &c)
 {
-    m_main->setText(c);
+    m_caption = c;
+    refreshFace();
 }
 
 void FileEdit::setFilePath(const QString &p)
@@ -357,9 +376,46 @@ void FileEdit::setFilePath(const QString &p)
         return;
     }
     m_path = p;
-    m_main->setToolTip(p);
-    m_clear->setEnabled(!p.isEmpty());   // 手册：删完箭头变灰
+    refreshFace();
     emit filePathChanged(p);
+}
+
+/**
+ * 按钮上的样子：**选了图就显示这张图的缩略图**，和图片列表那边一致；
+ * 没选就是原来的"背景图片"四个字。
+ *
+ * 【为什么不显示文件名】原厂就是直接把图画在按钮上 —— 点阵屏的图大多是
+ * v_block / A0007JL 这类没有语义的名字，看名字根本认不出是哪张。
+ */
+void FileEdit::refreshFace()
+{
+    m_clear->setEnabled(!m_path.isEmpty());   // 手册：删完箭头变灰
+    if (m_path.isEmpty()) {
+        m_main->setIcon(QIcon());
+        m_main->setText(m_caption);
+        m_main->setToolTip(QStringLiteral("还没有背景图片，点一下从图片目录里选一张"));
+        return;
+    }
+    const PropertyContext &ctx = PropertyContext::instance();
+    const QString abs = QFileInfo(m_path).isAbsolute()
+                        ? m_path : QDir(ctx.projectDir).filePath(m_path);
+    QPixmap pm(abs);
+    if (pm.isNull()) {
+        /* 图丢了：明说，别装作没事 —— 这种情况生成资源时也会缺图 */
+        m_main->setIcon(QIcon());
+        m_main->setText(QStringLiteral("? ") + QFileInfo(m_path).fileName());
+        m_main->setToolTip(QStringLiteral("找不到这张图：%1").arg(abs));
+        return;
+    }
+    /* 按钮就那么高，太大的按比例缩；小图保持原尺寸，别放大糊掉 */
+    const QSize cap(kBgThumbMax);
+    if (pm.width() > cap.width() || pm.height() > cap.height()) {
+        pm = pm.scaled(cap, Qt::KeepAspectRatio, Qt::FastTransformation);
+    }
+    m_main->setText(QString());
+    m_main->setIcon(QIcon(pm));
+    m_main->setIconSize(pm.size());
+    m_main->setToolTip(m_path);
 }
 
 /* ===================== Backgroud ===================== */
@@ -689,8 +745,12 @@ void CssProperty::showNode(UiNode *n)
                 });
             }
         } else if (ptype == QLatin1String("background-image")) {
+            /* 标题单独一行 —— 按钮上要腾出来放缩略图，不能再写字了。
+             * 旁边"坐标/背景颜色/边框"每组也都是标题在上、控件在下。 */
+            m_box->addWidget(new QLabel(cap.isEmpty() ? QStringLiteral("背景图片") : cap,
+                                        this));
             auto *w = new FileEdit(this);
-            w->setCaption(cap.isEmpty() ? QStringLiteral("背景图片") : cap);
+            w->setCaption(QStringLiteral("点击选择图片"));
             w->setFilePath(po.value(QStringLiteral("background-image")).toString());
             m_box->addWidget(w);
             connect(w, &FileEdit::filePathChanged, this, [this, pname](const QString &f) {
@@ -893,6 +953,20 @@ void ComProperty::clearDynamic()
         }
         delete it;
     }
+}
+
+void ComProperty::typeIdForTest(const QString &text)
+{
+    if (!m_id) {
+        return;
+    }
+    m_id->setFocus();
+    m_id->setText(text);          // setText 不发 editingFinished，正是要模拟的状态
+}
+
+QString ComProperty::idTextForTest() const
+{
+    return m_id ? m_id->text() : QString();
 }
 
 void ComProperty::showNode(UiNode *n)

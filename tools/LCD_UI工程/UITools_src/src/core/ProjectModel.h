@@ -195,6 +195,20 @@ public:
 
     /** 全工程的非页节点总数 = 下一个新节点该拿的序号。 */
     int  nextNodeSeq() const;
+
+    /**
+     * 取一个还没被占用的"唯一ID号"（ename）。
+     *
+     * 原厂规则：base 本身没被占就用 base，否则 base_1 / base_2 … 往后找。
+     * 默认 base 是 "BaseForm" —— ui-tools.exe 里 'BaseForm'(0xc94f30) 紧挨着
+     * 'Ename is empty'(0xc94f3b)，同一编译单元（ComProperty/CssProperty）里
+     * 还有格式串 '%1_%2'；实机工程里新建的图层/布局拿到的正是
+     * BaseForm_1 / BaseForm_2。
+     *
+     * @note 比较**不分大小写** —— ename.h 里的宏名是全大写的，
+     *       BaseForm 和 BASEFORM 会撞成同一个宏。
+     */
+    QString uniqueEname(const QString &base = QStringLiteral("BaseForm")) const;
     /** n 在全工程里的序号（非页节点，前序遍历）。找不到返回 -1。 */
     int  nodeSeq(const UiNode *n) const;
     /** 对象树第一列显示的名字。 */
