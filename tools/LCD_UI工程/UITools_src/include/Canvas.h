@@ -162,6 +162,18 @@ private:
     /** 画布坐标 p 落在哪个节点上（最深的那个）。拖放和空白右键都要用。 */
     UiNode *nodeAt(const QPoint &p) const;
 
+public:
+    /**
+     * 拖 cls 落在 hit 这个节点上，最终会挂到谁下面。
+     * 单独开出来给 ops-test 用：走像素点会被 Qt 的父级裁剪坑到
+     * （工程里的列表常常被父布局裁得一个像素都点不到），
+     * 而这里要验的是**规则**，不是命中测试。
+     */
+    bool resolveDropTargetForTest(UiNode *hit, const QString &cls,
+                                  UiNode **target) const;
+
+private:
+
     UiNode *m_page = nullptr;
     /** 当前选中的节点。selectNode() 靠它判重 —— 见 Canvas.cpp 里的说明。 */
     UiNode *m_selected = nullptr;
@@ -231,6 +243,35 @@ public:
     void setZoom(int percent);
     /** 让当前页正好铺满可视区，返回算出来的倍率。 */
     int  zoomToFit(const QSize &viewport);
+
+    /**
+     * 打开工程后补齐"缺胳膊少腿"的节点：没有 element_css 的、
+     * 没有唯一 ID 号的。
+     *
+     * 【为什么会缺】旧版「添加行」在列表还空着时现搭了个只有
+     * -class/-type/-name 的壳（见 docs/FACTORY_UI.md §14.12）。这种节点没有
+     * 几何也没有样式，生成资源时它和它整棵子树的 css 全是零尺寸，
+     * 烧进设备什么都不显示，而且从编辑器到生成器没有一处报错。
+     *
+     * 建节点那条路已经修好了，但**已经存进 json 的坏节点救不回来** ——
+     * 只能在打开时按 control.json 的模板补一份，并按它在容器里的位置
+     * 给一个合理的矩形。
+     *
+     * 没有 ID 号那条同样致命：生成 ename.h 时宏名是空的，写出来就是
+     * `#define  0XC30002`，编译器一看就炸。
+     *
+     * @return 补了几个（按节点算，一个节点补两样也只算一个）
+     */
+    int healBrokenNodes();
+
+    /* ---- 无人值守入口（--make-sample / ops-test 用）------------------
+     * onCreateNewProject() / onCreateNewScenesScreen() 里塞满了模态框
+     * （"是否关闭当前工程"、ProjectDialog…），脚本里跑不了。这两个是
+     * 把对话框之后那段正事单拎出来，行为和走界面完全一致。 */
+    /** 新建一个空工程（一页 + 一图层 + 一布局），跳过所有对话框。 */
+    void newProjectForTest(const QString &name, const QSize &pageSize);
+    /** 追加一页，跳过对话框。 */
+    void addPageForTest();
 
     /** 画布可见性开关，转发给所有页。 */
     void setShowHidden(bool on);

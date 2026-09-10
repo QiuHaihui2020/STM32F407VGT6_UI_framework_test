@@ -256,6 +256,8 @@ public:
     int  state() const { return m_state; }
 
     void showNode(UiNode *n) override;
+    /** 自测用：CSS 属性页当前铺了哪几组（按标题/标签文字）。 */
+    QStringList rowsForTest() const;
 
 private:
     void clearRows();
@@ -290,6 +292,8 @@ public:
     void typeIdForTest(const QString &text);
     /** 自测用：ID 输入框里当前显示的字。 */
     QString idTextForTest() const;
+    /** 自测用：控件专有属性区当前铺了哪几行（按标签文字）。 */
+    QStringList dynRowsForTest() const;
     /**
      * 自测：把警告气泡真弹一次，返回"文字放得下吗"。
      *

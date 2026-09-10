@@ -752,6 +752,290 @@ bool MainWindow::selectNthNodeForTest(int n)
     return true;
 }
 
+/* ===================== --make-sample ===================== */
+
+int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
+                                  QString *report)
+{
+    QStringList log;
+    EditorOps::setSilent(true);
+
+    /* 【边跑边落盘的脚印】这套流程要连着调几十次建控件，中途炸了的话
+     * 报告根本回不来。每一步立刻 append 到 <out>.trace，崩了也知道停在哪。 */
+    const QString tracePath = path + QStringLiteral(".trace");
+    QFile::remove(tracePath);
+    auto trace = [&tracePath](const QString &m) {
+        QFile f(tracePath);
+        if (f.open(QIODevice::Append | QIODevice::WriteOnly)) {
+            f.write(m.toUtf8());
+            f.putChar('\n');
+        }
+    };
+    trace(QStringLiteral("start"));
+
+    /* 工程目录得先有，控件里引用的图片按相对这个目录算 */
+    const QString projDir = QFileInfo(path).absolutePath();
+    QDir().mkpath(projDir);
+
+    /* 找几张真图 —— 图片类控件不给图，生成出来是空的，验不到像素那一段 */
+    QStringList pics;
+    {
+        QDir pd(QDir(projDir).filePath(picDir));
+        const QStringList filters = { QStringLiteral("*.bmp"), QStringLiteral("*.png") };
+        for (const QFileInfo &fi : pd.entryInfoList(filters, QDir::Files, QDir::Name)) {
+            pics << QDir(projDir).relativeFilePath(fi.absoluteFilePath());
+            if (pics.size() >= 8) {
+                break;
+            }
+        }
+    }
+    log << QStringLiteral("图片素材 %1 张（目录 %2）").arg(pics.size()).arg(picDir);
+
+    trace(QStringLiteral("newProject"));
+    m_mgr->newProjectForTest(QStringLiteral("AllCtrl"), QSize(128, 64));
+    trace(QStringLiteral("newProject ok, %1 页").arg(m_mgr->model()->pages().size()));
+
+    auto firstOf = [](UiNode *pg, const char *cls) -> UiNode * {
+        UiNode *found = nullptr;
+        if (!pg) {
+            return nullptr;
+        }
+        pg->forEach([&](UiNode *x) {
+            if (!found && x->cls == QLatin1String(cls)) {
+                found = x;
+            }
+            return found == nullptr;
+        });
+        return found;
+    };
+    /* 【新建的页面是空的】原厂「新建页面」只建页节点，图层和布局要自己加
+     * （onCreateNewLayer @0x421780 是"永远加到当前页"，和选中什么无关）。
+     * 这里照着补齐，否则后面拿 firstLayout() 会拿到空指针。 */
+    auto pageOf = [&](int i) -> UiNode * {
+        while (m_mgr->model()->pages().size() <= i) {
+            m_mgr->addPageForTest();
+        }
+        m_mgr->setCurrentPage(i);
+        UiNode *pg = m_mgr->model()->pages().at(i);
+        if (!firstOf(pg, "NewLayer")) {
+            onNodeSelected(pg);
+            m_components->onCreateNewLayer();
+            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+        }
+        UiNode *la = firstOf(pg, "NewLayer");
+        if (la && !firstOf(pg, "NewLayout")) {
+            onNodeSelected(la);
+            m_components->onCreateNewLayout();
+            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+        }
+        return pg;
+    };
+    auto firstLayout = [&](UiNode *pg) -> UiNode * {
+        return firstOf(pg, "NewLayout");
+    };
+    int picCursor = 0;
+    auto dressImage = [&](UiNode *n) {
+        if (pics.isEmpty()) {
+            return;
+        }
+        const QString rel = pics.at(picCursor++ % pics.size());
+        for (UiProperty &p : n->props) {
+            if (p.name != QLatin1String("normal_image")
+                && p.name != QLatin1String("image")) {
+                continue;
+            }
+            QJsonArray lst;
+            lst.append(rel);
+            p.raw.insert(QStringLiteral("list"), lst);
+            p.dirty = true;
+            n->markDirty();
+        }
+    };
+    auto place = [](UiNode *n, int x, int y, int w, int h) {
+        n->rect = QRect(x, y, w, h);
+        n->setRectOf(0, n->rect);
+        n->markDirty();
+    };
+
+    const ControlLibrary *lib = m_mgr->library();
+
+    trace(QStringLiteral("phase0"));
+    /* ---- 页 0：每种控件各来一个，平铺 ---- */
+    {
+        UiNode *pg = pageOf(0);
+        UiNode *lo = firstLayout(pg);
+        if (!lo) {
+            *report = QStringLiteral("新建工程没有布局，造不下去");
+            return 0;
+        }
+        int x = 0, y = 0;
+        for (const ControlTemplate &t : lib->controls()) {
+            if (t.type == QLatin1String("NewLayer")
+                || t.type == QLatin1String("NewLayout")) {
+                continue;
+            }
+            onNodeSelected(lo);
+            const int was = lo->children.size();
+            m_components->createControl(t.cls, t.type, t.caption);
+            if (lo->children.size() != was + 1) {
+                log << QStringLiteral("× 建不出 %1").arg(t.caption);
+                continue;
+            }
+            UiNode *n = lo->children.last().second;
+            place(n, x, y, 16, 16);
+            dressImage(n);
+            trace(QStringLiteral("  页0 建了 %1").arg(t.type));
+            log << QStringLiteral("页0 %1 (%2)").arg(t.caption, t.type);
+            x += 16;
+            if (x >= 128) {
+                x = 0;
+                y += 16;
+            }
+        }
+    }
+
+    trace(QStringLiteral("phase1"));
+    /* ---- 页 1：容器组合 —— 列表/表格带项，项里再放控件 ---- */
+    {
+        UiNode *pg = pageOf(1);
+        UiNode *lo = firstLayout(pg);
+        if (!lo) {
+            log << QStringLiteral("× 页1 没有布局，跳过容器组合");
+        }
+        struct BoxCase { QString cls; QString type; int y; int h; };
+        const QVector<BoxCase> boxes = {
+            { QStringLiteral("NewList"), QStringLiteral("VerticalList"), 0, 32 },
+            { QStringLiteral("NewList"), QStringLiteral("HorizontalList"), 32, 16 },
+            { QStringLiteral("NewGrid"), QStringLiteral("NewGrid"), 48, 16 },
+        };
+        for (const BoxCase &b : boxes) {
+            if (!lo) {
+                break;
+            }
+            onNodeSelected(lo);
+            const int boxWas = lo->children.size();
+            m_components->createDropped(lo, b.cls, b.type, QPoint(0, b.y));
+            if (lo->children.size() != boxWas + 1) {
+                log << QStringLiteral("× 建不出 %1").arg(b.type);
+                continue;
+            }
+            UiNode *box = lo->children.last().second;
+            place(box, 0, b.y, 128, b.h);
+            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+
+            for (int i = 0; i < 2; ++i) {
+                onNodeSelected(box);
+                m_components->onCreateNewLayout();
+                if (box->children.size() != i + 1) {
+                    log << QStringLiteral("× %1 加不出第 %2 项").arg(b.type).arg(i);
+                    break;
+                }
+                UiNode *item = box->children.last().second;
+                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+                /* 每一项里放一张图 + 一段文字 */
+                onNodeSelected(item);
+                m_components->createControl(QStringLiteral("NewFrame"),
+                                            QStringLiteral("ImageList"),
+                                            QStringLiteral("图片"));
+                if (!item->children.isEmpty()) {
+                    UiNode *im = item->children.last().second;
+                    place(im, 0, 0, qMin(16, item->rect.width()),
+                          qMin(16, item->rect.height()));
+                    dressImage(im);
+                }
+                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+                onNodeSelected(item);
+                m_components->createControl(QStringLiteral("NewFrame"),
+                                            QStringLiteral("Text"),
+                                            QStringLiteral("文字"));
+                if (item->children.size() >= 2) {
+                    UiNode *tx = item->children.last().second;
+                    place(tx, qMin(16, item->rect.width() - 1), 0,
+                          qMax(1, item->rect.width() - 16),
+                          qMin(16, item->rect.height()));
+                }
+                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            }
+            trace(QStringLiteral("  页1 %1 完").arg(b.type));
+            log << QStringLiteral("页1 %1 带 %2 项").arg(b.type)
+                   .arg(box->children.size());
+        }
+    }
+
+    trace(QStringLiteral("phase2"));
+    /* ---- 页 2：布局套布局 + 一堆控件混排 ---- */
+    {
+        UiNode *pg = pageOf(2);
+        UiNode *lo = firstLayout(pg);
+        if (!lo) {
+            log << QStringLiteral("× 页2 没有布局，跳过");
+            *report = log.join(QChar(QLatin1Char('\n')));
+            return 0;
+        }
+        onNodeSelected(lo);
+        m_components->onCreateNewLayout();             // 布局套布局
+        UiNode *inner = lo->children.isEmpty() ? nullptr : lo->children.last().second;
+        if (inner) {
+            place(inner, 0, 0, 128, 32);
+            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            int x = 0;
+            for (const ControlTemplate &t : lib->controls()) {
+                if (t.cls != QLatin1String("NewFrame")) {
+                    continue;                          // 只放叶子控件
+                }
+                onNodeSelected(inner);
+                const int was = inner->children.size();
+                m_components->createControl(t.cls, t.type, t.caption);
+                if (inner->children.size() != was + 1) {
+                    continue;
+                }
+                UiNode *n = inner->children.last().second;
+                place(n, x, 0, 16, 16);
+                dressImage(n);
+                x = (x + 16) % 128;
+            }
+            log << QStringLiteral("页2 嵌套布局带 %1 个控件")
+                   .arg(inner->children.size());
+        }
+        /* 同一个布局里再并排放一批，测"多个控件组合" */
+        int x2 = 0;
+        for (int round = 0; round < 2; ++round) {
+            for (const ControlTemplate &t : lib->controls()) {
+                if (t.cls != QLatin1String("NewFrame")) {
+                    continue;
+                }
+                onNodeSelected(lo);
+                const int was = lo->children.size();
+                m_components->createControl(t.cls, t.type, t.caption);
+                if (lo->children.size() != was + 1) {
+                    continue;
+                }
+                UiNode *n = lo->children.last().second;
+                place(n, x2, 32 + round * 16, 16, 16);
+                dressImage(n);
+                x2 = (x2 + 16) % 128;
+            }
+        }
+        log << QStringLiteral("页2 布局共 %1 个孩子").arg(lo->children.size());
+    }
+
+    trace(QStringLiteral("save"));
+    int nodes = 0;
+    for (UiNode *pg : m_mgr->model()->pages()) {
+        pg->forEach([&nodes](UiNode *) { ++nodes; return true; });
+    }
+
+    QString err;
+    if (!m_mgr->model()->save(path, &err)) {
+        *report = QStringLiteral("存不下来: %1").arg(err);
+        return 0;
+    }
+    log << QStringLiteral("共 %1 个节点，已写入 %2").arg(nodes).arg(path);
+    *report = log.join(QLatin1Char('\n'));
+    EditorOps::setSilent(false);
+    return nodes;
+}
+
 /* ===================== --ops-test ===================== */
 
 namespace {
@@ -843,13 +1127,35 @@ int MainWindow::runOpsTest(QString *report)
         return 1;
     }
 
-    /* --- 1. 建控件必须先选中布局 --- */
+    /* --- 1. 建控件：选中控件时加到它的兄弟位置 ---
+     * 规则出处 ui-tools.exe onCreateCompoentToCanvas @0x4212C0：
+     * 选中是 NewFrame/NewList/NewGrid 时，容器取 sel 的**父级**。
+     * 本版一度写成"直接拦下报错"，比原厂严。 */
     int before = countNodes(page);
+    UiNode *const frameHost = frame->parent;
+    const int hostKidsWas = frameHost ? frameHost->children.size() : -1;
     onNodeSelected(frame);                       // 选中的是控件，不是布局
     EditorOps::clearLastMessage();
     m_components->createControl(QStringLiteral("NewFrame"), QStringLiteral("Text"),
                                 QStringLiteral("文字"));
-    check(QStringLiteral("选中控件时建控件被拦下"),
+    check(QStringLiteral("选中控件时建控件：建得出来（原厂不拦）"),
+          countNodes(page) == before + 1
+          && EditorOps::lastMessage().isEmpty(),
+          EditorOps::lastMessage());
+    check(QStringLiteral("选中控件时建控件：加到它的父级，不是钻进控件里"),
+          frameHost && frameHost->children.size() == hostKidsWas + 1
+          && frame->children.isEmpty(),
+          QStringLiteral("父级 %1 -> %2，控件自己 %3 个孩子")
+          .arg(hostKidsWas).arg(frameHost ? frameHost->children.size() : -1)
+          .arg(frame->children.size()));
+
+    /* 选中图层建控件才是真拦 —— 原厂那一条 isClass("NewLayer") 判死的 */
+    before = countNodes(page);
+    onNodeSelected(layer);
+    EditorOps::clearLastMessage();
+    m_components->createControl(QStringLiteral("NewFrame"), QStringLiteral("Text"),
+                                QStringLiteral("文字"));
+    check(QStringLiteral("选中图层时建控件被拦下"),
           countNodes(page) == before
           && EditorOps::lastMessage() == QStringLiteral("请选择一个布局或者新建一个并选中它."),
           EditorOps::lastMessage());
@@ -869,17 +1175,21 @@ int MainWindow::runOpsTest(QString *report)
     check(QStringLiteral("新控件带着模板的 element_css"),
           made && made->cssStateCount() > 0);
 
-    /* --- 3. 建布局必须先选中图层 --- */
+    /* --- 3. 建布局：图层下、布局里套一层，都行 ---
+     * 规则出处 ui-tools.exe onCreateNewLayout @0x421500：NewLayout 和 NewLayer
+     * 都是"挂到自己"，NewFrame/NewList 挂到父级，其余静默。本版一度写成
+     * "只能挂图层下"，于是布局套布局建不出来（原厂工程里有 3 例）。 */
     before = countNodes(page);
-    onNodeSelected(layout);                      // 选中的是布局，不是图层
+    const int layoutKidsWas = layout->children.size();
+    onNodeSelected(layout);                      // 选中的是布局
     EditorOps::clearLastMessage();
     m_components->onCreateNewLayout();
-    check(QStringLiteral("选中布局时建布局被拦下"),
-          countNodes(page) == before
-          && EditorOps::lastMessage()
-             == QStringLiteral("请选择一个图层或者新建一个图层,并选中它."),
+    check(QStringLiteral("选中布局建布局：套在它里面（原厂工程里有 3 例这种嵌套）"),
+          countNodes(page) == before + 1
+          && layout->children.size() == layoutKidsWas + 1,
           EditorOps::lastMessage());
 
+    before = countNodes(page);
     onNodeSelected(layer);
     EditorOps::clearLastMessage();
     m_components->onCreateNewLayout();
@@ -2860,10 +3170,1462 @@ int MainWindow::runOpsTest(QString *report)
                           QStringLiteral("%1/%2 个是 0，首个 %3").arg(zero).arg(total).arg(first));
                     check(QStringLiteral("新建工程：生成过程没有'取不到父级尺寸'的警告"),
                           o.warnings.filter(QStringLiteral("取不到父级尺寸")).isEmpty(),
+                          o.warnings.filter(QStringLiteral("取不到父级尺寸"))
+                          .join(QStringLiteral(" / ")));
+                    /* 新建工程的图层/布局也得带 ID 号 —— 空的写出来就是
+                     * `#define  0X...`，而且业务代码引用不到它。 */
+                    check(QStringLiteral("新建工程：每个控件都有唯一 ID 号"),
+                          o.warnings.filter(QStringLiteral("没有唯一ID号")).isEmpty(),
+                          o.warnings.filter(QStringLiteral("没有唯一ID号"))
+                          .join(QStringLiteral(" / ")));
+                }
+            }
+        }
+    }
+
+    /* --- 18p. 选中要活过 rebuild() 和树重载 ---
+     * 用户实测：改一个图片参数按回车、往当前布局里拖一个新控件，画布当场
+     * 散成"这一页所有布局叠在一起"。根因是 rebuild() 会把 m_selected 清掉，
+     * 而 applyVisibility() 的"选中即隔离"没了目标就退回全画。要命的是
+     * rebuild() 的触发点大多**根本没动结构**：改属性、加控件、换倍率、
+     * 改预览配色，全走这一条 —— 等于编辑器一动就散架。 */
+    {
+        sc->setSolo(true);
+        sc->setShowHidden(false);
+
+        /* 找到 layout 所属的那个顶层布局（父节点是图层的那一层），
+         * 隔离是按这一层算的。 */
+        UiNode *top = layout;
+        while (top && top->parent && top->parent->cls != QLatin1String("NewLayer")) {
+            top = top->parent;
+        }
+        auto visibleSiblings = [&]() {
+            int shown = 0;
+            if (top && top->parent) {
+                for (const auto &sib : top->parent->children) {
+                    if (sib.second == top) {
+                        continue;
+                    }
+                    sib.second->forEach([&](UiNode *x) {
+                        if (BaseForm *sf = sc->formFor(x)) {
+                            if (sf->isVisible()) {
+                                ++shown;
+                            }
+                        }
+                        return true;
+                    });
+                }
+            }
+            return shown;
+        };
+
+        onNodeSelected(layout);
+        check(QStringLiteral("测试前提：画布上确实选中了这个布局"),
+              sc->selectedNode() == layout);
+        const int isolated = visibleSiblings();
+
+        /* 1) 光是重建一次，选中不能丢 */
+        sc->rebuild();
+        check(QStringLiteral("rebuild() 之后选中还在（丢了就退回所有布局叠一起）"),
+              sc->selectedNode() == layout);
+        check(QStringLiteral("rebuild() 之后画布上那个控件还是选中态"),
+              sc->formFor(layout) && sc->formFor(layout)->isSelected());
+        check(QStringLiteral("rebuild() 之后隔离还在（同级布局露出来的控件数没变）"),
+              visibleSiblings() == isolated,
+              QStringLiteral("之前 %1，现在 %2").arg(isolated).arg(visibleSiblings()));
+
+        /* 2) 改属性走的那条路：画布重建 + 树重载。树上的高亮也要留住 ——
+         *    高亮一没，用户看到的就是"改个参数选中自己跑了"。 */
+        m_tree->selectNode(layout);
+        sc->rebuild();
+        m_tree->reload();
+        check(QStringLiteral("树重载之后高亮还在原来那一项"),
+              m_tree->currentNodeForTest() == layout);
+        check(QStringLiteral("改属性那条路走完，画布选中还在"),
+              sc->selectedNode() == layout);
+
+        /* 3) 换倍率也一样（这条以前是单独实现的，现在并到 rebuild() 里了） */
+        const int z0 = sc->zoom();
+        sc->setZoom(z0 >= 400 ? 200 : 400);
+        check(QStringLiteral("改倍率之后选中还在"), sc->selectedNode() == layout);
+        sc->setZoom(z0);
+
+        /* 4) 新建控件：建完要选中**新的那个**。不选的话，什么都没选中时
+         *    往布局里拖一个控件，这一页的布局会全画出来叠成一团，
+         *    刚拖进去的那个反而看不见。 */
+        onNodeSelected(layout);
+        const int kidsWas = layout->children.size();
+        m_components->createControl(QStringLiteral("NewFrame"), QStringLiteral("Text"),
+                                    QStringLiteral("文字"));
+        UiNode *fresh = layout->children.size() == kidsWas + 1
+                        ? layout->children.last().second : nullptr;
+        check(QStringLiteral("新建的控件建完就是选中的"),
+              fresh && sc->selectedNode() == fresh);
+        check(QStringLiteral("新建控件之后隔离还在"),
+              visibleSiblings() == isolated,
+              QStringLiteral("之前 %1，现在 %2").arg(isolated).arg(visibleSiblings()));
+        check(QStringLiteral("新建的控件在画布上看得见"),
+              fresh && sc->formFor(fresh) && sc->formFor(fresh)->isVisible());
+    }
+
+    /* --- 18q. 列表/表格是容器，下面放得进东西 ---
+     * 用户实测："为什么我的垂直列表下面不能放其他控件？"
+     * 本版的 EditorOps::acceptsChild() 只认 NewLayout，于是列表怎么都收不到
+     * 孩子，永远是空的。而原厂两个工程里，列表下面一共挂着 165 个布局
+     * （键 listwidget）—— 那就是列表的行/项模板，控件再放进这些行布局里。 */
+    if (list) {
+        sc->rebuild();
+        const QString key = EditorOps::childKeyFor(list);
+        check(QStringLiteral("列表的子键是 listwidget（不是 layout）"),
+              key == QLatin1String("listwidget"), key);
+        check(QStringLiteral("列表装得下布局"), EditorOps::acceptsLayout(list));
+        check(QStringLiteral("列表装不下裸控件（孩子必须是行布局）"),
+              !EditorOps::acceptsWidget(list));
+        check(QStringLiteral("控件谁都装不下"),
+              !EditorOps::acceptsLayout(frame) && !EditorOps::acceptsWidget(frame));
+
+        /* 拖一个布局落在列表上 -> 容器就是列表本身，不许被上溯到父布局。
+         * 这里直接问规则，不走像素命中 —— 工程里的列表常被父布局裁得
+         * 一个像素都点不到，那是 Qt 的裁剪，和落点规则是两回事。 */
+        {
+            UiNode *t = nullptr;
+            const bool ok = sc->resolveDropTargetForTest(
+                list, QStringLiteral("NewLayout"), &t);
+            check(QStringLiteral("布局能拖进列表里（列表的行就是布局）"),
+                  ok && t == list,
+                  t ? QStringLiteral("落到了 %1").arg(t->name)
+                    : QStringLiteral("落不下去"));
+
+            t = nullptr;
+            const bool ok2 = sc->resolveDropTargetForTest(
+                list, QStringLiteral("NewFrame"), &t);
+            check(QStringLiteral("控件拖到列表上会落到列表的父布局，不塞进列表"),
+                  ok2 && t == list->parent,
+                  t ? t->name : QStringLiteral("落不下去"));
+        }
+
+        /* ★ 选中列表点「新建布局」：本版有意和原厂不一样，建进列表。
+         * 原厂是加到列表的父级（0x421500 那条 isClass("NewList") 走
+         * [sel+0x34]），加行只能走列表的右键菜单「添加行」。 */
+        {
+            const int rowsWas0 = list->children.size();
+            const int sibsWas = list->parent ? list->parent->children.size() : -1;
+            onNodeSelected(list);
+            m_components->onCreateNewLayout();
+            check(QStringLiteral("选中列表点「新建布局」：布局落进列表里"),
+                  list->children.size() == rowsWas0 + 1
+                  && list->parent && list->parent->children.size() == sibsWas,
+                  QStringLiteral("列表 %1->%2，父级 %3->%4")
+                  .arg(rowsWas0).arg(list->children.size()).arg(sibsWas)
+                  .arg(list->parent ? list->parent->children.size() : -1));
+            check(QStringLiteral("这样建出来的行也挂 listwidget 键"),
+                  list->children.last().first == QLatin1String("listwidget")
+                  && list->children.last().second->cls == QLatin1String("NewLayout"),
+                  QStringLiteral("%1/%2").arg(list->children.last().first,
+                                              list->children.last().second->cls));
+        }
+
+        /* 再走一遍拖放那条路 */
+        const int rowsWas = list->children.size();
+        m_components->createDropped(list, QStringLiteral("NewLayout"),
+                                    QStringLiteral("NewLayout"), QPoint(0, 0));
+        const bool rowMade = list->children.size() == rowsWas + 1;
+        check(QStringLiteral("列表下面建得出行布局"), rowMade);
+        if (rowMade) {
+            check(QStringLiteral("行布局挂在 listwidget 键下"),
+                  list->children.last().first == QLatin1String("listwidget"),
+                  list->children.last().first);
+            UiNode *row = list->children.last().second;
+            sc->rebuild();
+            onNodeSelected(row);
+            const int inRow = row->children.size();
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("Text"), QStringLiteral("文字"));
+            check(QStringLiteral("行布局里放得进控件"),
+                  row->children.size() == inRow + 1);
+
+            /* 选中列表本身点「新建控件」：原厂是加到列表的**父级**，
+             * 不是钻进列表（onCreateCompoentToCanvas @0x4212C0 那三条 isClass）。*/
+            UiNode *listHost = list->parent;
+            const int hostWas = listHost ? listHost->children.size() : -1;
+            const int listWas = list->children.size();
+            onNodeSelected(list);
+            EditorOps::clearLastMessage();
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("Text"), QStringLiteral("文字"));
+            check(QStringLiteral("选中列表建控件：加到列表的父级，不钻进列表"),
+                  listHost && listHost->children.size() == hostWas + 1
+                  && list->children.size() == listWas,
+                  QStringLiteral("父级 %1->%2，列表 %3->%4")
+                  .arg(hostWas).arg(listHost ? listHost->children.size() : -1)
+                  .arg(listWas).arg(list->children.size()));
+        }
+
+        /* --- 存盘 / 重新打开 / 生成资源，形状不能变 ---
+         * 用户的要求：打开的 json 工程和生成的 UI 资源都要保持兼容。
+         * 列表加行这条路走完，落盘的还得是原厂那个形状：
+         * NewList --listwidget--> NewLayout，而且生成出来的 .sty 里
+         * 这些行都得有非零几何（零尺寸 = 屏上不显示，见 18o）。 */
+        {
+            const QString dir = QDir::temp().filePath(QStringLiteral("uitools_list"));
+            QDir().mkpath(dir);
+            const QString jf = QDir(dir).filePath(QStringLiteral("list.json"));
+            QString err;
+            const bool saved = m_mgr->model()->save(jf, &err);
+            check(QStringLiteral("加过行的工程存得下来"), saved, err);
+
+            if (saved) {
+                ProjectModel re;
+                const bool reloaded = re.load(jf, &err);
+                check(QStringLiteral("加过行的工程重新打开得了"), reloaded, err);
+                if (reloaded) {
+                    int lists = 0, rows = 0, badKey = 0, badCls = 0;
+                    for (UiNode *pg : re.pages()) {
+                        pg->forEach([&](UiNode *x) {
+                            if (x->cls != QLatin1String("NewList")) {
+                                return true;
+                            }
+                            ++lists;
+                            for (const auto &c : x->children) {
+                                ++rows;
+                                if (c.first != QLatin1String("listwidget")) {
+                                    ++badKey;
+                                }
+                                if (c.second->cls != QLatin1String("NewLayout")) {
+                                    ++badCls;
+                                }
+                            }
+                            return true;
+                        });
+                    }
+                    check(QStringLiteral("重新打开后：列表的孩子全在 listwidget 键下"),
+                          lists > 0 && rows > 0 && badKey == 0,
+                          QStringLiteral("%1 个列表 %2 行，键不对 %3")
+                          .arg(lists).arg(rows).arg(badKey));
+                    check(QStringLiteral("重新打开后：列表的孩子全是 NewLayout（原厂就这一种）"),
+                          badCls == 0, QStringLiteral("类不对 %1 个").arg(badCls));
+                }
+
+                sty::Builder b;
+                QString e2;
+                const bool built = b.loadProject(jf, &e2);
+                check(QStringLiteral("加过行的工程生成得了资源"), built, e2);
+                if (built) {
+                    sty::Options opt;
+                    const sty::Output o = b.build(opt);
+                    check(QStringLiteral("生成资源没报错"), o.ok, o.error);
+                    check(QStringLiteral("生成过程没有'取不到父级尺寸'的警告"),
+                          o.warnings.filter(QStringLiteral("取不到父级尺寸")).isEmpty(),
                           o.warnings.join(QStringLiteral(" / ")));
                 }
             }
         }
+    }
+
+    /* --- 18r. 水平列表 / 表格控件走的是同一套容器规则 ---
+     * 18q 只验了工程里现成的垂直列表。水平列表的 -class 也是 NewList，
+     * 天然同路；表格是另一个类，得单独验一遍。两个工程都没有表格样本，
+     * 所以这里现场建一个。
+     * 表格和列表同为 option.ini 类型码 5，固件 ui_grid.h 里每一项也是
+     * `struct layout_info *` —— 和列表的行是同一种东西，规则没道理分家。 */
+    {
+        auto probeBox = [&](const QString &cls, const QString &type,
+                            const QString &label) {
+            onNodeSelected(layout);
+            const int was = layout->children.size();
+            m_components->createDropped(layout, cls, type, QPoint(0, 0));
+            if (layout->children.size() != was + 1) {
+                check(QStringLiteral("%1：建得出来").arg(label), false,
+                      QStringLiteral("%1 -> %2").arg(was).arg(layout->children.size()));
+                return;
+            }
+            UiNode *box = layout->children.last().second;
+            check(QStringLiteral("%1：类对得上").arg(label), box->cls == cls, box->cls);
+            check(QStringLiteral("%1：装得下布局").arg(label),
+                  EditorOps::acceptsLayout(box));
+            check(QStringLiteral("%1：装不下裸控件（项必须是布局）").arg(label),
+                  !EditorOps::acceptsWidget(box));
+            check(QStringLiteral("%1：子键是 listwidget").arg(label),
+                  EditorOps::childKeyFor(box) == QLatin1String("listwidget"),
+                  EditorOps::childKeyFor(box));
+
+            UiNode *t = nullptr;
+            check(QStringLiteral("%1：布局拖上去进容器").arg(label),
+                  sc->resolveDropTargetForTest(box, QStringLiteral("NewLayout"), &t)
+                  && t == box,
+                  t ? t->name : QStringLiteral("落不下去"));
+            t = nullptr;
+            check(QStringLiteral("%1：控件拖上去落到它的父布局").arg(label),
+                  sc->resolveDropTargetForTest(box, QStringLiteral("NewFrame"), &t)
+                  && t == box->parent,
+                  t ? t->name : QStringLiteral("落不下去"));
+
+            sc->rebuild();
+            onNodeSelected(box);
+            const int rows = box->children.size();
+            m_components->onCreateNewLayout();
+            const bool grew = box->children.size() == rows + 1;
+            check(QStringLiteral("%1：选中它点「新建布局」，布局落进去了").arg(label),
+                  grew, QStringLiteral("%1 -> %2").arg(rows).arg(box->children.size()));
+            if (grew) {
+                check(QStringLiteral("%1：这一项挂 listwidget 键且是 NewLayout").arg(label),
+                      box->children.last().first == QLatin1String("listwidget")
+                      && box->children.last().second->cls == QLatin1String("NewLayout"),
+                      QStringLiteral("%1/%2").arg(box->children.last().first,
+                                                  box->children.last().second->cls));
+            }
+
+            /* 选中它点「新建控件」：按原厂落到它的父级，不钻进去 */
+            UiNode *host = box->parent;
+            const int hostWas = host ? host->children.size() : -1;
+            const int inBox = box->children.size();
+            onNodeSelected(box);
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("Text"), QStringLiteral("文字"));
+            check(QStringLiteral("%1：选中它点「新建控件」落到父级（原厂行为）").arg(label),
+                  host && host->children.size() == hostWas + 1
+                  && box->children.size() == inBox,
+                  QStringLiteral("父级 %1->%2，它自己 %3->%4")
+                  .arg(hostWas).arg(host ? host->children.size() : -1)
+                  .arg(inBox).arg(box->children.size()));
+        };
+
+        probeBox(QStringLiteral("NewList"), QStringLiteral("HorizontalList"),
+                 QStringLiteral("水平列表"));
+        probeBox(QStringLiteral("NewGrid"), QStringLiteral("NewGrid"),
+                 QStringLiteral("表格控件"));
+
+        /* 这两种新容器也得存得下来、读得回去、生成得出资源 */
+        {
+            const QString dir = QDir::temp().filePath(QStringLiteral("uitools_box"));
+            QDir().mkpath(dir);
+            const QString jf = QDir(dir).filePath(QStringLiteral("box.json"));
+            QString err;
+            const bool saved = m_mgr->model()->save(jf, &err);
+            check(QStringLiteral("带水平列表/表格的工程存得下来"), saved, err);
+            if (saved) {
+                ProjectModel re;
+                const bool reloaded = re.load(jf, &err);
+                check(QStringLiteral("带水平列表/表格的工程重新打开得了"), reloaded, err);
+                if (reloaded) {
+                    int boxes = 0, items = 0, bad = 0;
+                    for (UiNode *pg : re.pages()) {
+                        pg->forEach([&](UiNode *x) {
+                            if (x->cls != QLatin1String("NewList")
+                                && x->cls != QLatin1String("NewGrid")) {
+                                return true;
+                            }
+                            ++boxes;
+                            for (const auto &c : x->children) {
+                                ++items;
+                                if (c.first != QLatin1String("listwidget")
+                                    || c.second->cls != QLatin1String("NewLayout")) {
+                                    ++bad;
+                                }
+                            }
+                            return true;
+                        });
+                    }
+                    check(QStringLiteral("重新打开后：列表和表格的项全是 listwidget/NewLayout"),
+                          boxes > 0 && items > 0 && bad == 0,
+                          QStringLiteral("%1 个容器 %2 项，不合规 %3")
+                          .arg(boxes).arg(items).arg(bad));
+                }
+                sty::Builder b;
+                QString e2;
+                const bool ok = b.loadProject(jf, &e2);
+                check(QStringLiteral("带水平列表/表格的工程生成得了资源"), ok, e2);
+                if (ok) {
+                    sty::Options opt;
+                    const sty::Output o = b.build(opt);
+                    check(QStringLiteral("生成没报错"), o.ok, o.error);
+                    check(QStringLiteral("生成没有'取不到父级尺寸'的警告"),
+                          o.warnings.filter(QStringLiteral("取不到父级尺寸")).isEmpty(),
+                          o.warnings.join(QStringLiteral(" / ")));
+                }
+            }
+        }
+    }
+
+    /* --- 18s. 水平列表 -> 行布局 -> 图片：预览要画出来，资源要带上 ---
+     * 用户实测："水平列表里面建一个布局，布局下面放一个图片，预览看不到内容,
+     * 也不确定会不会导出到资源里面"。两头各查一遍：
+     *   预览 —— Preview::contentOf() 出不出图 + 画布上那块区域有没有点亮像素；
+     *   资源 —— 这张图有没有进 Resbuilder.xml（那就是交给 ResBuilder 的清单）。 */
+    {
+        onNodeSelected(layout);
+        const int was = layout->children.size();
+        m_components->createDropped(layout, QStringLiteral("NewList"),
+                                    QStringLiteral("HorizontalList"), QPoint(0, 0));
+        UiNode *hl = layout->children.size() == was + 1
+                     ? layout->children.last().second : nullptr;
+        check(QStringLiteral("18s 前提：建得出水平列表"), hl != nullptr);
+
+        UiNode *row = nullptr;
+        if (hl) {
+            sc->rebuild();
+            onNodeSelected(hl);
+            m_components->onCreateNewLayout();
+            row = hl->children.isEmpty() ? nullptr : hl->children.last().second;
+            check(QStringLiteral("18s 前提：水平列表里建得出行布局"), row != nullptr);
+        }
+
+        UiNode *img = nullptr;
+        if (row) {
+            sc->rebuild();
+            onNodeSelected(row);
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("ImageList"),
+                                        QStringLiteral("图片"));
+            img = row->children.isEmpty() ? nullptr : row->children.last().second;
+            check(QStringLiteral("18s 前提：行布局里建得出图片控件"), img != nullptr);
+        }
+
+        QString rel;
+        if (img) {
+            /* 挑工程里现成的一张图，走和属性面板同一个弹窗 */
+            ImageListView dlg(this);
+            dlg.setProjectDir(QFileInfo(m_mgr->model()->filePath()).absolutePath());
+            if (dlg.pickForTest(0)) {
+                rel = dlg.selected();
+            }
+            check(QStringLiteral("18s 前提：挑得到一张图"), !rel.isEmpty(), rel);
+            for (UiProperty &p : img->props) {
+                if (p.name != QLatin1String("normal_image")) {
+                    continue;
+                }
+                QJsonArray lst;
+                lst.append(rel);
+                p.raw.insert(QStringLiteral("list"), lst);
+                p.dirty = true;
+                img->markDirty();
+                break;
+            }
+        }
+
+        if (img && !rel.isEmpty()) {
+            /* ---- 预览这一头 ---- */
+            const QPixmap pm = Preview::contentOf(img, Preview::monoLit());
+            check(QStringLiteral("图片控件出得了预览图"),
+                  !pm.isNull() && pm.width() > 0 && pm.height() > 0,
+                  QStringLiteral("%1x%2").arg(pm.width()).arg(pm.height()));
+
+            sc->rebuild();
+            onNodeSelected(img);
+            BaseForm *hf = sc->formFor(hl);
+            BaseForm *rf = sc->formFor(row);
+            BaseForm *imf = sc->formFor(img);
+            check(QStringLiteral("画布上三层都建出来了"),
+                  hf && rf && imf);
+            if (hf && rf && imf) {
+                check(QStringLiteral("水平列表在画布上有尺寸"),
+                      hf->width() > 0 && hf->height() > 0 && hf->isVisible(),
+                      QStringLiteral("%1,%2 %3x%4 可见=%5")
+                      .arg(hf->x()).arg(hf->y()).arg(hf->width()).arg(hf->height())
+                      .arg(hf->isVisible()));
+                check(QStringLiteral("行布局在画布上有尺寸"),
+                      rf->width() > 0 && rf->height() > 0 && rf->isVisible(),
+                      QStringLiteral("%1,%2 %3x%4 可见=%5")
+                      .arg(rf->x()).arg(rf->y()).arg(rf->width()).arg(rf->height())
+                      .arg(rf->isVisible()));
+                check(QStringLiteral("图片控件在画布上有尺寸"),
+                      imf->width() > 0 && imf->height() > 0 && imf->isVisible(),
+                      QStringLiteral("%1,%2 %3x%4 可见=%5")
+                      .arg(imf->x()).arg(imf->y()).arg(imf->width()).arg(imf->height())
+                      .arg(imf->isVisible()));
+
+                check(QStringLiteral("18s 诊断：三层的逻辑矩形 / 倍率 / sizehw"),
+                      true,
+                      QStringLiteral("列表 %1x%2  行 %3x%4  图片 %5x%6  倍率 %7  sizehw %8")
+                      .arg(hl->rect.width()).arg(hl->rect.height())
+                      .arg(row->rect.width()).arg(row->rect.height())
+                      .arg(img->rect.width()).arg(img->rect.height())
+                      .arg(sc->zoom())
+                      .arg(hl->extraValue(QStringLiteral("sizehw")).toInt(-1)));
+
+                /* 【看用户实际看到的那一块】抓图片控件自己没用 —— Qt 会把它
+                 * 裁在行布局、行布局又裁在列表里，控件自己那张图是完整的，
+                 * 用户看到的却可能只剩一条边。所以抓**列表**这一层。 */
+                const QImage listShot = hf->grab().toImage();
+                const QRgb lrgb = Preview::monoLit().rgb();
+                int litOnList = 0;
+                for (int y = 0; y < listShot.height(); ++y) {
+                    for (int x = 0; x < listShot.width(); ++x) {
+                        if ((listShot.pixel(x, y) | 0xFF000000u) == lrgb) {
+                            ++litOnList;
+                        }
+                    }
+                }
+                check(QStringLiteral("列表这一层上看得见图片内容（用户看到的就是这块）"),
+                      litOnList > 0,
+                      QStringLiteral("%1x%2 点亮 %3 个")
+                      .arg(listShot.width()).arg(listShot.height()).arg(litOnList));
+
+                const QImage shot = imf->grab().toImage();
+                const QRgb l = Preview::monoLit().rgb();
+                int lit = 0;
+                for (int y = 0; y < shot.height(); ++y) {
+                    for (int x = 0; x < shot.width(); ++x) {
+                        if ((shot.pixel(x, y) | 0xFF000000u) == l) {
+                            ++lit;
+                        }
+                    }
+                }
+                check(QStringLiteral("图片控件自己画出了内容（有点亮像素）"),
+                      lit > 0,
+                      QStringLiteral("%1x%2 点亮 %3 个")
+                      .arg(shot.width()).arg(shot.height()).arg(lit));
+            }
+
+            /* ---- 资源这一头 ---- */
+            const QString dir = QDir::temp().filePath(QStringLiteral("uitools_hlist"));
+            QDir().mkpath(dir);
+            const QString jf = QDir(dir).filePath(QStringLiteral("hlist.json"));
+            QString err;
+            if (m_mgr->model()->save(jf, &err)) {
+                sty::Builder b;
+                QString e2;
+                const bool ok = b.loadProject(jf, &e2);
+                check(QStringLiteral("带这张图的工程生成得了资源"), ok, e2);
+                if (ok) {
+                    sty::Options opt;
+                    const sty::Output o = b.build(opt);
+                    check(QStringLiteral("生成没报错"), o.ok, o.error);
+                    const QString xml = QString::fromUtf8(o.resbuilderXml);
+                    const QString leaf = QFileInfo(rel).fileName();
+                    check(QStringLiteral("这张图进了 Resbuilder.xml（会被打进资源）"),
+                          xml.contains(leaf, Qt::CaseInsensitive),
+                          QStringLiteral("找 %1，清单 %2 字节").arg(leaf).arg(xml.size()));
+                }
+            } else {
+                check(QStringLiteral("带这张图的工程存得下来"), false, err);
+            }
+        }
+    }
+
+    /* --- 18t. 列表格子参数改完，预览当场跟着变；加的行叫中文名 ---
+     * 用户实测两条：
+     *   "列表右键参数设置，例如行高或者间隔修改后，预览没有立刻生效"
+     *   "列表控件添加的行或者列，控件名字是英文名，正常新建控件是中文名字"
+     * 前者根因：那几个处理函数只 setExtra() + update() —— 没重排各行
+     * （relayoutRows 当时只有滚轮翻行才跑）、没更新各行节点的 rect、
+     * 也没往上发信号，右栏预览和脏标志都不动。
+     * 后者根因：onAddManyLine() 的退化分支直接现搭了个 -name "NewLayout"。 */
+    if (list) {
+        sc->rebuild();
+
+        /* 至少得有两行才看得出"格子变了" */
+        if (list->children.size() < 2) {
+            if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+                lf->onAddManyLine();
+                sc->rebuild();
+            }
+        }
+
+        auto cellsMatch = [&]() {
+            for (int i = 0; i < list->children.size(); ++i) {
+                if (list->children.at(i).second->rect
+                    != EditorOps::cellRectFor(list, i)) {
+                    return false;
+                }
+            }
+            return !list->children.isEmpty();
+        };
+
+        const int size0 = list->extraValue(QStringLiteral("sizehw")).toInt(16);
+        const int space0 = list->extraValue(QStringLiteral("space")).toInt(0);
+        QVector<QRect> before;
+        for (const auto &c : list->children) {
+            before.append(c.second->rect);
+        }
+
+        /* ---- 改行高 ---- */
+        if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+            lf->setCellSize(size0 + 7);
+        }
+        QVector<QRect> after;
+        for (const auto &c : list->children) {
+            after.append(c.second->rect);
+        }
+        check(QStringLiteral("改行高之后各行的矩形当场就变了"),
+              !before.isEmpty() && after != before,
+              QStringLiteral("改前 %1 改后 %2")
+              .arg(before.isEmpty() ? QString() : QString::number(before.first().height()))
+              .arg(after.isEmpty() ? QString() : QString::number(after.first().height())));
+        check(QStringLiteral("各行矩形 == 按新参数算出来的格子"), cellsMatch());
+
+        /* 画布上的行控件也得跟着变（倍率 100 时就是 1:1） */
+        sc->rebuild();
+        if (!list->children.isEmpty()) {
+            BaseForm *rf = sc->formFor(list->children.first().second);
+            const QRect want = EditorOps::cellRectFor(list, 0);
+            const int z = qMax(1, sc->zoom());
+            check(QStringLiteral("画布上第一行的尺寸也跟着变"),
+                  rf && rf->width() == want.width() * z / 100
+                     && rf->height() == want.height() * z / 100,
+                  rf ? QStringLiteral("控件 %1x%2  期望 %3x%4  倍率 %5")
+                       .arg(rf->width()).arg(rf->height())
+                       .arg(want.width() * z / 100).arg(want.height() * z / 100).arg(z)
+                     : QStringLiteral("画布上找不到这一行"));
+        }
+
+        /* ---- 改间隔，而且要真的落到资源里 ----
+         * 【间距是怎么生效的】固件那边**没有** sizehw / space 这两个字段：
+         * 类型码 5 的资源结构体是
+         *     struct ui_grid_info { head; u8 page_mode; s8 highlight_index;
+         *                           action*; layout_info *info; }
+         * （User/ui_framework/include/ui/control.h:170），StyBuilder 写的也
+         * 正是这四样（rec[16]=scroll_mode、rec[17]=highlight_index、
+         * @20 action、@24 子指针）。`interval` 那个字段是 ui_browser_info /
+         * ui_animation_info 的，不是列表的。
+         *
+         * 所以行距在设备上完全由**每一行自己的 rect** 决定 —— sizehw/space
+         * 只是编辑器算格子用的，算完落在行的矩形上。这也正是这个 bug 要命的
+         * 地方：改完不重排行，那这个参数**对资源一点影响都没有**。
+         * 下面就是拿生成出来的 .sty 字节来证明它现在真的生效了。 */
+        auto buildSty = [&]() -> QByteArray {
+            const QString d = QDir::temp().filePath(QStringLiteral("uitools_space"));
+            QDir().mkpath(d);
+            const QString jf = QDir(d).filePath(QStringLiteral("x.json"));
+            QString e;
+            if (!m_mgr->model()->save(jf, &e)) {
+                return QByteArray();
+            }
+            sty::Builder b;
+            if (!b.loadProject(jf, &e)) {
+                return QByteArray();
+            }
+            sty::Options opt;
+            const sty::Output o = b.build(opt);
+            return o.ok ? o.sty : QByteArray();
+        };
+        const QByteArray styBefore = buildSty();
+
+        if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+            lf->setCellSpace(space0 + 3);
+        }
+        check(QStringLiteral("改间隔之后各行也重新排过"), cellsMatch());
+
+        const QByteArray styAfter = buildSty();
+        check(QStringLiteral("改间隔真的改到资源里了（.sty 字节变了）"),
+              !styBefore.isEmpty() && !styAfter.isEmpty() && styBefore != styAfter,
+              QStringLiteral("改前 %1 字节 / 改后 %2 字节 / %3")
+              .arg(styBefore.size()).arg(styAfter.size())
+              .arg(styBefore == styAfter ? QStringLiteral("一模一样")
+                                         : QStringLiteral("有差异")));
+        check(QStringLiteral("而且生成两遍是稳定的（同样的模型出同样的字节）"),
+              buildSty() == styAfter);
+
+        /* ---- 换滚动方向：格子从"整宽 x sizehw"变成"sizehw x 整高" ---- */
+        const bool vert0 = list->extraValue(QStringLiteral("orientation")).toString()
+                           != QLatin1String("Horizontal");
+        if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+            lf->setOrientation(!vert0);
+        }
+        check(QStringLiteral("换滚动方向之后各行的格子也重算了"), cellsMatch());
+        if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+            lf->setOrientation(vert0);
+            lf = qobject_cast<NewList *>(sc->formFor(list));
+            if (lf) {
+                lf->setCellSpace(space0);
+            }
+            lf = qobject_cast<NewList *>(sc->formFor(list));
+            if (lf) {
+                lf->setCellSize(size0);
+            }
+        }
+        check(QStringLiteral("参数还原之后格子也跟着还原"), cellsMatch());
+
+        /* ---- 加的行要叫中文名 ---- */
+        sc->rebuild();
+        if (auto *lf = qobject_cast<NewList *>(sc->formFor(list))) {
+            const int n0 = list->children.size();
+            lf->onAddManyLine();
+            const bool grew = list->children.size() == n0 + 1;
+            check(QStringLiteral("添加行加得进去"), grew);
+            if (grew) {
+                UiNode *row = list->children.last().second;
+                check(QStringLiteral("添加的行叫中文名（布局_N），不是 NewLayout"),
+                      !row->name.contains(QLatin1String("NewLayout"))
+                      && row->name.startsWith(QStringLiteral("布局")),
+                      row->name);
+                check(QStringLiteral("添加的行 caption 也是「布局」"),
+                      row->caption == QStringLiteral("布局"), row->caption);
+                check(QStringLiteral("添加的行在同一个列表里不重名"),
+                      [&]() {
+                          QSet<QString> seen;
+                          for (const auto &c : list->children) {
+                              if (seen.contains(c.second->name)) {
+                                  return false;
+                              }
+                              seen.insert(c.second->name);
+                          }
+                          return true;
+                      }());
+            }
+        }
+    }
+
+    /* --- 18u. 三条路建出来的布局，参数集必须一模一样 ---
+     * 用户实测："右键添加行新增的布局参数比原厂少，列表下点新建布局的
+     * 参数又和图层下的一样"。
+     * 先把原厂到底是什么样查清楚：两个工程 167 个列表行 vs 65 个图层下的布局，
+     * property 名单（id / element_css / action）、element_css 的字段
+     * （align / invisible / flags / rect / background_color /
+     * background_image / border）和状态数（都是 1）**完全一致** ——
+     * 原厂的行布局和普通布局就是同一套参数，没有"列表专属"的那一份。
+     * 所以本版三条建布局的路（图层下新建 / 列表下新建 / 右键添加行）
+     * 必须给出同一个参数集，而且要和工程里现成的原厂行对得上。 */
+    {
+        auto sig = [](UiNode *n) {
+            QStringList names, css;
+            int states = 0;
+            for (const UiProperty &p : n->props) {
+                names << (p.name.isEmpty() ? QStringLiteral("(裸)") : p.name);
+                if (p.name != QLatin1String("element_css")) {
+                    continue;
+                }
+                const QJsonArray st = p.raw.value(QStringLiteral("struct")).toArray();
+                states = st.size();
+                if (!st.isEmpty()) {
+                    for (const QJsonValue &f : st.at(0).toArray()) {
+                        css << f.toObject().value(QStringLiteral("-name")).toString();
+                    }
+                }
+            }
+            return QStringLiteral("[%1] css[%2] 状态%3")
+                   .arg(names.join(QLatin1Char('/')), css.join(QLatin1Char('/')))
+                   .arg(states);
+        };
+
+        /* 基准：图层下点「新建布局」 */
+        onNodeSelected(layer);
+        const int layerKids = layer->children.size();
+        m_components->onCreateNewLayout();
+        UiNode *refRow = layer->children.size() == layerKids + 1
+                         ? layer->children.last().second : nullptr;
+        check(QStringLiteral("18u 前提：图层下建得出布局"), refRow != nullptr);
+
+        if (refRow) {
+            const QString ref = sig(refRow);
+
+            /* 工程里现成的原厂行 —— 本版建出来的必须和它一样 */
+            if (list && !list->children.isEmpty()) {
+                UiNode *factoryRow = list->children.first().second;
+                check(QStringLiteral("原厂的列表行和图层下的布局是同一套参数"),
+                      sig(factoryRow) == ref,
+                      QStringLiteral("原厂行 %1  图层下 %2").arg(sig(factoryRow), ref));
+            }
+
+            /* 路 A：空列表右键「添加行」（走模板那条，以前是现搭空壳） */
+            onNodeSelected(layout);
+            m_components->createDropped(layout, QStringLiteral("NewList"),
+                                        QStringLiteral("VerticalList"), QPoint(0, 0));
+            UiNode *emptyList = layout->children.last().second;
+            check(QStringLiteral("18u 前提：建得出一个空列表"),
+                  emptyList && emptyList->cls == QLatin1String("NewList")
+                  && emptyList->children.isEmpty(),
+                  emptyList ? QStringLiteral("%1 个孩子").arg(emptyList->children.size())
+                            : QStringLiteral("没建出来"));
+            sc->rebuild();
+            if (auto *ef = qobject_cast<NewList *>(sc->formFor(emptyList))) {
+                ef->onAddManyLine();
+            }
+            check(QStringLiteral("空列表加得出第一行"),
+                  emptyList && emptyList->children.size() == 1);
+            if (emptyList && emptyList->children.size() == 1) {
+                UiNode *rowA = emptyList->children.first().second;
+                check(QStringLiteral("空列表「添加行」的参数集 == 图层下新建的"),
+                      sig(rowA) == ref,
+                      QStringLiteral("添加行 %1").arg(sig(rowA)));
+            }
+
+            /* 路 B：同一个列表上再「添加行」（走克隆那条） */
+            sc->rebuild();
+            if (auto *ef = qobject_cast<NewList *>(sc->formFor(emptyList))) {
+                ef->onAddManyLine();
+            }
+            if (emptyList && emptyList->children.size() == 2) {
+                check(QStringLiteral("克隆出来的第二行参数集也一样"),
+                      sig(emptyList->children.last().second) == ref,
+                      sig(emptyList->children.last().second));
+            }
+
+            /* 路 C：选中列表点「新建布局」 */
+            sc->rebuild();
+            onNodeSelected(emptyList);
+            const int was = emptyList ? emptyList->children.size() : 0;
+            m_components->onCreateNewLayout();
+            if (emptyList && emptyList->children.size() == was + 1) {
+                check(QStringLiteral("列表下点「新建布局」的参数集也一样"),
+                      sig(emptyList->children.last().second) == ref,
+                      sig(emptyList->children.last().second));
+            } else {
+                check(QStringLiteral("列表下点「新建布局」建得出来"), false);
+            }
+
+            /* 三条路建出来的都得有 ID 号，否则生成资源时引用不到 */
+            int noEname = 0;
+            if (emptyList) {
+                for (const auto &c : emptyList->children) {
+                    bool has = false;
+                    for (const UiProperty &p : c.second->props) {
+                        if (p.name == QLatin1String("id") && !p.ename.isEmpty()) {
+                            has = true;
+                        }
+                    }
+                    if (!has) {
+                        ++noEname;
+                    }
+                }
+            }
+            check(QStringLiteral("三条路建出来的行都带唯一 ID 号"), noEname == 0,
+                  QStringLiteral("%1 个没有").arg(noEname));
+        }
+    }
+
+    /* --- 18v. 全量对拍：每种控件 x 每条建节点的路 ---
+     * 之前是"用户报一个、修一个"，漏得没完。这一条把不变量一次性立起来，
+     * 全部从原厂那两份工程（797 个节点）和 control.json 统计出来：
+     *
+     *   【硬性】违反了就是坏数据，生成出来烧进去要出事
+     *     · 认得出类型（control.json 有模板）
+     *     · 有 element_css                —— 没有就是零尺寸，整屏不显示（§12）
+     *     · 有 id 属性且 ename 非空       —— 空的写出 `#define  0X...`，编译炸
+     *     · ename 全工程唯一              —— 撞了就是两个宏定义打架
+     *     · rect 有效且宽高都 > 0
+     *     · 挂的 json 键 ∈ {layer, layout, widget, listwidget}
+     *     · 父子关系 ∈ 原厂出现过的组合
+     *
+     *   【软性】原厂自己就有 2% 这种，只报数不判失败
+     *     · 属性名单和模板不完全一致（原厂 9 个 ImageList 只有 id+element_css）
+     *     · css 状态数和模板不一致（原厂 8 个 Time 是用户自己加的状态）
+     *
+     * 新建出来的节点按**硬性 + 严格模板一致**要求；已有工程只查硬性。 */
+    {
+        const ControlLibrary *lib = m_mgr->library();
+
+        /* 原厂 797 个节点统计出来的父子组合（父class, 键, 子class） */
+        auto pairAllowed = [](const QString &pc, const QString &key,
+                              const QString &cc) {
+            if (pc == QLatin1String("ScenesScreen")) {
+                return key == QLatin1String("layer") && cc == QLatin1String("NewLayer");
+            }
+            if (pc == QLatin1String("NewLayer")) {
+                return key == QLatin1String("layout") && cc == QLatin1String("NewLayout");
+            }
+            if (pc == QLatin1String("NewLayout")) {
+                return key == QLatin1String("layout")
+                       && (cc == QLatin1String("NewFrame")
+                           || cc == QLatin1String("NewLayout")
+                           || cc == QLatin1String("NewList")
+                           || cc == QLatin1String("NewGrid"));
+            }
+            if (pc == QLatin1String("NewList") || pc == QLatin1String("NewGrid")) {
+                return key == QLatin1String("listwidget")
+                       && cc == QLatin1String("NewLayout");
+            }
+            return false;       // NewFrame 是叶子，不该有孩子
+        };
+
+        auto enameOf = [](UiNode *n) {
+            for (const UiProperty &p : n->props) {
+                if (p.name == QLatin1String("id")) {
+                    return p.ename;
+                }
+            }
+            return QString();
+        };
+        auto hasIdProp = [](UiNode *n) {
+            for (const UiProperty &p : n->props) {
+                if (p.name == QLatin1String("id")) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        auto propNames = [](UiNode *n) {
+            QStringList v;
+            for (const UiProperty &p : n->props) {
+                v << p.name;
+            }
+            return v;
+        };
+        auto cssShape = [](UiNode *n, int *states) {
+            QStringList v;
+            *states = 0;
+            for (const UiProperty &p : n->props) {
+                if (p.name != QLatin1String("element_css")) {
+                    continue;
+                }
+                const QJsonArray st = p.raw.value(QStringLiteral("struct")).toArray();
+                *states = st.size();
+                if (!st.isEmpty()) {
+                    for (const QJsonValue &f : st.at(0).toArray()) {
+                        v << f.toObject().value(QStringLiteral("-name")).toString();
+                    }
+                }
+                break;
+            }
+            return v;
+        };
+
+        /* ---- 硬性检查：一个节点一串问题 ---- */
+        auto hardCheck = [&](UiNode *n, const QString &key, UiNode *par) {
+            QStringList bad;
+            if (!lib->byType(n->type)) {
+                bad << QStringLiteral("认不出类型");
+            }
+            if (!n->findProp(QStringLiteral("element_css"))) {
+                bad << QStringLiteral("没有 element_css");
+            }
+            if (!hasIdProp(n)) {
+                bad << QStringLiteral("没有 id 属性");
+            } else if (enameOf(n).isEmpty()) {
+                bad << QStringLiteral("ID号是空的");
+            }
+            if (!n->rect.isValid() || n->rect.width() <= 0 || n->rect.height() <= 0) {
+                bad << QStringLiteral("矩形无效 %1x%2")
+                       .arg(n->rect.width()).arg(n->rect.height());
+            }
+            static const QStringList kKeys = { QStringLiteral("layer"),
+                                               QStringLiteral("layout"),
+                                               QStringLiteral("widget"),
+                                               QStringLiteral("listwidget") };
+            if (!kKeys.contains(key)) {
+                bad << QStringLiteral("子键 '%1' 不在原厂那四个里").arg(key);
+            } else if (par && !pairAllowed(par->cls, key, n->cls)) {
+                bad << QStringLiteral("父子组合 %1 --%2--> %3 原厂没有")
+                       .arg(par->cls, key, n->cls);
+            }
+            return bad;
+        };
+
+        /* ---- 扫全工程 ---- */
+        auto auditAll = [&](const QString &tag) {
+            QStringList firstBad;
+            int nodes = 0, hard = 0, softProp = 0, softState = 0;
+            QHash<QString, int> enames;
+            for (UiNode *pg : m_mgr->model()->pages()) {
+                QVector<QPair<QString, UiNode *>> stack;
+                for (const auto &c : pg->children) {
+                    stack.append(qMakePair(c.first, c.second));
+                }
+                while (!stack.isEmpty()) {
+                    const auto cur = stack.takeLast();
+                    UiNode *n = cur.second;
+                    ++nodes;
+                    const QStringList bad = hardCheck(n, cur.first, n->parent);
+                    if (!bad.isEmpty()) {
+                        ++hard;
+                        if (firstBad.size() < 3) {
+                            firstBad << QStringLiteral("%1: %2")
+                                        .arg(n->name, bad.join(QStringLiteral("；")));
+                        }
+                    }
+                    const QString en = enameOf(n).toUpper();
+                    if (!en.isEmpty() && ++enames[en] == 2) {
+                        ++hard;
+                        if (firstBad.size() < 3) {
+                            firstBad << QStringLiteral("%1: ID号 %2 撞车").arg(n->name, en);
+                        }
+                    }
+                    if (const ControlTemplate *t = lib->byType(n->type)) {
+                        UiNode *tmp = ProjectModel::fromJsonObject(t->raw, nullptr);
+                        if (tmp) {
+                            int ts = 0, ns = 0;
+                            if (propNames(tmp) != propNames(n)) {
+                                ++softProp;
+                            }
+                            if (cssShape(tmp, &ts) != cssShape(n, &ns) || ts != ns) {
+                                ++softState;
+                            }
+                            delete tmp;
+                        }
+                    }
+                    for (const auto &c : n->children) {
+                        stack.append(qMakePair(c.first, c.second));
+                    }
+                }
+            }
+            check(QStringLiteral("%1：全工程 %2 个节点，硬性问题 0 个")
+                  .arg(tag).arg(nodes),
+                  hard == 0,
+                  QStringLiteral("%1 个有问题：%2").arg(hard)
+                  .arg(firstBad.join(QStringLiteral(" | "))));
+            check(QStringLiteral("%1：与模板的软性偏差（原厂自己也有，只报数）").arg(tag),
+                  true,
+                  QStringLiteral("属性名单不同 %1 个，css 形状不同 %2 个")
+                  .arg(softProp).arg(softState));
+        };
+
+        /* ---- 新建出来的节点：硬性 + 严格照模板 ---- */
+        auto strictCheck = [&](UiNode *n, const QString &way) {
+            const ControlTemplate *t = lib->byType(n->type);
+            if (!t) {
+                check(QStringLiteral("%1：认得出类型").arg(way), false, n->type);
+                return;
+            }
+            UiNode *tmp = ProjectModel::fromJsonObject(t->raw, nullptr);
+            int ts = 0, ns = 0;
+            const QStringList wantP = propNames(tmp), gotP = propNames(n);
+            const QStringList wantC = cssShape(tmp, &ts), gotC = cssShape(n, &ns);
+            delete tmp;
+            check(QStringLiteral("%1：属性名单照模板").arg(way), wantP == gotP,
+                  QStringLiteral("模板 %1 / 实际 %2")
+                  .arg(wantP.join(QLatin1Char(',')), gotP.join(QLatin1Char(','))));
+            check(QStringLiteral("%1：css 字段和状态数照模板").arg(way),
+                  wantC == gotC && ts == ns,
+                  QStringLiteral("模板 %1(%2) / 实际 %3(%4)")
+                  .arg(wantC.join(QLatin1Char(','))).arg(ts)
+                  .arg(gotC.join(QLatin1Char(','))).arg(ns));
+            const QStringList bad = hardCheck(n, EditorOps::childKeyFor(n->parent),
+                                              n->parent);
+            check(QStringLiteral("%1：硬性检查全过").arg(way), bad.isEmpty(),
+                  bad.join(QStringLiteral("；")));
+            check(QStringLiteral("%1：名字是中文名_序号").arg(way),
+                  !n->name.isEmpty() && n->name.contains(QLatin1Char('_'))
+                  && n->name.at(0).unicode() > 0x2E80,
+                  n->name);
+        };
+
+        /* ===== 1) 打开进来的工程先扫一遍 ===== */
+        auditAll(QStringLiteral("现有工程"));
+
+        /* ===== 2) 每种控件，从控件栏建一个 ===== */
+        onNodeSelected(layout);
+        for (const ControlTemplate &t : lib->controls()) {
+            if (t.type == QLatin1String("NewLayer")
+                || t.type == QLatin1String("NewLayout")) {
+                continue;                    // 这两种有自己的按钮，下面单独走
+            }
+            onNodeSelected(layout);
+            const int was = layout->children.size();
+            m_components->createControl(t.cls, t.type, t.caption);
+            if (layout->children.size() != was + 1) {
+                check(QStringLiteral("控件栏建【%1】").arg(t.caption), false);
+                continue;
+            }
+            strictCheck(layout->children.last().second,
+                        QStringLiteral("控件栏建【%1】").arg(t.caption));
+        }
+
+        /* ===== 3) 每种控件，拖一个进去 ===== */
+        for (const ControlTemplate &t : lib->controls()) {
+            if (t.type == QLatin1String("NewLayer")) {
+                continue;                    // 图层落在页上，另算
+            }
+            onNodeSelected(layout);
+            const int was = layout->children.size();
+            m_components->createDropped(layout, t.cls, t.type, QPoint(1, 1));
+            if (layout->children.size() != was + 1) {
+                check(QStringLiteral("拖放建【%1】").arg(t.caption), false);
+                continue;
+            }
+            strictCheck(layout->children.last().second,
+                        QStringLiteral("拖放建【%1】").arg(t.caption));
+        }
+
+        /* ===== 4) 三种容器下各建一个布局 ===== */
+        struct BoxCase { QString cls; QString type; QString label; };
+        const QVector<BoxCase> boxes = {
+            { QStringLiteral("NewList"), QStringLiteral("VerticalList"),
+              QStringLiteral("垂直列表") },
+            { QStringLiteral("NewList"), QStringLiteral("HorizontalList"),
+              QStringLiteral("水平列表") },
+            { QStringLiteral("NewGrid"), QStringLiteral("NewGrid"),
+              QStringLiteral("表格") },
+        };
+        for (const BoxCase &b : boxes) {
+            onNodeSelected(layout);
+            m_components->createDropped(layout, b.cls, b.type, QPoint(0, 0));
+            UiNode *box = layout->children.last().second;
+            if (!box || box->cls != b.cls) {
+                check(QStringLiteral("建得出【%1】").arg(b.label), false);
+                continue;
+            }
+            sc->rebuild();
+
+            /* 4a. 空容器右键「添加行」（模板那条路） */
+            if (auto *lf = qobject_cast<NewList *>(sc->formFor(box))) {
+                lf->onAddManyLine();
+            } else {
+                /* 表格没有"加项"的菜单，用「新建布局」把第一项建出来 */
+                onNodeSelected(box);
+                m_components->onCreateNewLayout();
+            }
+            if (!box->children.isEmpty()) {
+                strictCheck(box->children.last().second,
+                            QStringLiteral("【%1】第一项").arg(b.label));
+            } else {
+                check(QStringLiteral("【%1】建得出第一项").arg(b.label), false);
+            }
+
+            /* 4b. 再来一项（列表走克隆那条） */
+            sc->rebuild();
+            if (auto *lf = qobject_cast<NewList *>(sc->formFor(box))) {
+                lf->onAddManyLine();
+            } else {
+                onNodeSelected(box);
+                m_components->onCreateNewLayout();
+            }
+            if (box->children.size() >= 2) {
+                strictCheck(box->children.last().second,
+                            QStringLiteral("【%1】第二项").arg(b.label));
+            }
+
+            /* 4c. 选中容器点「新建布局」 */
+            sc->rebuild();
+            onNodeSelected(box);
+            const int was = box->children.size();
+            m_components->onCreateNewLayout();
+            if (box->children.size() == was + 1) {
+                strictCheck(box->children.last().second,
+                            QStringLiteral("【%1】点新建布局").arg(b.label));
+            } else {
+                check(QStringLiteral("【%1】点新建布局建得出来").arg(b.label), false);
+            }
+
+            /* 4d. 项里再放一个图片 */
+            if (!box->children.isEmpty()) {
+                UiNode *item = box->children.last().second;
+                sc->rebuild();
+                onNodeSelected(item);
+                const int inItem = item->children.size();
+                m_components->createControl(QStringLiteral("NewFrame"),
+                                            QStringLiteral("ImageList"),
+                                            QStringLiteral("图片"));
+                if (item->children.size() == inItem + 1) {
+                    strictCheck(item->children.last().second,
+                                QStringLiteral("【%1】项里的图片").arg(b.label));
+                } else {
+                    check(QStringLiteral("【%1】项里放得进图片").arg(b.label), false);
+                }
+            }
+        }
+
+        /* ===== 5) 图层下建布局 / 页上建图层 ===== */
+        onNodeSelected(layer);
+        {
+            const int was = layer->children.size();
+            m_components->onCreateNewLayout();
+            if (layer->children.size() == was + 1) {
+                strictCheck(layer->children.last().second,
+                            QStringLiteral("图层下建布局"));
+            }
+        }
+
+        /* ===== 6) 折腾完之后，全工程再扫一遍 ===== */
+        auditAll(QStringLiteral("折腾完"));
+
+        /* ===== 7) 存盘 -> 重开 -> 生成，三样产物都不能有毛病 ===== */
+        {
+            const QString dir = QDir::temp().filePath(QStringLiteral("uitools_audit"));
+            QDir().mkpath(dir);
+            const QString jf = QDir(dir).filePath(QStringLiteral("audit.json"));
+            QString err;
+            const bool saved = m_mgr->model()->save(jf, &err);
+            check(QStringLiteral("对拍工程存得下来"), saved, err);
+            if (saved) {
+                ProjectModel re;
+                check(QStringLiteral("对拍工程重新打开得了"), re.load(jf, &err), err);
+
+                sty::Builder b;
+                QString e2;
+                const bool ok = b.loadProject(jf, &e2);
+                check(QStringLiteral("对拍工程生成得了资源"), ok, e2);
+                if (ok) {
+                    sty::Options opt;
+                    const sty::Output o = b.build(opt);
+                    check(QStringLiteral("生成没报错"), o.ok, o.error);
+
+                    const QString h = QString::fromUtf8(o.enameH);
+                    check(QStringLiteral("ename.h 里没有空宏名的 #define"),
+                          !h.contains(QLatin1String("#define  ")) &&
+                          !h.contains(QLatin1String("#define\t")),
+                          QStringLiteral("头文件 %1 字节").arg(h.size()));
+                    /* 每一行 #define 后面都得跟一个像样的宏名 */
+                    int badLine = 0;
+                    QString badSample;
+                    for (const QString &ln : h.split(QLatin1Char('\n'))) {
+                        if (!ln.startsWith(QLatin1String("#define "))) {
+                            continue;
+                        }
+                        const QString rest = ln.mid(8).trimmed();
+                        if (rest.isEmpty() || rest.startsWith(QLatin1String("0X"))
+                            || rest.startsWith(QLatin1String("0x"))) {
+                            ++badLine;
+                            if (badSample.isEmpty()) {
+                                badSample = ln;
+                            }
+                        }
+                    }
+                    check(QStringLiteral("ename.h 每条 #define 都有宏名"),
+                          badLine == 0,
+                          QStringLiteral("%1 条坏的，例如 [%2]").arg(badLine).arg(badSample));
+
+                    for (const char *w : { "取不到父级尺寸", "没有唯一ID号" }) {
+                        const QString key = QString::fromUtf8(w);
+                        check(QStringLiteral("生成过程没有'%1'的警告").arg(key),
+                              o.warnings.filter(key).isEmpty(),
+                              o.warnings.filter(key).mid(0, 3)
+                              .join(QStringLiteral(" / ")));
+                    }
+                }
+            }
+        }
+    }
+
+    /* --- 18w. 诊断：属性面板对"列表行"和"图层下的布局"各铺了哪些行 ---
+     * 用户对着原厂实测："列表控件下面的布局，原厂没有位置坐标相关参数，
+     * 你的有；而且你还把事件属性去掉了。"
+     * 数据层面两者是同一套（id/element_css/action，css 字段也一样，
+     * 见 §14.1），所以差异只可能在面板怎么铺。先把两边铺出来的行打出来。 */
+    if (list && !list->children.isEmpty()) {
+        UiNode *row = list->children.first().second;
+        UiNode *plain = nullptr;
+        for (const auto &c : layer->children) {
+            if (c.second->cls == QLatin1String("NewLayout")) {
+                plain = c.second;
+                break;
+            }
+        }
+        auto panelOf = [&](UiNode *n) {
+            onNodeSelected(n);
+            QStringList v;
+            v << QStringLiteral("CSS[") + m_prop->rowsForTest().join(QLatin1Char('/'))
+                 + QStringLiteral("]");
+            v << QStringLiteral("专有[") + m_com->dynRowsForTest().join(QLatin1Char('/'))
+                 + QStringLiteral("]");
+            return v.join(QLatin1Char(' '));
+        };
+        check(QStringLiteral("18w 诊断：列表行的面板"), true, panelOf(row));
+        if (plain) {
+            check(QStringLiteral("18w 诊断：图层下布局的面板"), true, panelOf(plain));
+        }
+        /* 用户说的两条，先当断言挂上（现在可能是红的，正好定位） */
+        onNodeSelected(row);
+        const QStringList css = m_prop->rowsForTest();
+        const QStringList dyn = m_com->dynRowsForTest();
+        check(QStringLiteral("列表行：面板上有「事件属性」"),
+              dyn.filter(QStringLiteral("事件")).size() > 0,
+              dyn.join(QLatin1Char('/')));
+        /* 【断言要找真实的组标题】这一组的标题来自 json 的 caption，
+         * 是「坐标」两个字，不是「位置坐标」（那是 Position 的默认标题）。
+         * 原来写成找"位置坐标"，永远是空的，等于白过一条。 */
+        check(QStringLiteral("列表行：面板上没有「坐标」组（几何由列表决定）"),
+              css.filter(QStringLiteral("坐标")).isEmpty(),
+              css.join(QLatin1Char('/')));
+        onNodeSelected(row);
+        check(QStringLiteral("列表行：其余 CSS 组一个都不少"),
+              css.contains(QStringLiteral("对齐方式"))
+              && css.contains(QStringLiteral("背景颜色"))
+              && css.contains(QStringLiteral("背景图片")),
+              css.join(QLatin1Char('/')));
+        if (plain) {
+            onNodeSelected(plain);
+            const QStringList pcss = m_prop->rowsForTest();
+            const QStringList pdyn = m_com->dynRowsForTest();
+            check(QStringLiteral("图层下的布局：坐标和事件属性都在"),
+                  !pcss.filter(QStringLiteral("坐标")).isEmpty()
+                  && !pdyn.filter(QStringLiteral("事件")).isEmpty(),
+                  QStringLiteral("CSS[%1] 专有[%2]")
+                  .arg(pcss.join(QLatin1Char('/')), pdyn.join(QLatin1Char('/'))));
+        }
+    }
+
+    /* --- 18x. 属性面板全量对拍 ---
+     * 上一轮的"全量对拍"(18v) 只比到**数据结构**：属性名单、css 字段、状态数。
+     * 用户对着原厂一比就找出两条我没查到的：列表行多显示了「坐标」、
+     * 自愈补出来的节点少了「事件属性」。教训是**面板铺出来的行也得比**。
+     *
+     * 面板本质上就是 json 的一个渲染：
+     *   CSS 属性页  = element_css.struct[state] 里每个字段一组，标题取 caption
+     *   专有属性区  = 除 id / element_css 之外的每条 property 一行，标签取 caption
+     * 所以"应该有哪些行"是**可以从 json 算出来**的。凡是算出来有、面板上没有
+     * （漏行），或者面板上有、算出来没有（多行），都是一处需要原厂证据的偏离。
+     *
+     * 这一条把每种控件在每种父级下都铺一遍，把两张表逐条比：
+     *   · 漏行 —— 一律判失败（用户就是这么丢掉事件属性的）
+     *   · 多行 —— 列进白名单才算过，白名单里每条都得写清出处
+     * 同时把完整的面板表打印出来，方便对着原厂一次性核对。 */
+    {
+        /* 【有意偏离原厂的行，白名单】每条都要有出处，不然就是我自己发明的 */
+        auto extraAllowed = [](UiNode *n, const QString &row) {
+            /* 本版给文字控件加的"预览文字"：只存在工具配置里，不进工程数据。
+             * 原厂没有这一行 —— 这是本版为了画布能看出效果加的。 */
+            if (row == QStringLiteral("预览文字")) {
+                return true;
+            }
+            Q_UNUSED(n)
+            return false;
+        };
+        /* 【有意不铺的行，白名单】 */
+        auto missAllowed = [](UiNode *n, const QString &row) {
+            /* 列表/表格里的那一项：几何由容器的 sizehw/space 决定，
+             * 原厂不铺这一组（用户对着原厂逐项比出来的，见 §14.13）。 */
+            if (row == QStringLiteral("坐标") && n->parent
+                && (n->parent->cls == QLatin1String("NewList")
+                    || n->parent->cls == QLatin1String("NewGrid"))) {
+                return true;
+            }
+            return false;
+        };
+
+        /* 从 json 算出"应该有哪些行" */
+        auto wantCss = [](UiNode *n) {
+            QStringList v;
+            for (const QJsonValue &pv : n->cssState(0)) {
+                const QJsonObject po = pv.toObject();
+                const QString cap = po.value(QStringLiteral("caption")).toString();
+                v << (cap.isEmpty() ? po.value(QStringLiteral("-name")).toString() : cap);
+            }
+            return v;
+        };
+        auto wantDyn = [](UiNode *n) {
+            QStringList v;
+            for (const UiProperty &p : n->props) {
+                if (p.name == QLatin1String("id")
+                    || p.name == QLatin1String("element_css")
+                    || p.name == QLatin1String("rect") || p.name.isEmpty()) {
+                    continue;
+                }
+                v << (p.caption.isEmpty() ? p.name : p.caption);
+            }
+            return v;
+        };
+
+        int miss = 0, extra = 0, orderBad = 0;
+        QStringList detail;
+
+        auto auditPanel = [&](UiNode *n, const QString &where) {
+            onNodeSelected(n);
+            const QStringList gotCss = m_prop->rowsForTest();
+            const QStringList gotDyn = m_com->dynRowsForTest();
+            const QStringList wCss = wantCss(n);
+            const QStringList wDyn = wantDyn(n);
+
+            QStringList missing, extras;
+            for (const QString &r : wCss) {
+                if (!gotCss.contains(r) && !missAllowed(n, r)) {
+                    missing << QStringLiteral("CSS:") + r;
+                }
+            }
+            for (const QString &r : wDyn) {
+                if (!gotDyn.contains(r) && !missAllowed(n, r)) {
+                    missing << QStringLiteral("专有:") + r;
+                }
+            }
+            for (const QString &r : gotCss) {
+                if (!wCss.contains(r) && !extraAllowed(n, r)) {
+                    extras << QStringLiteral("CSS:") + r;
+                }
+            }
+            for (const QString &r : gotDyn) {
+                if (!wDyn.contains(r) && !extraAllowed(n, r)) {
+                    extras << QStringLiteral("专有:") + r;
+                }
+            }
+            /* 次序也要对：面板是按 json 的次序铺的，错位了排版就和原厂不一样 */
+            QStringList wSeq, gSeq;
+            for (const QString &r : wCss) {
+                if (gotCss.contains(r)) {
+                    wSeq << r;
+                }
+            }
+            for (const QString &r : gotCss) {
+                if (wCss.contains(r)) {
+                    gSeq << r;
+                }
+            }
+            const bool seqOk = (wSeq == gSeq);
+
+            miss += missing.size();
+            extra += extras.size();
+            if (!seqOk) {
+                ++orderBad;
+            }
+            detail << QStringLiteral("%1  CSS[%2] 专有[%3]%4%5%6")
+                      .arg(where, gotCss.join(QLatin1Char('/')),
+                           gotDyn.join(QLatin1Char('/')),
+                           missing.isEmpty() ? QString()
+                               : QStringLiteral("  ← 漏 ") + missing.join(QLatin1Char(',')),
+                           extras.isEmpty() ? QString()
+                               : QStringLiteral("  ← 多 ") + extras.join(QLatin1Char(',')),
+                           seqOk ? QString() : QStringLiteral("  ← 次序不对"));
+        };
+
+        /* ---- 1) 每种控件放在普通布局里 ---- */
+        for (const ControlTemplate &t : m_mgr->library()->controls()) {
+            if (t.type == QLatin1String("NewLayer")) {
+                continue;
+            }
+            onNodeSelected(layout);
+            const int was = layout->children.size();
+            m_components->createControl(t.cls, t.type, t.caption);
+            if (layout->children.size() != was + 1) {
+                continue;
+            }
+            sc->rebuild();
+            auditPanel(layout->children.last().second,
+                       QStringLiteral("布局里的【%1】").arg(t.caption));
+        }
+
+        /* ---- 2) 图层 / 布局 / 页本身 ---- */
+        auditPanel(layer, QStringLiteral("图层"));
+        auditPanel(layout, QStringLiteral("布局"));
+
+        /* ---- 3) 三种容器里的项，以及项里的控件 ---- */
+        struct BoxCase { QString cls; QString type; QString label; };
+        const QVector<BoxCase> boxes = {
+            { QStringLiteral("NewList"), QStringLiteral("VerticalList"),
+              QStringLiteral("垂直列表") },
+            { QStringLiteral("NewList"), QStringLiteral("HorizontalList"),
+              QStringLiteral("水平列表") },
+            { QStringLiteral("NewGrid"), QStringLiteral("NewGrid"),
+              QStringLiteral("表格") },
+        };
+        for (const BoxCase &b : boxes) {
+            onNodeSelected(layout);
+            m_components->createDropped(layout, b.cls, b.type, QPoint(0, 0));
+            UiNode *box = layout->children.last().second;
+            if (!box || box->cls != b.cls) {
+                continue;
+            }
+            sc->rebuild();
+            auditPanel(box, QStringLiteral("【%1】本体").arg(b.label));
+
+            onNodeSelected(box);
+            m_components->onCreateNewLayout();
+            if (box->children.isEmpty()) {
+                continue;
+            }
+            UiNode *item = box->children.last().second;
+            sc->rebuild();
+            auditPanel(item, QStringLiteral("【%1】里的项").arg(b.label));
+
+            onNodeSelected(item);
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("ImageList"),
+                                        QStringLiteral("图片"));
+            if (!item->children.isEmpty()) {
+                sc->rebuild();
+                auditPanel(item->children.last().second,
+                           QStringLiteral("【%1】项里的图片").arg(b.label));
+            }
+        }
+
+        /* ---- 4) 结论 ---- */
+        for (const QString &d : detail) {
+            check(QStringLiteral("18x 面板表：%1").arg(d.section(QLatin1Char(' '), 0, 0)),
+                  true, d.section(QLatin1Char(' '), 1));
+        }
+        check(QStringLiteral("面板没有漏行（json 里有的属性，面板上必须铺出来）"),
+              miss == 0, QStringLiteral("漏 %1 行").arg(miss));
+        check(QStringLiteral("面板没有白名单外的多余行"),
+              extra == 0, QStringLiteral("多 %1 行").arg(extra));
+        check(QStringLiteral("CSS 组的次序和 json 一致"),
+              orderBad == 0, QStringLiteral("%1 个控件次序不对").arg(orderBad));
     }
 
     /* --- 19. 这一通改完，工程还得能存能读 --- */

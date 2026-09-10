@@ -1,4 +1,5 @@
 #include "EditorOps.h"
+#include "ControlLibrary.h"
 #include "ProjectModel.h"
 
 #include <QApplication>
@@ -20,6 +21,8 @@ QString g_customDir;
 
 /** 当前工程模型，reassignEnames() 用它把去重范围扩到整个工程。 */
 ProjectModel *g_model = nullptr;
+/** control.json 模板库 —— 建节点的两条路要共用同一份模板。 */
+const ControlLibrary *g_lib = nullptr;
 
 bool    g_silent = false;
 QString g_lastMsg;
@@ -43,9 +46,107 @@ bool isLayout(const UiNode *n)
     return n && n->cls == QLatin1String("NewLayout");
 }
 
+bool isFrame(const UiNode *n)
+{
+    return n && n->cls == QLatin1String("NewFrame");
+}
+
+bool isList(const UiNode *n)
+{
+    return n && n->cls == QLatin1String("NewList");
+}
+
+bool isGrid(const UiNode *n)
+{
+    return n && n->cls == QLatin1String("NewGrid");
+}
+
+bool acceptsLayout(const UiNode *n)
+{
+    return isLayer(n) || isLayout(n) || isList(n) || isGrid(n);
+}
+
+bool acceptsWidget(const UiNode *n)
+{
+    /* 只有布局。列表的孩子在原厂工程里清一色是 NewLayout（165 个），
+     * 塞个裸控件进去，生成出来是原厂从没产出过的形状。 */
+    return isLayout(n);
+}
+
 bool acceptsChild(const UiNode *n)
 {
+    /* 粘贴仍然只认布局 —— 原厂那三条提示语写死了"请选择一个<布局>对像"。 */
     return isLayout(n);
+}
+
+UiNode *hostForNewControl(UiNode *sel)
+{
+    if (!sel || isLayer(sel)) {
+        return nullptr;                      // 调用方去弹"请选择一个布局…"
+    }
+    if (isFrame(sel) || isList(sel) || isGrid(sel)) {
+        return sel->parent;                  // 加到兄弟位置，不钻进去
+    }
+    return sel;                              // 布局：加到自己里
+}
+
+UiNode *hostForNewLayout(UiNode *sel, bool *needTip)
+{
+    if (needTip) {
+        *needTip = false;
+    }
+    if (!sel) {
+        if (needTip) {
+            *needTip = true;                 // 只有这一种情况原厂会弹提示
+        }
+        return nullptr;
+    }
+    if (isLayout(sel) || isLayer(sel)) {
+        return sel;
+    }
+    if (isList(sel) || isGrid(sel)) {
+        /* ★ 这一条和原厂不一样：列表原厂给的是 sel->parent（布局落到列表
+         * **旁边**），想加行得去列表的右键菜单「添加行」；表格原厂连判都不判，
+         * 静默什么也不做，根本没有加项的入口。选中容器点「新建布局」却建到
+         * 别处去（或者干脆没反应），实在不像话，本版两种都改成建进去 ——
+         * 列表的行、表格的项本来就是布局，键还是 listwidget，
+         * 产物形状和原厂那 165 行一致。 */
+        return sel;
+    }
+    if (isFrame(sel)) {
+        return sel->parent;
+    }
+    return nullptr;                          // 原厂在这儿是静默返回
+}
+
+QRect cellRectFor(const UiNode *container, int index)
+{
+    if (!container) {
+        return QRect();
+    }
+    const QRect box = container->rect;
+    const int i = qMax(0, index);
+    if (isList(container)) {
+        /* orientation 缺省按垂直 —— 和 Forms.cpp 的 listIsVertical() 同一条规则 */
+        const bool vert = container->extraValue(QStringLiteral("orientation"))
+                          .toString() != QLatin1String("Horizontal");
+        const int size = qMax(1, container->extraValue(
+                                     QStringLiteral("sizehw")).toInt(16));
+        const int space = container->extraValue(QStringLiteral("space")).toInt(0);
+        const int step = size + space;
+        if (vert) {
+            return QRect(0, i * step, qMax(1, box.width()), size);
+        }
+        return QRect(i * step, 0, size, qMax(1, box.height()));
+    }
+    if (isGrid(container)) {
+        const int cw = qMax(1, container->extraValue(QStringLiteral("cell_w")).toInt(16));
+        const int ch = qMax(1, container->extraValue(QStringLiteral("cell_h")).toInt(16));
+        const int space = container->extraValue(QStringLiteral("space")).toInt(0);
+        const int cols = qMax(1, container->extraValue(QStringLiteral("cols")).toInt(1));
+        return QRect((i % cols) * (cw + space), (i / cols) * (ch + space), cw, ch);
+    }
+    return QRect();
 }
 
 QString childKeyFor(const UiNode *parent)
@@ -54,6 +155,11 @@ QString childKeyFor(const UiNode *parent)
         return QStringLiteral("layer");
     }
     if (parent && parent->cls == QLatin1String("NewList")) {
+        return QStringLiteral("listwidget");
+    }
+    if (parent && parent->cls == QLatin1String("NewGrid")) {
+        /* 表格的项也走 listwidget，不是 "GridWidget" —— 那个名字在
+         * ui-tools.exe 里是个死字符串，没有任何代码读它（见 EditorOps.h）。 */
         return QStringLiteral("listwidget");
     }
     return QStringLiteral("layout");
@@ -190,6 +296,69 @@ QString uniqueName(const UiNode *parent, const QString &base)
             return cand;
         }
     }
+}
+
+void setLibrary(const ControlLibrary *lib)
+{
+    g_lib = lib;
+}
+
+QJsonObject templateFor(const QString &type)
+{
+    if (!g_lib) {
+        return QJsonObject();
+    }
+    const ControlTemplate *t = g_lib->byType(type);
+    return t ? t->raw : QJsonObject();
+}
+
+UiNode *makeFromTemplate(UiNode *parent, const QString &type,
+                         const QString &caption)
+{
+    const QJsonObject tpl = templateFor(type);
+    UiNode *n = nullptr;
+    if (!tpl.isEmpty()) {
+        n = ProjectModel::fromJsonObject(tpl, parent);
+    } else {
+        /* 模板库没加载（--ops-test 之外基本不会发生）。退到空壳，
+         * 但至少把类型填对，别让调用方拿到 nullptr。 */
+        QJsonObject o;
+        o.insert(QStringLiteral("-class"), QStringLiteral("NewLayout"));
+        o.insert(QStringLiteral("-type"), type);
+        o.insert(QStringLiteral("-name"), type);
+        n = ProjectModel::fromJsonObject(o, parent);
+    }
+    n->forEach([](UiNode *x) { x->markDirty(); return true; });
+    if (!caption.isEmpty()) {
+        n->caption = caption;
+    }
+    n->name = uniqueName(parent, defaultNodeName(n->caption));
+
+    /* 唯一 ID 号：空着的话生成资源时这个控件拿不到 ename.h 里的宏 */
+    if (UiProperty *idp = n->findProp(QStringLiteral("id"))) {
+        if (idp->ename.isEmpty() && g_model) {
+            idp->ename = g_model->uniqueEname();
+            idp->dirty = true;
+            n->markDirty();
+        }
+    }
+
+    /* 进列表/表格的，尺寸就是那一格 */
+    const QRect cell = cellRectFor(parent, parent ? parent->children.size() : 0);
+    if (cell.isValid()) {
+        n->rect = cell;
+        n->setRectOf(0, cell);
+    }
+    return n;
+}
+
+QString defaultNodeName(const QString &caption)
+{
+    const QString base = caption.isEmpty() ? QStringLiteral("控件") : caption;
+    if (!g_model) {
+        return base;
+    }
+    return QStringLiteral("%1_%2").arg(base).arg(g_model->nextNodeSeq());
 }
 
 void setCustomWidgetDir(const QString &dir)

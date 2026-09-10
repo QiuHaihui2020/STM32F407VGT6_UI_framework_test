@@ -64,6 +64,8 @@ public:
     void setManager(CanvasManager *m) { m_mgr = m; }
     void reload();
     void selectNode(UiNode *n);
+    /** 树上当前高亮的那个节点；没有就是 nullptr。ops-test 用。 */
+    UiNode *currentNodeForTest() const;
 
 signals:
     void nodeActivated(UiNode *node);
@@ -202,6 +204,8 @@ public:
     ~PropertyTab() override;
 
     void showNode(UiNode *n);
+    /** 自测用：当前页签的 CSS 属性页铺了哪几组。 */
+    QStringList rowsForTest() const;
 
 signals:
     void nodeEdited(UiNode *n);

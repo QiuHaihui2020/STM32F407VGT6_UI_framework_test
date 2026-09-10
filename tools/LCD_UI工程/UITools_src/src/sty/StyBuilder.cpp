@@ -584,6 +584,25 @@ Output Builder::build(const Options &opt)
     for (int pi = 0; pi < order.size(); ++pi) {
         for (Node *n : order[pi]) {
             const QString macro = n->ename.toUpper();
+            /* 【空宏名一个字节都不能进 ename.h】没有"唯一ID号"的控件
+             * （旧版建出来的空壳，连 id 这条属性都没有）macro 是空串，
+             * 直接插进去就写出 `#define  0XC30002` —— 编译器一看就炸，
+             * 而且这一行还会顶掉后面同为空名的那些。
+             * 节点自己照样要分 id（.sty 里的记录得有），只是不登记宏名，
+             * 并且当场报出来，让用户知道是哪个控件。 */
+            if (macro.isEmpty()) {
+                out.warnings.append(
+                    QStringLiteral("页%1 的 %2（%3）没有唯一ID号，"
+                                   "不会写进 ename.h，业务代码引用不到它")
+                    .arg(pi).arg(n->caption.isEmpty() ? QStringLiteral("(无名)")
+                                                      : n->caption,
+                                 n->typeName));
+                n->id = qint32((quint32(opt.pjId) << 29) | (quint32(pi) << 22)
+                               | (quint32(n->typeCode & 0x3F) << 16)
+                               | allocLow(QStringLiteral("%1_%2").arg(pi).arg(
+                                              quintptr(n), 0, 16)));
+                continue;
+            }
             if (imported.contains(macro)) {
                 n->id = qint32(imported.value(macro));
                 enameIds.insert(macro, quint32(n->id));

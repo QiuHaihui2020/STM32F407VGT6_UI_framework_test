@@ -821,6 +821,26 @@ void CssProperty::clearRows()
  * caption / -type / enum / 默认值全来自工程 json（源头是 control.json）。
  * 原厂那一列"对齐方式 / 默认隐藏 / 位置坐标 / 背景颜色 / 背景图片 /
  * 内边框线"就是这么来的 —— 写死反而会和别的控件对不上。 */
+QStringList CssProperty::rowsForTest() const
+{
+    QStringList v;
+    if (!m_box) {
+        return v;
+    }
+    for (int i = 0; i < m_box->count(); ++i) {
+        QWidget *w = m_box->itemAt(i) ? m_box->itemAt(i)->widget() : nullptr;
+        if (!w) {
+            continue;
+        }
+        if (auto *gb = qobject_cast<QGroupBox *>(w)) {
+            v << gb->title();
+        } else if (auto *lb = qobject_cast<QLabel *>(w)) {
+            v << lb->text();
+        }
+    }
+    return v;
+}
+
 void CssProperty::showNode(UiNode *n)
 {
     BaseProperty::showNode(n);
@@ -842,6 +862,14 @@ void CssProperty::showNode(UiNode *n)
         const QJsonValue def = po.value(QStringLiteral("default"));
 
         if (ptype == QLatin1String("rect")) {
+            /* 【列表/表格里的那一项不给填坐标】它的几何完全由容器的
+             * sizehw / space 决定（见 docs/FACTORY_UI.md §14.9）：第几格
+             * 就在第几格，宽高就是一格的大小。填了也会被下一次重排盖掉。
+             * 原厂就是不显示这一组 —— 用户对着原厂逐项比出来的。 */
+            if (n->parent && (n->parent->cls == QLatin1String("NewList")
+                              || n->parent->cls == QLatin1String("NewGrid"))) {
+                continue;
+            }
             m_pos = new Position(this);
             m_pos->setTitle(cap.isEmpty() ? tr("位置坐标") : cap);
             /* 【先定范围再填值】原厂就是这个次序（先 setMaximum 再 setValue）。
@@ -1114,6 +1142,21 @@ void ComProperty::typeIdForTest(const QString &text)
 QString ComProperty::idTextForTest() const
 {
     return m_id ? m_id->text() : QString();
+}
+
+QStringList ComProperty::dynRowsForTest() const
+{
+    QStringList v;
+    if (!m_dynForm) {
+        return v;
+    }
+    for (int i = 0; i < m_dynForm->rowCount(); ++i) {
+        QLayoutItem *li = m_dynForm->itemAt(i, QFormLayout::LabelRole);
+        if (auto *lb = li ? qobject_cast<QLabel *>(li->widget()) : nullptr) {
+            v << lb->text();
+        }
+    }
+    return v;
 }
 
 void ComProperty::showNode(UiNode *n)

@@ -113,12 +113,40 @@ def main():
     xls = os.path.abspath(os.path.join(proj, '..', '..', '..', 'UITools',
                                        '多国语言_128_64.xls'))
 
+    # 【跑之前把参考产物拍个快照，跑完原样放回去】
+    # ResBuilder 的产物是"就地"落在工程目录里的（-o 只管得住 QtToolBin），
+    # 于是每跑一次校验，工程目录里那份**原厂参考就被自己的输出顶掉**。
+    # 更糟的是拿 oled 跑一次，TFT 的参考就成了 oled 的产物，下次比对
+    # 报一堆假的不合格 —— 2026-09-10 就这么把 ename.h 从 8644 顶成 9101。
+    # 而 ui_128_64_JL02 是**原厂目录，一个字节都不该动**。
+    # 快照存在内存里，比对也用快照，跑完再写回去（内容没变就不写）。
+    snapshot = {}
+    for n in FILES + ['Resbuilder.xml', 'debug.txt', 'imagelist.txt']:
+        p = os.path.join(proj, n)
+        if os.path.exists(p):
+            snapshot[n] = open(p, 'rb').read()
+
+    def restore():
+        restored = []
+        for n, data in snapshot.items():
+            p = os.path.join(proj, n)
+            try:
+                cur = open(p, 'rb').read() if os.path.exists(p) else None
+            except OSError:
+                cur = None
+            if cur != data:
+                open(p, 'wb').write(data)
+                restored.append(n)
+        if restored:
+            print('（已把工程目录里被覆盖的参考恢复原样：%s）' % ', '.join(restored))
+
     cmd = [os.path.join(bindir, 'QtToolBin.exe'), jsonp,
            '--ename', os.path.join(proj, 'ename.h'),
            '--excel', xls, '-o', outdir, '--no-script',
            '--run-resbuilder', os.path.join(bindir, 'ResBuilder.exe')]
     r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
+        restore()
         sys.stdout.write(r.stdout.decode('gbk', 'replace'))
         sys.stdout.write(r.stderr.decode('gbk', 'replace'))
         print('工具链返回 %d' % r.returncode)
@@ -127,12 +155,13 @@ def main():
     print('%-24s %-8s %-8s %-8s %s' % ('文件', '本版', '原厂', '差字节', '判定'))
     bad = 0
     for n in FILES:
-        pa, pb = os.path.join(outdir, n), os.path.join(proj, n)
-        if not os.path.exists(pa) or not os.path.exists(pb):
+        pa = os.path.join(outdir, n)
+        if not os.path.exists(pa) or n not in snapshot:
             print('%-24s %s' % (n, '缺文件'))
             bad += 1
             continue
-        a, b = open(pa, 'rb').read(), open(pb, 'rb').read()
+        # 参考一律取快照 —— 磁盘上那份这会儿已经被本次运行顶掉了
+        a, b = open(pa, 'rb').read(), snapshot[n]
         d = sum(1 for i in range(min(len(a), len(b))) if a[i] != b[i]) + abs(len(a) - len(b))
         budget = BUDGET.get(n, 0)
         ok = d <= budget
@@ -140,6 +169,7 @@ def main():
               '逐字节相同' if d == 0 else ('允许范围内' if ok else '★ 超出预期')))
         if not ok:
             bad += 1
+    restore()            # 工程目录一个字节都不留下改动
     print('\n不合格 %d 项' % bad)
     if bad:
         # 参考产物是"就地"躺在工程目录里的，任何一次 step2 都会覆盖它们。

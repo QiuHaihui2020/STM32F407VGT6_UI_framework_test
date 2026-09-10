@@ -224,6 +224,27 @@ protected:
     /** 子类往右键菜单里加自己特有的项（列表的加行、表格的加行列…）。 */
     virtual void appendTypeActions(QMenu &menu) { Q_UNUSED(menu) }
 
+public:
+    /**
+     * 画布把这个控件的**子控件全建完之后**调一次。
+     *
+     * 列表要靠它把各行摆到格子上：relayoutRows() 得等子控件存在才有意义，
+     * 而 bind() 跑的时候一个孩子都还没有。以前只有滚轮翻行会调 relayout，
+     * 于是画布重建之后行是散的 —— 行比格子大，里头的图片被裁得看不见。
+     */
+    virtual void onSubtreeBuilt() {}
+
+protected:
+    /**
+     * 按 EditorOps::cellRectFor() 把每个孩子的矩形重算一遍（列表的行、
+     * 表格的项）。sizehw / space / 行列数 / 滚动方向一变，格子就变了，
+     * 各项的 rect 得跟着走 —— 那不只是显示，生成资源读的就是它。
+     * @return 有没有真的改动过
+     */
+    bool reflowCells();
+    /** 改完格子参数统一走这里：重排 + 通知外面重画、置脏。 */
+    void cellParamsChanged();
+
     UiNode *m_node = nullptr;
 
 private:
@@ -284,6 +305,13 @@ public slots:
     void onDeleteMe();            ///< ★
 
 public:
+    /* 下面这几个是"改格子参数"的正经入口：右键菜单问完数字调它们，
+     * ops-test 也直接调它们 —— 免得为了测一条规则去驱动模态对话框。 */
+    void setCellSize(int v);              ///< 行高（垂直）/ 列宽（水平）
+    void setCellSpace(int v);             ///< 单元间隔
+    void setOrientation(bool vertical);   ///< 垂直滚动 / 水平滚动
+
+public:
     /** 当前滚到第几行/列。手册 2.11："如果垂直列表控件不够显示所有行，
      *  可以通过鼠标滚轮来进行行切换。" */
     int  firstVisible() const { return m_first; }
@@ -292,6 +320,10 @@ public:
 protected:
     void appendTypeActions(QMenu &menu) override;
     void wheelEvent(QWheelEvent *e) override;
+    void resizeEvent(QResizeEvent *e) override;
+
+public:
+    void onSubtreeBuilt() override { relayoutRows(); }
 
 private:
     /** 按 sizehw / space / m_first 把各行摆好。 */
@@ -308,6 +340,11 @@ public:
     ~NewGrid() override;
     ObjTypes objType() const override { return T_NewGrid; }
     QColor frameColor() const override;
+public:
+    void setCellSize(int w, int h);       ///< 单元尺寸
+    void setCellSpace(int v);             ///< 单元间距
+    void setGrid(int rows, int cols);     ///< 设置行列
+
 public slots:
     void onDeleteMe();            ///< ★
     void onAddOneRow();           ///< ★

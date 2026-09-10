@@ -121,6 +121,17 @@ int main(int argc, char *argv[])
                                    QStringLiteral("自截前隐藏辅助线"
                                                   "（控件描边/选中框/控件名/像素网格）"));
     p.addOption(optOps);
+    QCommandLineOption optSample(QStringList() << QStringLiteral("make-sample"),
+                                 QStringLiteral("造一份每种控件各一个+各种组合的样例工程"
+                                                "（给原厂/本版工具链对拍用）"),
+                                 QStringLiteral("out.json"));
+    QCommandLineOption optSamplePic(QStringList() << QStringLiteral("sample-pics"),
+                                    QStringLiteral("样例工程里图片控件到哪儿找图"
+                                                   "（相对工程目录，默认 config/pic_lcd）"),
+                                    QStringLiteral("dir"),
+                                    QStringLiteral("config/pic_lcd"));
+    p.addOption(optSample);
+    p.addOption(optSamplePic);
     QCommandLineOption optPvDump(QStringList() << QStringLiteral("preview-dump"),
                                  QStringLiteral("把每个控件的内容预览存成 PNG 再退出"),
                                  QStringLiteral("dir"));
@@ -394,6 +405,29 @@ int main(int argc, char *argv[])
     /* 编辑操作与限制的无人值守回归。原厂那套限制（建控件要先选布局、
      * 粘贴只认布局、宽高不能为零……）本来全靠弹框拦人，弹框在没人点的
      * 环境里会把进程挂死，所以 runOpsTest() 先开 EditorOps 的无人值守开关。 */
+    if (p.isSet(optSample)) {
+        const QString outPath = p.value(optSample);
+        const QString picDir = p.value(optSamplePic);
+        const QString repFile = p.isSet(optOut) ? p.value(optOut) : QString();
+        QTimer::singleShot(300, &app, [&w, &out, outPath, picDir, repFile]() {
+            QString rep;
+            const int n = w.makeSampleProject(outPath, picDir, &rep);
+            out << rep << endl;
+            out.flush();
+            /* WIN32 子系统程序被重定向时 stdout 拿不到有效句柄，
+             * 报告会整份丢掉 —— 和 --ops-test 一样，给了 --out 就落盘。 */
+            if (!repFile.isEmpty()) {
+                QFile f(repFile);
+                if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    f.write(rep.toUtf8());
+                    f.write("\n", 1);
+                }
+            }
+            QCoreApplication::exit(n > 0 ? 0 : 8);
+        });
+        return app.exec();
+    }
+
     if (p.isSet(optOps)) {
         /* UITools 是 WIN32 子系统程序（双击不弹黑窗口），被重定向时
          * stdout 拿不到有效句柄，报告会整份丢掉。所以 --out 给了路径就

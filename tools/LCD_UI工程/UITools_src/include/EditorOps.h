@@ -21,11 +21,15 @@
 #ifndef EDITOROPS_H
 #define EDITOROPS_H
 
+#include <QJsonObject>
+#include <QRect>
 #include <QString>
 
 class QWidget;
 class UiNode;
 class ProjectModel;
+class ControlLibrary;
+class QJsonObject;
 
 namespace EditorOps {
 
@@ -41,9 +45,100 @@ const char *const kControlMime = "application/x-uitools-control";
 bool isPage(const UiNode *n);
 bool isLayer(const UiNode *n);
 bool isLayout(const UiNode *n);
+bool isFrame(const UiNode *n);      ///< NewFrame：文字/图片/时间/数字/电池，叶子
+bool isList(const UiNode *n);       ///< NewList：垂直列表 / 水平列表
+bool isGrid(const UiNode *n);       ///< NewGrid：表格控件
 
-/** 能不能往它下面挂控件 / 收粘贴。原厂只认布局。 */
+/* ---- 谁能装什么 ------------------------------------------------------
+ * 来自原厂两个工程 277 个节点的全量统计（一个反例都没有）：
+ *
+ *   装「布局」的：图层(64)、布局(3，套娃)、**列表(165)**
+ *   装「控件」的：只有布局(494)
+ *
+ * 列表那 165 个就是它的行/项模板 —— 列表的孩子**清一色是 NewLayout**，
+ * 一个 NewFrame 都没有。所以控件不能直接塞进列表，得先有行布局。
+ * 这不是洁癖：固件那边按"列表的孩子是行"来遍历，塞个裸控件进去，
+ * 生成出来的 .sty 是原厂从来没产出过的形状。
+ *
+ * 【表格 NewGrid 和列表同等对待】工程里没有表格样本，但三件事都对得上：
+ *   · option.ini 里 NewGrid / VerticalList / HorizontalList **同为类型码 5**，
+ *     StyBuilder 走的是同一条路；
+ *   · 固件 ui_grid.h 的 `struct ui_grid_item_info` 里，每一项就是
+ *     `struct layout_info *info` —— 和列表的行是同一种东西；
+ *   · 水平列表的 -class 也是 NewList（-type 才是 HorizontalList），
+ *     所以列表那两种早就是同一套规则，表格没道理单独一套。
+ *
+ * 【水平列表不用单独处理】它的 -class 是 NewList，isList() 天然覆盖。
+ * 【slider / vslider 这些扩展控件也不用】control/ex 里它们的 -class 就是
+ *   NewLayout，本来就按布局收孩子（原厂 MUSIC_FILE_SLIDER 底下挂着三个图片）。
+ */
+
+/** 能不能往它下面挂一个**布局**：图层 / 布局 / 列表 / 表格。 */
+bool acceptsLayout(const UiNode *n);
+/** 能不能往它下面挂一个**普通控件**（NewFrame）：只有布局。 */
+bool acceptsWidget(const UiNode *n);
+
+/** 能不能往它下面收粘贴。原厂那三条提示语写死了"请选择一个<布局>对像"。 */
 bool acceptsChild(const UiNode *n);
+
+/* ---- 点按钮建东西时，孩子到底挂到谁下面 ------------------------------
+ * 规则不是猜的，是 ui-tools.exe 里 CompoentControls 那四个槽反出来的
+ * （qt_static_metacall @0x458550 -> 槽 0/1/2/3）：
+ *
+ *   onCreateCompoentToCanvas @0x4212C0   「新建控件」
+ *       选中为空                       -> 提示"请选择一个布局或者新建一个并选中它."
+ *       选中是 NewLayer                -> 同上提示
+ *       选中是 NewFrame/NewList/NewGrid -> 挂到**它的父级**（当兄弟，不钻进去）
+ *       其它（NewLayout）              -> 挂到它自己
+ *
+ *   onCreateNewLayout @0x421500          「新建布局」
+ *       选中为空                       -> 提示"请选择一个图层或者新建一个图层,并选中它."
+ *       选中是 NewLayout               -> 挂到它自己（布局套布局，原厂工程里 3 例）
+ *       选中是 NewLayer                -> 挂到它自己
+ *       选中是 NewFrame/NewList        -> 挂到**它的父级**
+ *       其它                           -> 什么也不做，连提示都没有
+ *
+ * 注意"挂到父级"这一条：以前本版是直接拦下报错，和原厂不是一回事 ——
+ * 原厂选中一个文字控件再点「新建文字」，是在**同一个布局里**再加一个。
+ *
+ * 【★ 有意偏离原厂的一条】选中**列表或表格**点「新建布局」：原厂对列表是
+ * 加到它的父级（[sel+0x34] 是父指针，0x41CA9B / 0x41D6A3 那两处 new 完就把
+ * 容器写进去了），对表格是**连判都不判**、静默什么也不做。想给列表加行只能走
+ * 列表自己的右键菜单「添加行」，表格则根本没有加项的入口。
+ * 本版这两种都改成**加进去**，因为那才是用户点这一下想要的东西。
+ * 产物不受影响：加进去的还是 NewLayout、还是挂 listwidget 键，
+ * 和原厂那 165 行一模一样的形状。
+ */
+
+/** @return 「新建控件」该挂到哪儿；nullptr = 该弹那句"请选择一个布局…". */
+UiNode *hostForNewControl(UiNode *sel);
+/**
+ * @return 「新建布局」该挂到哪儿；nullptr = 拦下。
+ * @param needTip 拦下时要不要弹"请选择一个图层…"。原厂只有"选中为空"这一种
+ *                情况弹，其余是静默返回。
+ */
+UiNode *hostForNewLayout(UiNode *sel, bool *needTip);
+
+/**
+ * 列表/表格里第 index 项（行/列/单元）该占的矩形，相对容器自己。
+ *
+ * 【为什么必须算】原厂工程里的行不是随便摆的，`sizehw` / `space` 决定了
+ * 每一格多大、隔多远，行自己的 rect 就是那一格：
+ *
+ *   垂直列表 VerticalList rect=(0,16,128,32) sizehw=16 space=0
+ *       行 rect=(0, i*16, **128**, **16**)   宽=列表宽，高=sizehw
+ *   水平列表 HorizontalList rect=(0,24,128,40) sizehw=32 space=0
+ *       行 rect=(i*32, 0, **32**, **40**)    宽=sizehw，高=列表高
+ *
+ * 新建的行如果还用通用默认尺寸（比模板大得多），会被容器裁掉一大半 ——
+ * 用户看到的就是"往列表里放了张图，预览里什么都没有"。
+ *
+ * 表格（NewGrid）工程里没有样本，按 cell_w / cell_h + rows/cols 铺，
+ * 这是固件 ui_grid 那套行列语义的直读。
+ *
+ * @return 无效矩形表示 container 不是列表/表格，调用方该用通用默认值。
+ */
+QRect cellRectFor(const UiNode *container, int index);
 
 /**
  * 往 parent 下面挂孩子时该用哪个 json 键。
@@ -53,7 +148,16 @@ bool acceptsChild(const UiNode *n);
  *     ScenesScreen --layer--------> NewLayer
  *     NewLayer     --layout-------> NewLayout
  *     NewLayout    --layout-------> NewFrame / NewLayout / NewList
- *     NewList      --listwidget---> NewLayout   （列表的行模板）
+ *     NewList      --listwidget---> NewLayout   （列表的行模板，两个工程共 165 个）
+ * 表格控件（NewGrid）的孩子也走 `listwidget`。
+ * 【别用 "GridWidget"】那个名字确实在 ui-tools.exe 的键名池里
+ * （静态初始化 @0x105DE5F，全局槽 0x170E454），但它是个**死字符串**：
+ * 全 .text 里只有 0x409625 / 0x409633 两处引用，那是 QString 的
+ * 构造/析构登记桩，**没有任何代码读它**。而原厂读子节点只认三个键
+ * （0x412000-0x416000 段里对全局键的引用只有 layer / layout / listwidget）,
+ * 写成 GridWidget 的话那棵子树在原厂工具里直接看不见。
+ * 表格和列表同为类型码 5，固件那边的项也同样是 layout_info，走 listwidget
+ * 是唯一既能被原厂读到、语义又对得上的选择。
  * 键写错了，文件本身还是合法 json，但下游 QtToolBin 遍历不到那棵子树，
  * 表现是"编辑器里有这个控件，生成出来的 .sty 里没有"。
  */
@@ -117,6 +221,43 @@ void setModel(ProjectModel *m);
 
 /** 在 parent 的孩子里取一个不重名的名字。 */
 QString uniqueName(const UiNode *parent, const QString &base);
+
+/**
+ * 新建节点的默认名字：`<中文名>_<全局序号>`，例如 `布局_37`。
+ *
+ * 【为什么要单独抽出来】原厂建出来的东西名字是**中文 caption 加序号**
+ * （图层_0 / 布局_1 / 文字_48），序号是**跨页连着走的全局计数**。
+ * 以前只有 CompoentControls::appendChild() 这一条路照做，列表右键「添加行」
+ * 那条路是自己现搭一个 `-name: "NewLayout"`，于是同一个工程里冒出英文名。
+ *
+ * @param caption 控件的中文名（布局 / 文字 / 图片…）；空的话退回 "控件"
+ */
+QString defaultNodeName(const QString &caption);
+
+/**
+ * 把控件模板库交给 EditorOps。
+ *
+ * 【为什么要这一手】"建一个控件"这件事有两条入口：控件栏那条走
+ * CompoentControls（它自己拿得到 ControlLibrary），列表右键「添加行」那条
+ * 在 BaseForm 里，够不着任何管理器。以前那条路就自己现搭一个
+ * `{-class,-type,-name}` 的空壳 —— 一条属性都没有，属性面板上空空如也，
+ * 生成资源时既没几何也没样式。两条路必须用**同一份模板**。
+ */
+void setLibrary(const ControlLibrary *lib);
+
+/** 按 -type 取 control.json 里的模板原文；没有就返回空对象。 */
+QJsonObject templateFor(const QString &type);
+
+/**
+ * 照模板建一个节点挂到 parent 下（不入 parent->children，由调用方决定位置）。
+ *
+ * 名字、唯一 ID 号、格子矩形全按和控件栏那条路一样的规矩来
+ * （见 defaultNodeName / cellRectFor）。
+ * @param type    control.json 里的 -type，如 "NewLayout"
+ * @param caption 中文名，空的话用模板里的
+ */
+UiNode *makeFromTemplate(UiNode *parent, const QString &type,
+                         const QString &caption = QString());
 
 /* ---- 自定义控件目录 ---------------------------------------------------
  * 原厂[全局设置]里那一项："自定义的模版控件目录,默认是 widgets 目录"。

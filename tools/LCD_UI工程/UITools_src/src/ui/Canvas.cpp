@@ -145,17 +145,9 @@ void ScenesScreen::setZoom(int percent)
         return;
     }
     m_zoom = z;
-    /* 【选中要跨过重建活下来】改倍率只是把 QWidget 重摆一遍，**模型一个字节
-     * 都没动**。但 rebuild() 会把 m_selected 清空（结构变更时那些裸指针确实
-     * 会变野），于是单独预览失去目标，applyVisibility 退回去显示默认那个
-     * 布局 —— 表现就是"一缩放就跳回第一个布局"。
-     * 这里先记下节点，重建完再选回来。安全性由 m_forms 保证：它是照活模型
-     * 重新建的，节点还在里面就说明指针没失效；不在就老老实实不恢复。 */
-    UiNode *keep = m_selected;
+    /* 改倍率只是把 QWidget 重摆一遍，模型一个字节都没动；
+     * 选中由 rebuild() 自己保住（见那边的注释）。 */
     rebuild();
-    if (keep && m_forms.contains(keep)) {
-        selectNode(keep);
-    }
 }
 
 void ScenesScreen::rebuild()
@@ -179,7 +171,8 @@ void ScenesScreen::rebuild()
     m_userHidden.clear();
     /* m_selected 是裸指针，画布一重建它就可能指向已经释放的节点；
      * 而且不清掉的话，重建后再选中同一个节点会被 selectNode() 当成"没变化"
-     * 而吞掉。 */
+     * 而吞掉。先记一份，等新控件都建好了再按"还在不在新表里"决定要不要选回来。 */
+    UiNode *const keep = m_selected;
     m_selected = nullptr;
     if (!m_page) {
         setFixedSize(1, 1);
@@ -191,6 +184,27 @@ void ScenesScreen::rebuild()
 
     for (const auto &c : m_page->children) {
         buildRecursive(c.second, this);
+    }
+
+    /* 【选中必须跨过重建活下来】applyVisibility() 的"选中即隔离"是靠
+     * m_selected 找那个顶层布局的；选中一没，它就退回去把这一页所有布局
+     * 一起画出来 —— 屏幕上就是好几个全屏布局叠成一团。而 rebuild() 的
+     * 触发点大多**根本没动结构**：改一个属性、拖进一个新控件、换个倍率、
+     * 改预览配色，都会走到这儿。每来一次就散一次架，没法用。
+     *
+     * 安全性由 m_forms 兜着：这张表刚刚照活模型重建过，keep 还在里面
+     * 就说明这个节点还挂在树上；不在就老实不恢复（删节点那条路进来
+     * 就是这种情况，调用方已经先把 m_selected 清了）。keep 只做键比较，
+     * 不解引用，所以哪怕它已经是野指针也不会踩内存。
+     *
+     * 【不发 nodeSelected】这只是把重建前的状态摆回去，不是用户又选了
+     * 一次。发出去会让属性面板整个重建 —— 而"改属性"正是最常见的触发点，
+     * 输入框会在打字的当口被换掉。 */
+    if (keep && m_forms.contains(keep)) {
+        m_selected = keep;
+        for (auto it = m_forms.constBegin(); it != m_forms.constEnd(); ++it) {
+            it.value()->setSelected(it.key() == keep);
+        }
     }
     applyVisibility();
     /* 刚建出来的控件会压在覆盖层上面，重新提一次 */
@@ -263,6 +277,8 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
     for (const auto &c : n->children) {
         buildRecursive(c.second, f);
     }
+    /* 孩子全建完了才轮到它 —— 列表要在这里把各行摆到格子上。 */
+    f->onSubtreeBuilt();
 }
 
 /**
@@ -480,19 +496,24 @@ static bool dropTargetFor(UiNode *hit, const QString &cls, UiNode **target)
         return hit != nullptr;
     }
     if (cls == QLatin1String("NewLayout")) {
-        /* 布局要么挂图层下（手册："点击布局并拖动到图层上"），
-         * 要么挂布局下（原厂工程里 NewLayout 套 NewLayout 有 1 例）。 */
+        /* 布局能落在：图层（手册："点击布局并拖动到图层上"）、布局（套娃，
+         * 原厂工程里 3 例）、**列表和表格**。
+         * 列表那一条最要紧：列表的行/项就是一个个布局，原厂两个工程里
+         * 一共 165 个布局挂在列表的 listwidget 键下。以前这里不认列表，
+         * 于是垂直列表永远建不出行来，看上去就是"列表下面放不了东西"。 */
         for (UiNode *n = hit; n; n = n->parent) {
-            if (EditorOps::isLayer(n) || EditorOps::isLayout(n)) {
+            if (EditorOps::acceptsLayout(n)) {
                 *target = n;
                 return true;
             }
         }
         return false;
     }
-    /* 普通控件只认布局 */
+    /* 普通控件只落在布局里。落在列表上时会一路上溯到列表的父布局 ——
+     * 列表的孩子必须是"行"（NewLayout），塞个裸控件进去，生成出来是
+     * 原厂从没产出过的形状，固件按行遍历也拿不到它。 */
     for (UiNode *n = hit; n; n = n->parent) {
-        if (EditorOps::acceptsChild(n)) {
+        if (EditorOps::acceptsWidget(n)) {
             *target = n;
             return true;
         }
@@ -574,6 +595,12 @@ void ScenesScreen::dropEvent(QDropEvent *e)
         local = QPoint(local.x() * 100 / m_zoom, local.y() * 100 / m_zoom);
     }
     emit controlDropped(target, cls, type, local);
+}
+
+bool ScenesScreen::resolveDropTargetForTest(UiNode *hit, const QString &cls,
+                                            UiNode **target) const
+{
+    return dropTargetFor(hit, cls, target);
 }
 
 bool ScenesScreen::simulateDropForTest(const QPoint &pos, const QString &cls,
@@ -708,6 +735,8 @@ CanvasManager::CanvasManager(QObject *parent)
 {
     /* 粘贴/列表加行要给克隆出来的节点重分配 ID 号，去重范围得是整个工程 */
     EditorOps::setModel(&m_model);
+    /* 列表右键「添加行」在 BaseForm 里，够不着管理器，得从这儿把模板库递过去 */
+    EditorOps::setLibrary(&m_lib);
 }
 
 CanvasManager::~CanvasManager() = default;
@@ -916,16 +945,145 @@ void CanvasManager::setCurrentPage(int i)
     emit currentPageChanged(i);
 }
 
+void CanvasManager::newProjectForTest(const QString &name, const QSize &pageSize)
+{
+    m_pageSize = pageSize;
+    const ControlTemplate *lt = m_lib.byType(QStringLiteral("NewLayer"));
+    const ControlTemplate *ot = m_lib.byType(QStringLiteral("NewLayout"));
+    m_model.createDefault(name, pageSize,
+                          lt ? lt->raw : QJsonObject(),
+                          ot ? ot->raw : QJsonObject());
+    m_current = 0;
+    rebuildScreens();
+    setDirty(true);
+    emit projectChanged();
+}
+
+void CanvasManager::addPageForTest()
+{
+    onCreateNewScenesScreen();
+}
+
+int CanvasManager::healBrokenNodes()
+{
+    int healed = 0;
+    for (UiNode *pg : m_model.pages()) {
+        pg->forEach([&](UiNode *n) {
+            if (n == pg) {
+                return true;
+            }
+            const ControlTemplate *t = m_lib.byType(n->type);
+            if (!t || t->raw.isEmpty()) {
+                return true;                 // 认不出的类型，不瞎补
+            }
+            /* 照模板建一个临时节点当参照 —— 那一整套 struct/enum/min/max
+             * 是属性面板和下游 QtToolBin 共同依赖的，自己拼一个迟早对不上。 */
+            UiNode *tmp = ProjectModel::fromJsonObject(t->raw, nullptr);
+            if (!tmp) {
+                return true;
+            }
+
+            /* 【模板里有而节点没有的，全补，按模板的顺序】
+             * 以前这里只补 element_css 和 id —— 于是坏节点修完是
+             * "有坐标、没有事件属性"，属性面板上一眼就看出来缺东西
+             * （用户对着原厂比出来的就是这个）。缺哪条补哪条，别挑食。
+             *
+             * 顺序照模板：属性面板是按 props 的次序铺的，补到末尾的话
+             * 事件属性会跑到滚动方式前面去，和原厂排版对不上。 */
+            const bool needCss = (n->findProp(QStringLiteral("element_css")) == nullptr);
+            QVector<UiProperty> merged;
+            bool added = false;
+            for (const UiProperty &tp : tmp->props) {
+                UiProperty *own = tp.name.isEmpty() ? nullptr : n->findProp(tp.name);
+                if (own) {
+                    merged.append(*own);
+                } else {
+                    merged.append(tp);       // 模板那条原样搬过来
+                    added = true;
+                }
+            }
+            /* 模板里没有、节点自己有的（老工程的遗留键）一条都不能丢 */
+            for (const UiProperty &op : n->props) {
+                bool inTpl = false;
+                for (const UiProperty &tp : tmp->props) {
+                    if (!tp.name.isEmpty() && tp.name == op.name) {
+                        inTpl = true;
+                        break;
+                    }
+                }
+                if (!inTpl) {
+                    merged.append(op);
+                }
+            }
+            delete tmp;
+
+            UiProperty *idp = n->findProp(QStringLiteral("id"));
+            const bool needId = (idp == nullptr || idp->ename.isEmpty());
+            if (!added && !needId) {
+                return true;                 // 什么都不缺
+            }
+            n->props = merged;
+            n->markDirty();
+            ++healed;
+
+            /* 缺唯一 ID 号：空的宏名会让 ename.h 写出 `#define  0XC30002` */
+            idp = n->findProp(QStringLiteral("id"));
+            if (idp && idp->ename.isEmpty()) {
+                idp->ename = m_model.uniqueEname();
+                idp->dirty = true;
+            }
+            if (!needCss || !n->findProp(QStringLiteral("element_css"))) {
+                return true;                 // 几何本来就有（或模板也没有）
+            }
+
+            /* 给个说得过去的矩形：在列表/表格里就是它那一格，
+             * 否则退到父容器的尺寸（再不行 32x16）。 */
+            int idx = 0;
+            if (n->parent) {
+                for (int i = 0; i < n->parent->children.size(); ++i) {
+                    if (n->parent->children.at(i).second == n) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+            QRect r = EditorOps::cellRectFor(n->parent, idx);
+            if (!r.isValid()) {
+                r = (n->parent && n->parent->rect.isValid())
+                    ? QRect(0, 0, n->parent->rect.width(), n->parent->rect.height())
+                    : QRect(0, 0, 32, 16);
+            }
+            n->rect = r;
+            n->setRectOf(0, r);
+            n->markDirty();
+            return true;
+        });
+    }
+    return healed;
+}
+
 bool CanvasManager::openProject(const QString &path, QString *err)
 {
     if (!m_model.load(path, err)) {
         return false;
     }
+    /* 【打开就地修】旧版建出来的空壳节点（没有 element_css）在这儿补齐，
+     * 否则生成资源时它和它整棵子树全是零尺寸，烧进去不显示。
+     * 补完是**脏**的，用户下次保存就落到文件里。 */
+    const int healed = healBrokenNodes();
     m_current = m_model.activePage();
     rebuildScreens();
     emit projectChanged();
-    emit statusMessage(tr("已打开 %1（%2 页）").arg(QFileInfo(path).fileName())
-                       .arg(m_model.pages().size()));
+    if (healed > 0) {
+        setDirty(true);
+        emit statusMessage(tr("已打开 %1（%2 页）；修复了 %3 个缺样式/缺ID号的控件，"
+                              "保存后生效")
+                           .arg(QFileInfo(path).fileName())
+                           .arg(m_model.pages().size()).arg(healed));
+    } else {
+        emit statusMessage(tr("已打开 %1（%2 页）").arg(QFileInfo(path).fileName())
+                           .arg(m_model.pages().size()));
+    }
     return true;
 }
 

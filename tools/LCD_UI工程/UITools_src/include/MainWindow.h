@@ -78,6 +78,21 @@ public:
      */
     int runOpsTest(QString *report);
 
+    /**
+     * 造一份"每种控件各一个 + 各种组合"的样例工程，存到 path。
+     *
+     * 【干什么用的】原厂那两份样例工程只覆盖了它们自己用到的组合，
+     * 拿它们对拍，没被用到的控件（表格、按钮…）和没出现过的嵌套
+     * 永远验不到。这里让工具**自己按每条建节点的路**把所有控件和组合
+     * 都建一遍，存成 json，再把同一份 json 交给原厂 QtToolBin 和本版
+     * QtToolBin 各跑一遍 —— 产物对得上，才谈得上"生成的资源和原厂一致"。
+     *
+     * @param picDir 工程目录下用来找图片的相对目录（如 config/pic_lcd）
+     * @return 建了多少个节点；0 表示失败
+     */
+    int makeSampleProject(const QString &path, const QString &picDir,
+                          QString *report);
+
 protected:
     /** 退出前问一次（原厂："是否真的退出程序?" + 未保存提示）。 */
     void closeEvent(QCloseEvent *e) override;

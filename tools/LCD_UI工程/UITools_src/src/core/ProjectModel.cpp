@@ -309,8 +309,12 @@ UiNode *ProjectModel::nodeFromJson(const QJsonObject &o, UiNode *parent)
     /* 【页面没有 rect 就地补齐】旧版本的「新建页面」只设了内存里的 rect、
      * 没建对应的 property，存出去的 json 里页节点连 "property" 键都没有。
      * 这种工程再打开时页面没有尺寸，生成资源时该页所有控件的 css 几何全是 0,
-     * 烧进设备整屏不显示。这里补一条裸 rect 救回来 —— 只在内存里补，
-     * 不主动置脏，用户下次保存时自然就写回去了。 */
+     * 烧进设备整屏不显示。这里补一条裸 rect 救回来。
+     *
+     * 【必须标脏，否则等于没补】nodeToJson() 的整个 property 段是
+     * `if (n->m_dirty)` 门控的：不标脏就直接吐原始 m_raw，补的这一条
+     * 根本写不出去。而生成资源那条链读的是**存盘后的 json**，不是内存模型,
+     * 于是"界面上看着好了、烧进去还是黑屏"。 */
     if (n->type == QLatin1String("page") && !n->rect.isValid()) {
         n->rect = QRect(1, 1, 128, 64);
         QJsonObject r;
@@ -321,8 +325,12 @@ UiNode *ProjectModel::nodeFromJson(const QJsonObject &o, UiNode *parent)
         QJsonObject po;
         po.insert(QStringLiteral("rect"), r);
         UiProperty rp;
+        /* rp.dirty 保持 false：置脏会让 nodeToJson() 往里塞 "-name"/"-type"，
+         * 而页节点这一条必须是**裸对象**（只有 "rect" 键）。坐标由那边
+         * `po.contains("rect") && p.name.isEmpty()` 那一支照 n->rect 刷。 */
         rp.raw = po;
         n->props.append(rp);
+        n->markDirty();
     }
 
     for (const char *key : kChildKeys) {
@@ -676,6 +684,28 @@ void ProjectModel::createDefault(const QString &projName, const QSize &pageSize,
     layer->children.append(qMakePair(QStringLiteral("layout"), layout));
 
     m_pages.append(page);
+
+    /* 【唯一 ID 号必须等节点挂进树之后再分配】uniqueEname() 是扫 m_pages
+     * 找没被占用的名字的 —— 在 mkBox 里分配的话，图层还没挂上去，
+     * 扫不到它，图层和布局会双双拿到 "BaseForm"。
+     * 重名的后果：ename.h 里同一个宏 define 两遍，谁后写谁赢，
+     * 业务代码引用到的是哪个全看运气（原厂/本版对拍时表现为这一条的
+     * 类型码对不上：原厂给的是图层的 4，本版给的是布局的 3）。
+     *
+     * 空的 ename 同样致命：宏名是空的，写出来就是 `#define  0XC30002`。 */
+    page->forEach([this](UiNode *n) {
+        if (n->type == QLatin1String("page")) {
+            return true;                    // 页自己走 PAGE_n，不占 ename
+        }
+        if (UiProperty *idp = n->findProp(QStringLiteral("id"))) {
+            if (idp->ename.isEmpty()) {
+                idp->ename = uniqueEname();
+                idp->dirty = true;
+                n->markDirty();
+            }
+        }
+        return true;
+    });
 }
 
 /* ===================== 节点级搬运原语 ===================== */

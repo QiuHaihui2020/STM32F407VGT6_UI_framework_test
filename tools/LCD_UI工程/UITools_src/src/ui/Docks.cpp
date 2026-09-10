@@ -134,6 +134,10 @@ int TreeDock::countAll() const
 
 void TreeDock::reload()
 {
+    /* 【高亮要活过 clear()】reload() 的触发点大多没动结构 —— 改一个属性就会
+     * 走到这儿。clear() 之后当前项没了，树上的高亮跟着没，用户看到的是
+     * "改个参数选中就自己跑了"。先记住节点，重建完按节点找回来。 */
+    UiNode *const keep = nodeOf(m_tree->currentItem());
     m_tree->clear();
     if (!m_mgr) {
         return;
@@ -146,7 +150,15 @@ void TreeDock::reload()
         }
         m_tree->expandAll();
     }
+    if (keep) {
+        selectNode(keep);      // 节点已经不在树上就是空操作
+    }
     m_count->setText(tr("控件数量: %1").arg(countAll()));
+}
+
+UiNode *TreeDock::currentNodeForTest() const
+{
+    return nodeOf(m_tree->currentItem());
 }
 
 void TreeDock::selectNode(UiNode *n)
@@ -1064,14 +1076,40 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
     if (!caption.isEmpty()) {
         n->caption = caption;
     }
-    if (!n->rect.isValid()) {
+    /* 【进列表/表格的，用格子的尺寸，不要通用默认值】列表的行就是一格：
+     * 宽高由 sizehw / 列表自身尺寸决定（见 EditorOps::cellRectFor）。
+     * 用通用默认值的话，行比格子大得多，容器一裁，里头放的图片只剩一条边 ——
+     * 用户看到的就是"往列表里放了张图，预览里什么都没有"。 */
+    const QRect cell = EditorOps::cellRectFor(parent, parent->children.size());
+    if (cell.isValid()) {
+        n->rect = cell;
+    } else if (!n->rect.isValid()) {
         n->rect = QRect(0, 0, 32, 16);
     }
     /* 拖进来的落在鼠标松手的地方；点击建的用模板的默认位置。
      * 负坐标夹回 0：控件的 rect 是相对父级的，拖到容器左上角外面会算出负值，
-     * 存进 json 后固件按无符号读会得到一个巨大的坐标。 */
-    if (pos.x() >= 0 && pos.y() >= 0) {
+     * 存进 json 后固件按无符号读会得到一个巨大的坐标。
+     * 【格子里的那一项不跟鼠标走】它的位置由第几格决定，拖到哪儿都一样。 */
+    if (!cell.isValid() && pos.x() >= 0 && pos.y() >= 0) {
         n->rect.moveTo(qMax(0, pos.x()), qMax(0, pos.y()));
+    }
+
+    /* 【默认尺寸不许超过父容器】control.json 的模板默认值是给大屏留的
+     * （图片 75x75、布局 100x100、文字 75x25），128x64 的屏上本来就偏大；
+     * 放进列表的行（比如水平列表一格才 30x25）更是整个溢出，容器一裁，
+     * 里头的图连边都露不出来 —— 用户看到的就是"放了张图，预览里什么都没有"。
+     *
+     * 夹到父容器尺寸，和属性面板那条原厂限制是同一条：宽/高的取值范围就是
+     * 0..父容器宽/高（ui-tools.exe 的 setMaximum，见 docs/FACTORY_UI.md §10）。
+     * 也就是说 75x75 这种值原厂的属性面板自己都不让你填进去。 */
+    if (parent->rect.isValid() && parent->rect.width() > 0
+        && parent->rect.height() > 0) {
+        const int w = qMin(n->rect.width(), parent->rect.width());
+        const int h = qMin(n->rect.height(), parent->rect.height());
+        n->rect.setWidth(qMax(1, w));
+        n->rect.setHeight(qMax(1, h));
+        /* 【只夹尺寸，不动位置】位置是用户松手的地方，挪走等于不听话；
+         * 原厂拖放这条路也不钳坐标（ops-test 第 14 条盯着这件事）。 */
     }
     n->setRectOf(0, n->rect);
 
@@ -1091,10 +1129,19 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
     parent->children.append(qMakePair(EditorOps::childKeyFor(parent), n));
     parent->markDirty();
     m_mgr->markDirty();
-    if (ScenesScreen *s = m_mgr->currentScreen()) {
+    ScenesScreen *s = m_mgr->currentScreen();
+    if (s) {
         s->rebuild();
     }
-    emit nodeCreated(n);
+    emit nodeCreated(n);       // 先让树/页面栏认得这个新节点
+    /* 【新建出来就选中它】原厂也是这个行为，而且这里还兼着一件正事：
+     * 画布的"选中即隔离"要有个目标才成立。什么都没选的时候往一个布局里
+     * 拖控件，这一页的布局会全部画出来叠成一团，刚拖进去的那个反而看不见。
+     * 放在 nodeCreated 之后：那条信号会重载控件树，得等树上有了这一项，
+     * selectNode 才点得亮它。 */
+    if (s) {
+        s->selectNode(n);
+    }
     return n;
 }
 
@@ -1111,10 +1158,13 @@ void CompoentControls::createControl(const QString &cls, const QString &type,
      * ★ 原厂限制：点击建控件时必须先选中一个**布局**。之前这里是"自己往下
      * 找第一个布局"，看着方便，但和原厂不是一回事：用户按原厂习惯先点布局
      * 再点控件，在我这儿会莫名其妙建到别的布局里去。 */
-    UiNode *host = parent ? parent : m_current;
-    if (!parent && !EditorOps::acceptsChild(host)) {
-        EditorOps::tip(this, QStringLiteral("请选择一个布局或者新建一个并选中它."));
-        return;
+    UiNode *host = parent;
+    if (!host) {
+        host = EditorOps::hostForNewControl(m_current);
+        if (!host) {
+            EditorOps::tip(this, QStringLiteral("请选择一个布局或者新建一个并选中它."));
+            return;
+        }
     }
     const ControlTemplate *t = m_mgr->library()->byType(type);
     const QString cap = (t && !t->caption.isEmpty()) ? t->caption : caption;
@@ -1180,13 +1230,19 @@ void CompoentControls::onCreateNewLayout()
     if (!m_mgr) {
         return;
     }
-    /* ★ 原厂限制：布局只能挂在图层下，而且要先选中那个图层 */
-    if (!EditorOps::isLayer(m_current)) {
-        EditorOps::tip(this, QStringLiteral("请选择一个图层或者新建一个图层,并选中它."));
+    /* ★ 规则见 EditorOps::hostForNewLayout（从 ui-tools.exe 0x421500 反出来的）。
+     * 以前这里写死"只能挂图层下"，比原厂严：原厂选中布局是**套一层布局**，
+     * 选中控件/列表是加到它的父级。 */
+    bool needTip = false;
+    UiNode *host = EditorOps::hostForNewLayout(m_current, &needTip);
+    if (!host) {
+        if (needTip) {
+            EditorOps::tip(this,
+                           QStringLiteral("请选择一个图层或者新建一个图层,并选中它."));
+        }
         return;
     }
-    ScenesScreen *sc = m_mgr->currentScreen();
-    appendChild(m_current, QStringLiteral("NewLayout"), QStringLiteral("NewLayout"),
+    appendChild(host, QStringLiteral("NewLayout"), QStringLiteral("NewLayout"),
                 QStringLiteral("布局"),
                 QStringLiteral("布局_%1").arg(m_mgr->model()->nextNodeSeq()));
 }
@@ -1228,6 +1284,15 @@ PropertyTab::~PropertyTab() = default;
 
 /* 页签数 = element_css.struct 的长度：一个 CSS 状态一页，
  * 名字就是原厂那个 "CSS属性_N"。 */
+QStringList PropertyTab::rowsForTest() const
+{
+    const int i = currentIndex();
+    if (i < 0 || i >= m_pages.size() || !m_pages.at(i)) {
+        return QStringList();
+    }
+    return m_pages.at(i)->rowsForTest();
+}
+
 void PropertyTab::showNode(UiNode *n)
 {
     m_node = n;

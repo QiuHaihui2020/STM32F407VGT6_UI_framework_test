@@ -927,14 +927,28 @@ void NewList::onAddManyLine()
         if (tpl) {
             row = ProjectModel::cloneNode(tpl, m_node);
         } else {
-            QJsonObject o;
-            o.insert(QStringLiteral("-class"), QStringLiteral("NewLayout"));
-            o.insert(QStringLiteral("-type"),  QStringLiteral("NewLayout"));
-            o.insert(QStringLiteral("-name"),  QStringLiteral("NewLayout"));
-            row = ProjectModel::fromJsonObject(o, m_node);
-            row->markDirty();
+            /* 【列表还空着时，照 control.json 的模板建，不要现搭空壳】
+             * 以前这里搭的是个只有 -class/-type/-name 的壳：一条属性都没有，
+             * 属性面板上空空如也，生成资源时既没几何也没样式 ——
+             * 用户报的"右键添加行新增的布局参数比原厂少"就是这条路。
+             * 原厂建出来的行和普通布局是**同一套参数**（两个工程 167 个行
+             * vs 65 个图层下的布局，property 名单、element_css 字段和状态数
+             * 全部一致，见 docs/FACTORY_UI.md §14.12），所以这里必须走和
+             * 控件栏那条路同一份模板。 */
+            row = EditorOps::makeFromTemplate(m_node, QStringLiteral("NewLayout"),
+                                              QStringLiteral("布局"));
         }
-        row->name = EditorOps::uniqueName(m_node, row->name);
+        /* 【名字要和正常新建的一样】原厂是"中文名_全局序号"（布局_37）。
+         * 以前克隆出来的沿用被克隆那一行的名字、退化路径更是直接叫
+         * "NewLayout" —— 同一个工程里冒出英文名，树上一眼就看出来是两条路。 */
+        if (row->caption.isEmpty()) {
+            row->caption = QStringLiteral("布局");
+        }
+        if (row->icon.isEmpty()) {
+            row->icon = QStringLiteral("config/images/layout.ico");
+        }
+        row->name = EditorOps::uniqueName(
+            m_node, EditorOps::defaultNodeName(row->caption));
         /* 【ID 号也要重分配】行是从第一行整棵克隆出来的，ename 一起带过来了；
          * 不换的话 ename.h 里同一个宏会 #define 好几次，业务代码引用到哪一个
          * 全看运气。和粘贴是同一类问题，走同一个函数。 */
@@ -966,8 +980,37 @@ void NewList::onSetFixedHeight()
     if (!ok) {
         return;
     }
+    setCellSize(v);
+}
+
+void NewList::setCellSize(int v)
+{
+    if (!m_node || v <= 0) {
+        return;
+    }
     m_node->setExtra(QStringLiteral("sizehw"), v);
-    update();
+    cellParamsChanged();
+}
+
+void NewList::setCellSpace(int v)
+{
+    if (!m_node || v < 0) {
+        return;
+    }
+    m_node->setExtra(QStringLiteral("space"), v);
+    cellParamsChanged();
+}
+
+void NewList::setOrientation(bool vertical)
+{
+    if (!m_node) {
+        return;
+    }
+    m_node->setExtra(QStringLiteral("orientation"),
+                     vertical ? QStringLiteral("Vertical")
+                              : QStringLiteral("Horizontal"));
+    /* 方向一换，格子从"整宽 x sizehw"变成"sizehw x 整高"，每一行都得重算 */
+    cellParamsChanged();
 }
 
 /**
@@ -1002,6 +1045,45 @@ void NewList::setFirstVisible(int i)
         return;
     }
     m_first = want;
+    relayoutRows();
+}
+
+bool BaseForm::reflowCells()
+{
+    if (!m_node) {
+        return false;
+    }
+    bool changed = false;
+    int i = 0;
+    for (const auto &c : m_node->children) {
+        const QRect r = EditorOps::cellRectFor(m_node, i++);
+        if (!r.isValid() || c.second->rect == r) {
+            continue;
+        }
+        c.second->rect = r;
+        c.second->setRectOf(0, r);      // 几何真正存的地方是 element_css
+        c.second->markDirty();
+        changed = true;
+    }
+    return changed;
+}
+
+void BaseForm::cellParamsChanged()
+{
+    reflowCells();
+    /* 【必须往上发一次】只 update() 的话，重画的只有这个控件自己：各行还在
+     * 老位置老尺寸（relayoutRows 只有滚轮翻行时才跑），右栏预览不知道，
+     * 工程也不算改过。走 structureChanged 这条现成的路 —— 画布照新参数
+     * 整个重建（重建里 onSubtreeBuilt() 会把行摆好），树和页面栏跟着刷，
+     * CanvasManager 顺手置脏。 */
+    update();
+    emit structureChanged();
+}
+
+void NewList::resizeEvent(QResizeEvent *e)
+{
+    BaseForm::resizeEvent(e);
+    /* 列表一改大小，格子也跟着变（水平列表的行高 = 列表高） */
     relayoutRows();
 }
 
@@ -1058,8 +1140,7 @@ void NewList::appendTypeActions(QMenu &menu)
         const int v = QInputDialog::getInt(this, QStringLiteral("设置间隔"),
                                            QStringLiteral("单元间隔:"), cur, 0, 9999, 1, &ok);
         if (ok) {
-            m_node->setExtra(QStringLiteral("space"), v);
-            update();
+            setCellSpace(v);
         }
     });
 
@@ -1070,12 +1151,8 @@ void NewList::appendTypeActions(QMenu &menu)
     aHorz->setCheckable(true);
     aVert->setChecked(vert);
     aHorz->setChecked(!vert);
-    connect(aVert, &QAction::triggered, this, [this]() {
-        m_node->setExtra(QStringLiteral("orientation"), QStringLiteral("Vertical"));
-    });
-    connect(aHorz, &QAction::triggered, this, [this]() {
-        m_node->setExtra(QStringLiteral("orientation"), QStringLiteral("Horizontal"));
-    });
+    connect(aVert, &QAction::triggered, this, [this]() { setOrientation(true); });
+    connect(aHorz, &QAction::triggered, this, [this]() { setOrientation(false); });
 }
 
 NewGrid::NewGrid(QWidget *parent) : BaseForm(parent) {}
@@ -1093,9 +1170,8 @@ void NewGrid::onAddOneRow()
     if (!m_node) {
         return;
     }
-    const int rows = m_node->extraValue(QStringLiteral("rows")).toInt(1) + 1;
-    m_node->setExtra(QStringLiteral("rows"), rows);
-    update();
+    setGrid(m_node->extraValue(QStringLiteral("rows")).toInt(1) + 1,
+            m_node->extraValue(QStringLiteral("cols")).toInt(1));
 }
 
 void NewGrid::onAddOneCol()
@@ -1103,9 +1179,37 @@ void NewGrid::onAddOneCol()
     if (!m_node) {
         return;
     }
-    const int cols = m_node->extraValue(QStringLiteral("cols")).toInt(1) + 1;
+    setGrid(m_node->extraValue(QStringLiteral("rows")).toInt(1),
+            m_node->extraValue(QStringLiteral("cols")).toInt(1) + 1);
+}
+
+void NewGrid::setGrid(int rows, int cols)
+{
+    if (!m_node || rows <= 0 || cols <= 0) {
+        return;
+    }
+    m_node->setExtra(QStringLiteral("rows"), rows);
     m_node->setExtra(QStringLiteral("cols"), cols);
-    update();
+    cellParamsChanged();
+}
+
+void NewGrid::setCellSize(int w, int h)
+{
+    if (!m_node || w <= 0 || h <= 0) {
+        return;
+    }
+    m_node->setExtra(QStringLiteral("cell_w"), w);
+    m_node->setExtra(QStringLiteral("cell_h"), h);
+    cellParamsChanged();
+}
+
+void NewGrid::setCellSpace(int v)
+{
+    if (!m_node || v < 0) {
+        return;
+    }
+    m_node->setExtra(QStringLiteral("space"), v);
+    cellParamsChanged();
 }
 
 void NewGrid::appendTypeActions(QMenu &menu)
@@ -1136,9 +1240,7 @@ void NewGrid::appendTypeActions(QMenu &menu)
         if (!ok) {
             return;
         }
-        m_node->setExtra(QStringLiteral("cell_w"), w);
-        m_node->setExtra(QStringLiteral("cell_h"), h);
-        update();
+        setCellSize(w, h);
     });
 
     QAction *aSpace = menu.addAction(QStringLiteral("单元间距"));
@@ -1149,8 +1251,7 @@ void NewGrid::appendTypeActions(QMenu &menu)
                                            m_node->extraValue(QStringLiteral("space")).toInt(0),
                                            0, 9999, 1, &ok);
         if (ok) {
-            m_node->setExtra(QStringLiteral("space"), v);
-            update();
+            setCellSpace(v);
         }
     });
 

@@ -94,8 +94,14 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
 
 const ControlTemplate *ControlLibrary::byType(const QString &type) const
 {
+    /* 【必须大小写不敏感】原厂两份文件对不上：control.json 里数字控件是
+     * `-type: "Number"`，而工程文件和 option.ini 里都是小写 `number`
+     * （两个工程 15 个数字控件全是小写）。按大小写敏感查，这 15 个节点
+     * 取不到模板 —— 补样式、补 ID 号、属性面板全部落空，而且不报错。
+     * StyBuilder 早就绕过这一点了（认不出 -type 就退回按中文 caption 查，
+     * option.ini 里 `数字=15`）。 */
     for (const ControlTemplate &t : m_controls) {
-        if (t.type == type) {
+        if (t.type.compare(type, Qt::CaseInsensitive) == 0) {
             return &t;
         }
     }
