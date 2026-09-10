@@ -649,9 +649,29 @@ Output Builder::build(const Options &opt)
                                       .value(QStringLiteral("default")).toInt());
                     css[o + 3] = char(0xFF);
                     QRect r, pr;
-                    if (rectOf(n->obj, st, &r)
-                        && rectOf(n->parent ? n->parent->obj : roots[pi]->obj, 0, &pr)
-                        && pr.width() > 0 && pr.height() > 0) {
+                    const bool haveOwn = rectOf(n->obj, st, &r);
+                    bool haveParent =
+                        rectOf(n->parent ? n->parent->obj : roots[pi]->obj, 0, &pr)
+                        && pr.width() > 0 && pr.height() > 0;
+                    /* 【父矩形取不到时绝不能留 0】css 里的左/上/宽/高是**万分比**，
+                     * 全 0 就是"零尺寸"，固件照着画等于什么都不画 —— 整屏黑，
+                     * 而且哪儿都不报错。实测就踩过：旧版「新建页面」没给页节点
+                     * 建 rect 属性，那一页所有控件的几何全成了 0。
+                     * 这里退到页面尺寸，并把这件事记进 debug 输出。 */
+                    if (haveOwn && !haveParent) {
+                        if (rectOf(roots[pi]->obj, 0, &pr)
+                            && pr.width() > 0 && pr.height() > 0) {
+                            haveParent = true;
+                        } else {
+                            pr = QRect(0, 0, 128, 64);
+                            haveParent = true;
+                        }
+                        out.warnings.append(
+                            QStringLiteral("页%1 的 %2 取不到父级尺寸，按 %3x%4 折算"
+                                           "（工程里页面可能缺 rect 属性）")
+                            .arg(pi).arg(n->ename).arg(pr.width()).arg(pr.height()));
+                    }
+                    if (haveOwn && haveParent) {
                         poke32(css, o + 4, quint32(perMyriad(r.x(), pr.width())));
                         poke32(css, o + 8, quint32(perMyriad(r.y(), pr.height())));
                         poke32(css, o + 12, quint32(perMyriad(r.width(), pr.width())));

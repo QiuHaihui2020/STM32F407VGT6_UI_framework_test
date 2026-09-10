@@ -1,4 +1,6 @@
 #include "Canvas.h"
+
+#include <QJsonObject>
 #include "Preview.h"
 
 #include <QSettings>
@@ -12,6 +14,7 @@
 #include "EditorOps.h"
 
 #include <QPainter>
+#include <QResizeEvent>
 #include <QMouseEvent>
 #include <QContextMenuEvent>
 #include <QMenu>
@@ -38,6 +41,58 @@
 
 /* ===================== ScenesScreen ===================== */
 
+
+/**
+ * 像素网格的覆盖层。
+ *
+ * 【为什么要单独一层】网格原来画在 ScenesScreen::paintEvent 里，那是父控件的
+ * 背景，Qt 之后才画子控件。点亮的像素不透明，把网格盖掉了 —— 于是只有熄灭
+ * 的地方（子控件那里透明，露出父控件背景）看得见网格，点亮的地方看不见。
+ * 覆盖层是子控件，rebuild 之后 raise() 到最上面，就压在所有内容之上了。
+ *
+ * 【线的颜色】用**实色**，亮区和熄灭区画出来一模一样。
+ * 一度用过 XOR（拿深灰异或底色），那样不管底色配成什么都不会消失，但两边
+ * 出来是两种颜色，连对比度都不对称（默认配色下暗区 +28、亮区 −60）。
+ * 现在改成单色，颜色放进[全局设置]让人自己配 —— 代价是配得和亮/灭色太接近
+ * 就看不见，所以那一项挂了提示。
+ */
+class GridOverlay : public QWidget
+{
+public:
+    explicit GridOverlay(ScenesScreen *owner)
+        : QWidget(owner), m_owner(owner)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setFocusPolicy(Qt::NoFocus);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        if (!m_owner || !m_owner->showChrome() || !m_owner->showGrid()) {
+            return;
+        }
+        const int zoom = m_owner->zoom();
+        if (zoom < 300) {            // 太小了画出来是一团糊
+            return;
+        }
+        QPainter p(this);
+        p.setPen(Preview::monoGrid());
+        const int step = zoom / 100;
+        for (int x = 0; x < width(); x += step) {
+            p.drawLine(x, 0, x, height());
+        }
+        for (int y = 0; y < height(); y += step) {
+            p.drawLine(0, y, width(), y);
+        }
+    }
+
+private:
+    ScenesScreen *m_owner = nullptr;
+};
+
 ScenesScreen::ScenesScreen(QWidget *parent)
     /* 页底色 = 像素熄灭的颜色（[全局设置]里配），这样画布上看到的
      * 明暗关系就是屏上的明暗关系。 */
@@ -47,6 +102,16 @@ ScenesScreen::ScenesScreen(QWidget *parent)
     setFrameShadow(QFrame::Plain);
     setAutoFillBackground(true);
     setAcceptDrops(true);      // 控件列表里拖过来的东西落在这儿
+    m_gridOverlay = new GridOverlay(this);
+}
+
+void ScenesScreen::resizeEvent(QResizeEvent *e)
+{
+    QFrame::resizeEvent(e);
+    if (m_gridOverlay) {
+        m_gridOverlay->setGeometry(rect());
+        m_gridOverlay->raise();
+    }
 }
 
 ScenesScreen::~ScenesScreen()
@@ -128,6 +193,11 @@ void ScenesScreen::rebuild()
         buildRecursive(c.second, this);
     }
     applyVisibility();
+    /* 刚建出来的控件会压在覆盖层上面，重新提一次 */
+    if (m_gridOverlay) {
+        m_gridOverlay->setGeometry(rect());
+        m_gridOverlay->raise();
+    }
     update();
 }
 
@@ -211,6 +281,13 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
  */
 void ScenesScreen::applyVisibility()
 {
+    /* 【网格覆盖层要重新提到最上面】FormResizer::setSelected(true) 里有
+     * 一句 raise()，选中一个控件就把它顶到覆盖层之上，那块区域的网格就没了。
+     * applyVisibility() 是所有"选中/可见性变了"的必经之路，在这儿补一次
+     * 最省事，也不会漏。 */
+    if (m_gridOverlay) {
+        m_gridOverlay->raise();
+    }
     if (m_forms.isEmpty()) {
         return;
     }
@@ -528,6 +605,9 @@ void ScenesScreen::setShowChrome(bool on)
 
 void ScenesScreen::setShowGrid(bool on)
 {
+    if (m_gridOverlay) {
+        m_gridOverlay->update();
+    }
     if (m_showGrid == on) {
         return;
     }
@@ -591,20 +671,10 @@ void ScenesScreen::paintEvent(QPaintEvent *e)
                                               Qt::SmoothTransformation));
     }
 
-    /* 像素网格：开关开着、且放大到看得清的倍数才画。
-     * 【以前这里只判 m_zoom】工具栏的"网格开关"翻的是 CanvasManager 的
-     * m_showGrid，画布压根没看那个标志，所以点了只有状态栏文字会变，
-     * 画面纹丝不动。 */
-    if (m_showChrome && m_showGrid && m_zoom >= 300) {
-        p.setPen(QColor(0xff, 0xff, 0xff, 40));
-        const int step = m_zoom / 100;
-        for (int x = 0; x < width(); x += step) {
-            p.drawLine(x, 0, x, height());
-        }
-        for (int y = 0; y < height(); y += step) {
-            p.drawLine(0, y, width(), y);
-        }
-    }
+    /* 像素网格不在这儿画 —— 这里是父控件的背景，子控件会盖在上面，
+     * 点亮的像素就把网格糊掉了。挪去 GridOverlay（铺满画布、raise 到最上面）。
+     * 【历史】以前这里还只判 m_zoom，工具栏那个"网格开关"翻的是
+     * CanvasManager::m_showGrid，画布压根没看，点了只有状态栏文字会变。 */
     QFrame::paintEvent(e);
 }
 
@@ -1017,7 +1087,13 @@ void CanvasManager::onCreateNewProject()
     }
     const QString name = dlg.projectName();
     m_pageSize = dlg.pageSize();
-    m_model.createDefault(name, m_pageSize);
+    /* 把 control.json 里图层/布局的模板传进去，别让它手搭 —— 手搭的没有
+     * element_css，生成出来固件不显示（见 createDefault 的注释）。 */
+    const ControlTemplate *lt = m_lib.byType(QStringLiteral("NewLayer"));
+    const ControlTemplate *ot = m_lib.byType(QStringLiteral("NewLayout"));
+    m_model.createDefault(name, m_pageSize,
+                          lt ? lt->raw : QJsonObject(),
+                          ot ? ot->raw : QJsonObject());
     m_model.setLangExcel(dlg.languageExcel());
     m_current = 0;
     rebuildScreens();
@@ -1173,6 +1249,26 @@ void CanvasManager::onCreateNewScenesScreen()
     page->caption = tr("页面_%1").arg(m_model.pages().size());
     page->version = QStringLiteral("1");
     page->rect = QRect(1, 1, m_pageSize.width(), m_pageSize.height());
+    /* 【页的 rect 必须落成一条 property】 UiNode::rect 只是内存里的字段，
+     * 存盘写出去的是 props。以前这儿只设了 rect 不建 property，于是新建的页
+     * 存进 json 时连 "property" 这个键都没有 —— 重新打开后页面没有尺寸，
+     * StyBuilder 拿不到父矩形，该页所有控件的 css 左/上/宽/高全留 0，
+     * 烧进设备就是**整屏不显示**（实测 ui_128_64_JL02_rebuilt 的页 3）。
+     *
+     * 形状照原厂来：页节点的这一条是个**裸对象**，只有 "rect" 键，
+     * 连 -name 都没有（见 ProjectModel 读取那一侧的注释）。 */
+    {
+        QJsonObject r;
+        r.insert(QStringLiteral("x"), page->rect.x());
+        r.insert(QStringLiteral("y"), page->rect.y());
+        r.insert(QStringLiteral("width"), page->rect.width());
+        r.insert(QStringLiteral("height"), page->rect.height());
+        QJsonObject po;
+        po.insert(QStringLiteral("rect"), r);
+        UiProperty rp;
+        rp.raw = po;                      // -name 留空，就是原厂那种裸 rect
+        page->props.append(rp);
+    }
     page->markDirty();
     m_model.pages().append(page);
     setDirty(true);

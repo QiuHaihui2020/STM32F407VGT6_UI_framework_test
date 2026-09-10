@@ -51,6 +51,7 @@ private:
     QTreeWidgetItem *m_height = nullptr;   ///< 界面尺寸 -> 高度:
     QTreeWidgetItem *m_lit = nullptr;      ///< 点阵屏预览 -> 像素点亮颜色:
     QTreeWidgetItem *m_dark = nullptr;     ///< 点阵屏预览 -> 像素熄灭颜色:
+    QTreeWidgetItem *m_grid = nullptr;     ///< 点阵屏预览 -> 网格颜色:
 };
 
 #endif // GLOBALSETTINGS_H

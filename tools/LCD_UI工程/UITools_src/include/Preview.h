@@ -54,6 +54,8 @@ void invalidate();
 QColor monoLit();
 /** 像素熄灭时画成什么颜色，也是页面的底色（默认近黑）。 */
 QColor monoDark();
+/** 像素网格线的颜色（[全局设置] -> 点阵屏预览 -> 网格颜色）。 */
+QColor monoGrid();
 /** 从[全局设置]重新读一遍这两个颜色。改完设置要调。 */
 void reloadMonoColors();
 

@@ -306,6 +306,24 @@ UiNode *ProjectModel::nodeFromJson(const QJsonObject &o, UiNode *parent)
     if (!n->rect.isValid()) {
         n->rect = n->rectOf(0);
     }
+    /* 【页面没有 rect 就地补齐】旧版本的「新建页面」只设了内存里的 rect、
+     * 没建对应的 property，存出去的 json 里页节点连 "property" 键都没有。
+     * 这种工程再打开时页面没有尺寸，生成资源时该页所有控件的 css 几何全是 0,
+     * 烧进设备整屏不显示。这里补一条裸 rect 救回来 —— 只在内存里补，
+     * 不主动置脏，用户下次保存时自然就写回去了。 */
+    if (n->type == QLatin1String("page") && !n->rect.isValid()) {
+        n->rect = QRect(1, 1, 128, 64);
+        QJsonObject r;
+        r.insert(QStringLiteral("x"), n->rect.x());
+        r.insert(QStringLiteral("y"), n->rect.y());
+        r.insert(QStringLiteral("width"), n->rect.width());
+        r.insert(QStringLiteral("height"), n->rect.height());
+        QJsonObject po;
+        po.insert(QStringLiteral("rect"), r);
+        UiProperty rp;
+        rp.raw = po;
+        n->props.append(rp);
+    }
 
     for (const char *key : kChildKeys) {
         const QString k = QLatin1String(key);
@@ -580,22 +598,23 @@ bool ProjectModel::verifyRoundTrip(const QString &path, QString *report)
     return false;
 }
 
-void ProjectModel::createDefault(const QString &projName, const QSize &pageSize)
+void ProjectModel::createDefault(const QString &projName, const QSize &pageSize,
+                                 const QJsonObject &layerTpl, const QJsonObject &layoutTpl)
 {
     clear();
     m_name = projName;
     m_dirty = true;
 
-    auto mkRect = [](const QRect &r) {
-        QJsonObject rp;
-        rp.insert(QStringLiteral("-name"),   QStringLiteral("rect"));
-        rp.insert(QStringLiteral("-type"),   QStringLiteral("rect"));
-        rp.insert(QStringLiteral("caption"), QStringLiteral("坐标"));
+    /* 页节点的 rect 是个**裸对象**：只有 "rect" 键，不带 -name。
+     * StyBuilder::rectOf() 的兜底分支写死了 !o.contains("-name")，
+     * 带了 -name 就读不到，那一页所有控件的 css 几何会全留 0。 */
+    auto mkBareRect = [](const QRect &r) {
         QJsonObject rr;
         rr.insert(QStringLiteral("x"), r.x());
         rr.insert(QStringLiteral("y"), r.y());
         rr.insert(QStringLiteral("width"), r.width());
         rr.insert(QStringLiteral("height"), r.height());
+        QJsonObject rp;
         rp.insert(QStringLiteral("rect"), rr);
         return rp;
     };
@@ -607,40 +626,53 @@ void ProjectModel::createDefault(const QString &projName, const QSize &pageSize)
     page->caption = QStringLiteral("页面_0");
     page->rect = QRect(1, 1, pageSize.width(), pageSize.height());
     UiProperty rp;
-    rp.name = rp.type = QStringLiteral("rect");
-    rp.caption = QStringLiteral("坐标");
-    rp.raw = mkRect(page->rect);
+    rp.raw = mkBareRect(page->rect);      // -name 留空 = 原厂那种裸 rect
     page->props.append(rp);
     page->m_childKeysPresent.append(QStringLiteral("layer"));
 
-    auto *layer = new UiNode;
-    layer->markDirty();
-    layer->parent = page;
-    layer->cls = layer->type = QStringLiteral("NewLayer");
-    layer->name = QStringLiteral("图层_0");
-    layer->caption = QStringLiteral("图层");
-    layer->icon = QStringLiteral("config/images/layer.ico");
-    layer->rect = QRect(0, 0, pageSize.width(), pageSize.height());
-    UiProperty lrp = rp;
-    lrp.raw = mkRect(layer->rect);
-    layer->props.append(lrp);
-    layer->m_childKeysPresent.append(QStringLiteral("layout"));
-    layer->m_childKeysPresent.append(QStringLiteral("widget"));
+    /* 图层/布局从模板整份克隆 —— 手搭的没有 element_css，生成出来的记录
+     * 连 css 块都没有，固件既拿不到几何也拿不到样式，屏上什么都不显示。 */
+    auto mkBox = [&](const QJsonObject &tpl, UiNode *parent, const QString &cls,
+                     const QString &nodeName, const QString &caption,
+                     const QString &icon, const QString &childKey) {
+        UiNode *n = nullptr;
+        if (!tpl.isEmpty()) {
+            n = fromJsonObject(tpl, parent);
+        } else {
+            /* 没给模板只能退回手搭。这条路出来的东西没有 element_css，
+             * ops-test「新建工程：每个控件都有 css」那一条会当场报出来。 */
+            QJsonObject o;
+            o.insert(QStringLiteral("-class"), cls);
+            o.insert(QStringLiteral("-type"), cls);
+            o.insert(QStringLiteral("-name"), nodeName);
+            n = fromJsonObject(o, parent);
+        }
+        n->forEach([](UiNode *x) { x->markDirty(); return true; });
+        n->cls = n->type = cls;
+        n->name = nodeName;
+        n->caption = caption;
+        n->icon = icon;
+        n->rect = QRect(0, 0, pageSize.width(), pageSize.height());
+        n->setRectOf(0, n->rect);
+        if (!n->m_childKeysPresent.contains(childKey)) {
+            n->m_childKeysPresent.append(childKey);
+        }
+        if (!n->m_childKeysPresent.contains(QStringLiteral("widget"))) {
+            n->m_childKeysPresent.append(QStringLiteral("widget"));
+        }
+        return n;
+    };
+
+    UiNode *layer = mkBox(layerTpl, page, QStringLiteral("NewLayer"),
+                          QStringLiteral("图层_0"), QStringLiteral("图层"),
+                          QStringLiteral("config/images/layer.ico"),
+                          QStringLiteral("layout"));
     page->children.append(qMakePair(QStringLiteral("layer"), layer));
 
-    auto *layout = new UiNode;
-    layout->markDirty();
-    layout->parent = layer;
-    layout->cls = layout->type = QStringLiteral("NewLayout");
-    layout->name = QStringLiteral("布局_1");
-    layout->caption = QStringLiteral("布局");
-    layout->icon = QStringLiteral("config/images/layout.ico");
-    layout->rect = QRect(0, 0, pageSize.width(), pageSize.height());
-    UiProperty orp = rp;
-    orp.raw = mkRect(layout->rect);
-    layout->props.append(orp);
-    layout->m_childKeysPresent.append(QStringLiteral("layout"));
-    layout->m_childKeysPresent.append(QStringLiteral("widget"));
+    UiNode *layout = mkBox(layoutTpl, layer, QStringLiteral("NewLayout"),
+                           QStringLiteral("布局_1"), QStringLiteral("布局"),
+                           QStringLiteral("config/images/layout.ico"),
+                           QStringLiteral("layout"));
     layer->children.append(qMakePair(QStringLiteral("layout"), layout));
 
     m_pages.append(page);

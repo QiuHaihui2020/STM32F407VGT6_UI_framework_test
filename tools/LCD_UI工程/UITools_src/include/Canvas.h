@@ -137,6 +137,8 @@ signals:
                         const QPoint &pos);
 
 protected:
+    void resizeEvent(QResizeEvent *e) override;
+
     /** 空白处右键 = 页面的菜单：删除当前页面 / 修改背景色 / 修改背景图片。 */
     void contextMenuEvent(QContextMenuEvent *e) override;
     /** Ctrl+滚轮缩放；不按 Ctrl 就交给外层滚动条。 */
@@ -165,6 +167,8 @@ private:
     UiNode *m_selected = nullptr;
     int     m_zoom = 100;
     bool    m_showGrid = true;
+    /** 像素网格的覆盖层：铺满画布、盖在所有控件之上，见 Canvas.cpp。 */
+    QWidget *m_gridOverlay = nullptr;
     bool    m_showHidden = false;
     /** 被眼睛手动藏起来的节点（纯视觉，不进工程数据）。 */
     QSet<UiNode *> m_userHidden;

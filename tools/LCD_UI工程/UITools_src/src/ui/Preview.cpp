@@ -544,6 +544,9 @@ void setPresetText(const UiNode *n, const QString &text)
  * 默认值就是改这个功能之前写死在代码里的那两个颜色，所以不配也不会变样。 */
 QColor g_lit(0xFF, 0xFF, 0xFF);
 QColor g_dark(0x10, 0x10, 0x10);
+/* 网格线。中灰是因为它要在亮、灭两种底色上都看得见：对默认的 #101010
+ * 差 112，对 #ffffff 差 127，两边差不多。 */
+QColor g_grid(0x80, 0x80, 0x80);
 
 QColor monoLit()
 {
@@ -553,6 +556,11 @@ QColor monoLit()
 QColor monoDark()
 {
     return g_dark;
+}
+
+QColor monoGrid()
+{
+    return g_grid;
 }
 
 void reloadMonoColors()
@@ -566,6 +574,11 @@ void reloadMonoColors()
     }
     if (dark.isValid()) {
         g_dark = dark;
+    }
+    const QColor grid(GlobalSettings::value(QStringLiteral("Preview/GridColor"),
+                                            QStringLiteral("#808080")).toString());
+    if (grid.isValid()) {
+        g_grid = grid;
     }
     /* 画好的位图是按 (内容|颜色) 缓存的，颜色换了键就不同，本来不会串。
      * 还是清一次 —— 免得改上几轮之后缓存里堆着一堆再也用不到的配色。 */

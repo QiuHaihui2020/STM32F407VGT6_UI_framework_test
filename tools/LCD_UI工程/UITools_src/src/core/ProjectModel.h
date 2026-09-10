@@ -163,7 +163,21 @@ public:
     static bool verifyRoundTrip(const QString &path, QString *report);
 
     void clear();
-    void createDefault(const QString &projName, const QSize &pageSize);
+    /**
+     * 造一个默认工程：一页 + 一个图层 + 一个布局。
+     *
+     * @param layerTpl  NewLayer 的 control.json 模板；给空就退回手搭
+     * @param layoutTpl NewLayout 的模板
+     *
+     * 【为什么要传模板】图层/布局的几何和样式全在
+     * property[-name=="element_css"] 里。以前这里是手搭一个只有 rect 的节点，
+     * 生成 .sty 时那两条记录**连 css 块都没有** —— 固件没有几何也没有样式，
+     * 烧进去整屏不显示。和 CompoentControls::appendChild 里踩过的是同一个坑，
+     * 那边的结论就是"必须从模板整份克隆"。
+     */
+    void createDefault(const QString &projName, const QSize &pageSize,
+                       const QJsonObject &layerTpl = QJsonObject(),
+                       const QJsonObject &layoutTpl = QJsonObject());
 
     QString  name() const { return m_name; }
     void     setName(const QString &n) { m_name = n; m_dirty = true; }

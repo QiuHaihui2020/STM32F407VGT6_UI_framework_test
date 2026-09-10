@@ -12,6 +12,7 @@
 #include "Forms.h"
 #include "Property.h"
 #include "ProjectModel.h"
+#include "StyBuilder.h"
 #include "StyFile.h"
 #include "EditorOps.h"
 #include "BuildDate.h"
@@ -2696,6 +2697,172 @@ int MainWindow::runOpsTest(QString *report)
             m_mgr->setCurrentPage(p0);
             m_pages->reloadLayouts();
             QApplication::processEvents();
+        }
+    }
+
+    /* --- 18n. 像素网格要盖在内容之上 ---
+     * 网格原来画在 ScenesScreen::paintEvent 里，那是父控件的背景，Qt 之后才画
+     * 子控件；点亮的像素不透明，就把网格盖掉了 —— 只有熄灭的地方看得见网格。
+     * 现在挪到铺满画布的覆盖层上、raise 到最上面。
+     *
+     * 判据不看颜色（亮/灭两种颜色是[全局设置]里可配的），改成**对比**：
+     * 同一画面关网格抓一张、开网格抓一张，凡是关网格时点亮的那些像素里，
+     * 必须有一部分被网格改掉了 —— 否则就是又被内容盖住了。 */
+    {
+        ScenesScreen *sc = m_mgr->currentScreen();
+        if (sc) {
+            const int  z0 = sc->zoom();
+            const bool g0 = sc->showGrid();
+            sc->setZoom(400);                    // 低于 300% 不画网格
+            sc->setShowGrid(false);
+            QApplication::processEvents();
+            const QImage off = sc->grab().toImage().convertToFormat(QImage::Format_RGB32);
+            sc->setShowGrid(true);
+            QApplication::processEvents();
+            const QImage on = sc->grab().toImage().convertToFormat(QImage::Format_RGB32);
+
+            const QRgb lit = Preview::monoLit().rgb();
+            const QRgb dark = Preview::monoDark().rgb();
+            const QRgb grid = Preview::monoGrid().rgb();
+            int litTot = 0, litGrid = 0, darkTot = 0, darkGrid = 0, wrongColor = 0;
+            const int w = qMin(off.width(), on.width());
+            const int h = qMin(off.height(), on.height());
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    const QRgb a = off.pixel(x, y);
+                    const bool changed = (on.pixel(x, y) != a);
+                    if (a == lit) {
+                        ++litTot;
+                        if (changed) {
+                            ++litGrid;
+                            if (on.pixel(x, y) != grid) {
+                                ++wrongColor;
+                            }
+                        }
+                    } else if (a == dark) {
+                        ++darkTot;
+                        if (changed) {
+                            ++darkGrid;
+                            if (on.pixel(x, y) != grid) {
+                                ++wrongColor;
+                            }
+                        }
+                    }
+                }
+            }
+            check(QStringLiteral("点亮的像素上也画得到网格（不能被内容盖住）"),
+                  litTot > 0 && litGrid > 0,
+                  QStringLiteral("点亮 %1 点，其中 %2 点被网格改到").arg(litTot).arg(litGrid));
+            check(QStringLiteral("熄灭的像素上照旧有网格"),
+                  darkTot > 0 && darkGrid > 0,
+                  QStringLiteral("熄灭 %1 点，其中 %2 点被网格改到").arg(darkTot).arg(darkGrid));
+            /* 亮区暗区必须是**同一个**颜色 —— 早先用 XOR 时两边不同色
+             * （暗区 #2C2C2C、亮区 #C3C3C3），现在是[全局设置]里配的实色。 */
+            check(QStringLiteral("网格线在点亮和熄灭的像素上是同一个颜色"),
+                  wrongColor == 0,
+                  QStringLiteral("网格色 %1，%2/%3 点画成了别的颜色")
+                      .arg(Preview::monoGrid().name())
+                      .arg(wrongColor).arg(litGrid + darkGrid));
+            sc->setShowGrid(g0);
+            sc->setZoom(z0);
+            QApplication::processEvents();
+        }
+    }
+
+    /* --- 18o. 工具自己建的节点，生成出来不能是零尺寸 ---
+     * 用户实测到"页 3 加了背景图片，烧录后整屏不显示"。查下来是旧版
+     * 「新建页面」只设了内存里的 UiNode::rect、没建对应的 property，存盘时
+     * 页节点连 "property" 键都没写出去；重新打开后页面没有尺寸，StyBuilder
+     * 拿不到父矩形，那一页所有控件的 css 左/上/宽/高全留 0 —— 万分比的 0
+     * 就是零尺寸，固件照着画什么都不画，而且从编辑器到生成器没有一处报错
+     * （编辑器画布对无效 rect 有 128x64 的兜底，所以界面上还看着正常）。
+     *
+     * 这一条把整条链走一遍：建工程 -> 建页 -> 每种控件各拖一个 -> 存盘 ->
+     * 真的跑 StyBuilder -> 回头读 .sty 里每个控件的 css。 */
+    {
+        const QString dir = QDir::temp().filePath(QStringLiteral("uitools_geom"));
+        QDir().mkpath(dir);
+        const QString jf = QDir(dir).filePath(QStringLiteral("geom.json"));
+
+        ProjectModel pm;
+        /* 和「新建工程」按钮走同一条路：图层/布局从 control.json 模板克隆 */
+        const ControlTemplate *lt = m_mgr->library()->byType(QStringLiteral("NewLayer"));
+        const ControlTemplate *ot = m_mgr->library()->byType(QStringLiteral("NewLayout"));
+        check(QStringLiteral("控件库里有图层/布局的模板"), lt && ot);
+        pm.createDefault(QStringLiteral("geom"), QSize(128, 64),
+                         lt ? lt->raw : QJsonObject(), ot ? ot->raw : QJsonObject());
+        QString err;
+        const bool saved = pm.save(jf, &err);
+        check(QStringLiteral("新建的空工程存得下来"), saved, err);
+
+        if (saved) {
+            sty::Builder b;
+            QString e2;
+            const bool loaded = b.loadProject(jf, &e2);
+            check(QStringLiteral("新建的空工程 StyBuilder 读得进"), loaded, e2);
+            /* 控件类型码在 UITools/config/ini/option.ini 里，不加载的话
+             * 每个节点都是"认不出控件类型"，记录长度全按 16 兜底，测出来没意义 */
+            QString e3;
+            const QString ini = QDir(m_mgr->toolsRoot())
+                                .filePath(QStringLiteral("config/ini/option.ini"));
+            check(QStringLiteral("类型码表 option.ini 读得进"),
+                  b.loadOptionIni(ini, &e3), e3);
+            if (loaded) {
+                sty::Options opt;
+                const sty::Output o = b.build(opt);
+                check(QStringLiteral("新建的空工程生成得出 .sty"), o.ok, o.error);
+                if (o.ok) {
+                    /* 逐个控件读 css 的宽/高（万分比），0 就是零尺寸 */
+                    const QByteArray &raw = o.sty;
+                    int zero = 0, total = 0;
+                    QString first;
+                    const int npg = quint8(raw.at(17));
+                    for (int pi = 0; pi < npg; ++pi) {
+                        const int te = 24 + pi * 20;
+                        const quint32 off = *reinterpret_cast<const quint32 *>(raw.constData() + te);
+                        const quint32 len = *reinterpret_cast<const quint32 *>(raw.constData() + te + 4);
+                        int p = int(off) + 28;                 // 跳过窗口记录
+                        while (p + 16 < int(off + len) && p + 16 < raw.size()) {
+                            const int recLen = quint8(raw.at(p + 3));
+                            if (recLen == 0) {
+                                break;
+                            }
+                            const quint32 cssOff =
+                                *reinterpret_cast<const quint32 *>(raw.constData() + p + 12);
+                            const int a = int(off + cssOff);
+                            ++total;
+                            if (cssOff == 0) {
+                                /* 连 css 块都没有 —— 固件没有几何也没有样式，
+                                 * 和几何全 0 一样，屏上什么都不会画 */
+                                ++zero;
+                                if (first.isEmpty()) {
+                                    first = QStringLiteral("页%1 记录@0x%2 没有 css 块")
+                                            .arg(pi).arg(p, 0, 16);
+                                }
+                            } else if (a + 20 <= raw.size()) {
+                                const qint32 w =
+                                    *reinterpret_cast<const qint32 *>(raw.constData() + a + 12);
+                                const qint32 h =
+                                    *reinterpret_cast<const qint32 *>(raw.constData() + a + 16);
+                                if (w == 0 && h == 0) {
+                                    ++zero;
+                                    if (first.isEmpty()) {
+                                        first = QStringLiteral("页%1 记录@0x%2 css 宽高为 0")
+                                                .arg(pi).arg(p, 0, 16);
+                                    }
+                                }
+                            }
+                            p += recLen;
+                        }
+                    }
+                    check(QStringLiteral("新建工程：每个控件都有 css 且尺寸非 0（否则屏上不显示）"),
+                          total > 0 && zero == 0,
+                          QStringLiteral("%1/%2 个是 0，首个 %3").arg(zero).arg(total).arg(first));
+                    check(QStringLiteral("新建工程：生成过程没有'取不到父级尺寸'的警告"),
+                          o.warnings.filter(QStringLiteral("取不到父级尺寸")).isEmpty(),
+                          o.warnings.join(QStringLiteral(" / ")));
+                }
+            }
         }
     }
 

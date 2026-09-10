@@ -295,6 +295,12 @@ GlobalSettings::GlobalSettings(QWidget *parent)
     };
     m_lit  = addColor("点亮颜色:", "Preview/LitColor", "#ffffff");
     m_dark = addColor("熄灭颜色:", "Preview/DarkColor", "#101010");
+    /* 网格线是**实色**画的，亮区和熄灭区同一个颜色。所以它得能改 ——
+     * 万一配得和点亮/熄灭色接近，那一片就看不见线了。 */
+    m_grid = addColor("网格颜色:", "Preview/GridColor", "#808080");
+    m_grid->setToolTip(0, QStringLiteral(
+        "辅助线打开、放大到 300% 以上时画的像素网格.\n"
+        "点亮和熄灭的像素上是同一个颜色，别配得和这两个太接近."));
     pvGrp->setExpanded(true);
 
     /* 【列宽按内容来，别写死】原厂那 100px 是照截图量的，它自己的
@@ -346,7 +352,7 @@ void GlobalSettings::onAccepted()
         }
     }
 
-    for (QTreeWidgetItem *it : { m_lit, m_dark }) {
+    for (QTreeWidgetItem *it : { m_lit, m_dark, m_grid }) {
         if (auto *ed = dynamic_cast<ColorEdit *>(m_tree->itemWidget(it, 1))) {
             st.setValue(it->data(0, Qt::UserRole).toString(), ed->color().name());
         }
