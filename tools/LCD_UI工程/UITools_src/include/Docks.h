@@ -96,20 +96,50 @@ public:
     void setManager(CanvasManager *m) { m_mgr = m; }
     void reload();
 
+    /**
+     * 右列：当前页的**顶层布局**，也就是工具栏「当前画面」下拉框里那一组。
+     *
+     * 只放顶层是有取舍的：这些布局互斥，实测一页最多 9 个，一屏放得下；
+     * 连嵌套的一起放会到 43 个，其中 34 个是列表的行（128x16、长得都一样），
+     * 有用的那 9 张就被淹了。
+     *
+     * 节点集合没变时只更新「当前」标记，不重建控件 —— 每选一次控件都重建
+     * 9 个预览太浪费。
+     */
+    void reloadLayouts();
+
     /** 自测用：把第 i 页的渲染抓成图（要和画布画出来的一致）。 */
     QImage grabPageForTest(int i) const;
+    /** 自测用：右列现在有几张。 */
+    int layoutCountForTest() const { return m_layoutNodes.size(); }
+    /** 自测用：右列第 i 张对应的节点。 */
+    UiNode *layoutNodeForTest(int i) const
+    {
+        return (i >= 0 && i < m_layoutNodes.size()) ? m_layoutNodes.at(i) : nullptr;
+    }
+    /** 自测用：右列第 i 张的渲染（不含外面那圈留白）。 */
+    QImage grabLayoutForTest(int i) const;
 
 signals:
     void pageActivated(int index);
+    /** 右列点了第 index 个顶层布局。 */
+    void layoutActivated(int index);
 
 public slots:
     void onClickedItem(QListWidgetItem *a0);   ///< ★
     void onItemChanged(QListWidgetItem *a0);   ///< ★
+    void onLayoutClicked(QListWidgetItem *a0);
 
 private:
-    QListWidget   *m_list = nullptr;
-    CanvasManager *m_mgr = nullptr;
-    bool           m_loading = false;
+    /** 只刷新「当前」标记和选中行，不动控件。 */
+    void markCurrentLayout();
+
+    QListWidget       *m_list = nullptr;
+    QListWidget       *m_layouts = nullptr;
+    QWidget           *m_brace = nullptr;      ///< 两列中间那个大括号
+    QVector<UiNode *>  m_layoutNodes;
+    CanvasManager     *m_mgr = nullptr;
+    bool               m_loading = false;
 };
 
 /** "控件列表" 组框：图层 / 布局 两个大按钮 + 控件网格 + 自定义控件。

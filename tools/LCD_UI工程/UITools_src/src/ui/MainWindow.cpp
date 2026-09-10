@@ -189,15 +189,18 @@ void MainWindow::buildDocks()
     /* 两列并排，而不是上下堆叠 */
     splitDockWidget(m_tree, m_sideDock, Qt::Horizontal);
 
-    /* --- 右列：页面 --- */
+    /* --- 右列：页面 + 当前页的布局，两列并排 --- */
     m_pages = new PageView(this);
     m_pages->setManager(m_mgr);
-    m_pages->setMinimumWidth(140);
+    m_pages->setMinimumWidth(320);
     addDockWidget(Qt::RightDockWidgetArea, m_pages);
 
-    /* 实测宽度：树 263 / 第二列 232 / 页面栏 255（中间画布拿剩下的 927） */
+    /* 实测宽度：树 263 / 第二列 232 / 右栏 340（一列 255 时只放得下页面，
+     * 加了布局那一列要两个 128 宽的预览并排，中间还夹了 30px 的大括号）。
+     * 中间画布还剩 830 出头，
+     * 128x64 的页面就算放到 400% 也才 512，够用。 */
     resizeDocks({ m_tree, m_sideDock }, { 263, 232 }, Qt::Horizontal);
-    resizeDocks({ m_pages }, { 255 }, Qt::Horizontal);
+    resizeDocks({ m_pages }, { 370 }, Qt::Horizontal);
 
     connect(m_tree, &TreeDock::nodeActivated, this, &MainWindow::onNodeSelected);
     connect(m_components, &CompoentControls::nodeCreated, this,
@@ -2587,6 +2590,115 @@ int MainWindow::runOpsTest(QString *report)
         }
     }
 
+    /* --- 18m. 右栏第二列：当前页的布局预览 ---
+     * 这一页的价值全在"能看见看不见的东西"上：实测两个真实工程里
+     * 74%~81% 的顶层布局是"默认隐藏"的，画布和右栏页面图都画不出来，
+     * 以前只能靠工具栏「当前画面」下拉框一个个切名字去认。
+     *
+     * 所以断言的重点是：隐藏的布局也得画出真内容（forceRoot 生效），
+     * 而且这一列和下拉框是同一份数据、点了就同步。 */
+    {
+        ScenesScreen *sc0 = m_mgr->currentScreen();
+        const QVector<UiNode *> screens = sc0 ? sc0->screens() : QVector<UiNode *>();
+        check(QStringLiteral("右列张数 = 当前页的顶层布局数"),
+              m_pages && m_pages->layoutCountForTest() == screens.size(),
+              QStringLiteral("右列 %1 张 / 布局 %2 个")
+                  .arg(m_pages ? m_pages->layoutCountForTest() : -1).arg(screens.size()));
+
+        bool sameNodes = true;
+        for (int i = 0; i < screens.size(); ++i) {
+            if (m_pages->layoutNodeForTest(i) != screens.at(i)) {
+                sameNodes = false;
+                break;
+            }
+        }
+        check(QStringLiteral("右列的顺序和「当前画面」下拉框一致"), sameNodes);
+
+        /* 默认隐藏的布局在画布和页面预览里都看不到 —— 这一列的全部意义就是
+         * 把它们画出来。逐个抓图数亮点：只要有一个非空，forceRoot 就是在起
+         * 作用的。不要求每一个都非空 —— 工程里确实可能有空布局，而且这一节
+         * 跑在被前面用例改过的工程上。 */
+        const QRgb dark = Preview::monoDark().rgb();
+        auto litOf = [&](const QImage &img) {
+            int lit = 0;
+            for (int y = 0; y < img.height(); ++y) {
+                for (int x = 0; x < img.width(); ++x) {
+                    if (img.pixel(x, y) != dark) {
+                        ++lit;
+                    }
+                }
+            }
+            return lit;
+        };
+        int hidden = -1, hiddenTot = 0, hiddenDrawn = 0, best = 0;
+        QString bestName;
+        for (int i = 0; i < screens.size(); ++i) {
+            if (!screens.at(i)->isDefaultHidden()) {
+                continue;
+            }
+            ++hiddenTot;
+            if (hidden < 0) {
+                hidden = i;
+            }
+            const int lit = litOf(m_pages->grabLayoutForTest(i));
+            if (lit > 0) {
+                ++hiddenDrawn;
+            }
+            if (lit > best) {
+                best = lit;
+                bestName = screens.at(i)->name;
+            }
+        }
+        if (hiddenTot > 0) {
+            check(QStringLiteral("默认隐藏的布局也画得出内容（否则这一列没意义）"),
+                  hiddenDrawn > 0,
+                  QStringLiteral("%1/%2 个隐藏布局画出了内容，最多的是 %3（%4 点）")
+                      .arg(hiddenDrawn).arg(hiddenTot).arg(bestName).arg(best));
+        }
+        if (hidden >= 0) {
+
+            /* 点它 = 切到那个画面，和下拉框走同一条路 */
+            m_pages->onLayoutClicked(nullptr);          // 空指针不该崩
+            emit m_pages->layoutActivated(hidden);      // 只是确认信号存在
+            m_mgr->gotoScreen(hidden);
+            QApplication::processEvents();
+            ScenesScreen *sc1 = m_mgr->currentScreen();
+            check(QStringLiteral("点右列那张 = 切到那个画面（和下拉框同步）"),
+                  sc1 && sc1->currentScreenIndex() == hidden,
+                  QStringLiteral("现在是第 %1 个")
+                      .arg(sc1 ? sc1->currentScreenIndex() : -1));
+        }
+
+        /* 【必须真的画一遍】两列中间那个大括号是自己 QPainter 画的，坐标要跨
+         * 控件换算。第一版用 QWidget::mapTo() 映射到兄弟控件，直接 0xC0000005
+         * 崩在 paintEvent 里 —— 只建不画的测试一条都没报。grab() 会强制走
+         * 一遍 paintEvent。 */
+        {
+            const QPixmap pm = m_pages->grab();
+            check(QStringLiteral("右栏（含两列之间的大括号）能画出来不崩"),
+                  !pm.isNull() && pm.width() > 0 && pm.height() > 0,
+                  QStringLiteral("%1x%2").arg(pm.width()).arg(pm.height()));
+        }
+
+        /* 换页之后右列要整列换掉 */
+        if (m_mgr->model()->pages().size() > 1) {
+            const int p0 = m_mgr->currentPage();
+            const int p1 = (p0 + 1) % m_mgr->model()->pages().size();
+            m_mgr->setCurrentPage(p1);
+            m_pages->reloadLayouts();
+            QApplication::processEvents();
+            ScenesScreen *s1 = m_mgr->currentScreen();
+            const int want = s1 ? s1->screens().size() : -1;
+            check(QStringLiteral("换页之后右列跟着换"),
+                  m_pages->layoutCountForTest() == want,
+                  QStringLiteral("页%1 有 %2 个布局，右列 %3 张")
+                      .arg(p1).arg(want).arg(m_pages->layoutCountForTest()));
+            m_mgr->setCurrentPage(p0);
+            m_pages->reloadLayouts();
+            QApplication::processEvents();
+        }
+    }
+
     /* --- 19. 这一通改完，工程还得能存能读 --- */
     const QString tmp = QDir::temp().filePath(QStringLiteral("uitools_opstest.json"));
     QString err;
@@ -2653,6 +2765,11 @@ void MainWindow::onNodeSelected(UiNode *node)
     m_prop->showNode(node);
     m_tree->selectNode(node);
     refreshScreenLabel();
+    /* 右列的「当前」标记跟着走。集合没变时 reloadLayouts() 只挪标记，
+     * 不重建控件，所以每次选中都调也不肉。 */
+    if (m_pages) {
+        m_pages->reloadLayouts();
+    }
     if (ScenesScreen *s = m_mgr->currentScreen()) {
         s->selectNode(node);
     }

@@ -11,6 +11,7 @@
 #include <QTreeWidgetItemIterator>
 #include <QHeaderView>
 #include <QListWidget>
+#include <QSplitter>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -20,6 +21,8 @@
 #include <QAction>
 #include <QIcon>
 #include <QPainter>
+#include <QPainterPath>
+#include <QScrollBar>
 #include <QCursor>
 #include <QInputDialog>
 #include <QLineEdit>
@@ -260,8 +263,16 @@ void TreeDock::onSwapShowHideSubObject()
 class PagePreview : public QWidget
 {
 public:
-    explicit PagePreview(UiNode *page, QWidget *parent = nullptr)
-        : QWidget(parent), m_page(page)
+    /**
+     * @param page      取画幅用的节点（页），决定这块画多大
+     * @param root      真正要画的子树；nullptr = 画整页
+     * @param forceRoot root 自己"默认隐藏"也照画。右列的布局预览要的就是这个 ——
+     *                  一页里那 1~9 个互斥布局只有一个不隐藏，不强画就全是空白
+     */
+    explicit PagePreview(UiNode *page, UiNode *root = nullptr,
+                         bool forceRoot = false, QWidget *parent = nullptr)
+        : QWidget(parent), m_page(page), m_root(root ? root : page),
+          m_forceRoot(forceRoot && root && root != page)
     {
         const QSize s = page && page->rect.isValid() ? page->rect.size() : QSize(128, 64);
         setFixedSize(s.width() + 8, s.height() + 8);
@@ -275,11 +286,22 @@ protected:
         const QRect body = rect().adjusted(4, 4, -4, -4);
         /* 灭的时候是什么颜色由[全局设置]配 —— 和画布同一个底色 */
         p.fillRect(body, Preview::monoDark());
-        if (m_page) {
+        if (m_root) {
             p.save();
             p.translate(body.topLeft());
             p.setClipRect(QRect(QPoint(0, 0), body.size()));
-            drawNode(p, m_page);
+            if (m_forceRoot) {
+                /* 画某一个布局：先把它自己那一层画出来（背景/边框），
+                 * 再画子树。位置要从页往下累加，不能直接用它自己的 rect ——
+                 * 中间还隔着图层（本工程的图层恒等于整页，但别假设）。 */
+                const QPoint at = originOf(m_root);
+                const QRect box(at, m_root->rect.isValid() ? m_root->rect.size()
+                                                           : body.size());
+                drawOne(p, m_root, box);
+                drawNode(p, m_root, box.topLeft());
+            } else {
+                drawNode(p, m_root);
+            }
             p.restore();
         }
         /* 8 个角点，模仿原厂的选中手柄外观。
@@ -305,6 +327,18 @@ protected:
     }
 
 private:
+    /** n 相对页面左上角的位置（一路把祖先的 rect 左上角累加上去，页本身不算）。 */
+    QPoint originOf(UiNode *n) const
+    {
+        QPoint at(0, 0);
+        for (UiNode *a = n; a && a != m_page; a = a->parent) {
+            if (a->rect.isValid()) {
+                at += a->rect.topLeft();
+            }
+        }
+        return at;
+    }
+
     /** 控件的水平对齐（element_css 的 align），和 BaseForm::contentAlign 同源。 */
     static Qt::Alignment alignOf(UiNode *n)
     {
@@ -474,6 +508,143 @@ private:
         }
     }
     UiNode *m_page = nullptr;
+    UiNode *m_root = nullptr;
+    bool    m_forceRoot = false;
+};
+
+
+/* ===================== LayoutBrace ===================== */
+
+/**
+ * 夹在"页面"和"当前页布局"两列中间的大括号。
+ *
+ * 右列选中哪一页，左列列的就是那一页的布局 —— 两列之间这层从属关系光靠挨着
+ * 摆是看不出来的（尤其是右列滚动之后，当前页可能已经滚到别处）。这里画一个
+ * `}`：两条臂包住整列布局，尖端拉一条线指到右列当前那一页。
+ *
+ * 几何全是**现算**的，不缓存：
+ *   臂的上下沿 = 布局列第一项和最后一项的可视矩形（滚出去的部分按视口裁）
+ *   尖端的 y   = 页面列当前项的中心（滚出视口就贴着边，并把箭头去掉）
+ * 所以两列任意一个滚动、换页、换选中，只要 update() 一下就自洽。
+ */
+class LayoutBrace : public QWidget
+{
+public:
+    LayoutBrace(QListWidget *pages, QListWidget *layouts, QWidget *parent = nullptr)
+        : QWidget(parent), m_pages(pages), m_layouts(layouts)
+    {
+        setFixedWidth(kWidth);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+    static const int kWidth = 30;
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        if (!m_pages || !m_layouts || m_layouts->count() == 0) {
+            return;
+        }
+        /* ---- 右列：臂要包住的上下沿 ---- */
+        const QRect first = m_layouts->visualItemRect(m_layouts->item(0));
+        const QRect last = m_layouts->visualItemRect(m_layouts->item(m_layouts->count() - 1));
+        const QRect vp = m_layouts->viewport()->rect();
+        int top = qMax(first.top(), vp.top());
+        int bottom = qMin(last.bottom(), vp.bottom());
+        if (bottom - top < 8) {
+            return;                              // 一项都没露出来，不画
+        }
+        top = mapFromList(m_layouts, top);
+        bottom = mapFromList(m_layouts, bottom);
+
+        /* ---- 右列：当前页在哪一行 ---- */
+        bool pageVisible = false;
+        int pageY = (top + bottom) / 2;
+        if (QListWidgetItem *cur = m_pages->currentItem()) {
+            const QRect r = m_pages->visualItemRect(cur);
+            const QRect pvp = m_pages->viewport()->rect();
+            /* 当前页滚出视口了：还画，但整个括号转灰 —— 这时指不到真东西上 */
+            pageVisible = r.intersects(pvp);
+            pageY = mapFromList(m_pages, qBound(pvp.top(), r.center().y(), pvp.bottom()));
+        }
+        pageY = qBound(0, pageY, height() - 1);
+        /* 【跨度 = 布局范围 ∪ 当前页那一行】
+         * 尖端必须落在跨度里面，否则括号形状就歪了。布局少、当前页又靠下时
+         * （比如只有 1 个布局、停在第 4 页），页面那一行远在布局范围之外 ——
+         * 这时**让括号自己伸长**去括住中间那段空位，比"括号只抱布局、再引一条
+         * 折线过去"好看得多（折线那版试过，很碎）。
+         * kMinHalf 是尖端两侧各自的最短半长。取 48 而不是刚够画勾的十几像素：
+         * 伸长那一侧如果只留一点点，括号看着一头长一头秃，很跛。不追求和长的
+         * 那一半对称（那样会在空白里拉出很大一片），够看就行。 */
+        const int kMinHalf = 48;
+        top = qMin(top, pageY - kMinHalf);
+        bottom = qMax(bottom, pageY + kMinHalf);
+        top = qMax(0, top);
+        bottom = qMin(height() - 1, bottom);
+        if (bottom - top < 8) {
+            return;
+        }
+        const int tip = qBound(top, pageY, bottom);
+
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        /* 当前页滚出视口时改成灰的 —— 尖端这时指不到真东西上，
+         * 别拿高亮色误导人。 */
+        QPen pen(pageVisible ? QColor(0x2b, 0x7d, 0xd1) : QColor(0xaa, 0xaa, 0xaa));
+        pen.setWidthF(1.6);
+        /* 尖端是两段曲线以锐角交汇，圆角接头会把尖磨平 */
+        pen.setJoinStyle(Qt::MiterJoin);
+        pen.setCapStyle(Qt::RoundCap);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+
+        /* 大括号：臂在左（贴着布局那一列），尖端在右（指着页面那一列）。
+         *
+         *   xa ──┐                     臂：贴住布局列，勾住上下两端
+         *        │
+         *   xw   │──┐                  腰：竖直的主干
+         *           └─ xp  ►           尖：从腰上拐出去指向页面列
+         *
+         * 四个拐角都用二次贝塞尔，控制点放在"直角"上，出来就是标准的大括号。
+         * 勾的长度取上下半段的较小值，列表很短时才不会两个勾叠在一起。 */
+        const qreal xa = 2.0;                    // 臂
+        const qreal xw = 11.0;                   // 腰
+        const qreal xp = width() - 2.0;          // 尖，一直顶到页面那一列
+        const qreal hook = qBound(2.0,
+                                  qMin(qreal(tip - top), qreal(bottom - tip)) * 0.5,
+                                  10.0);
+        /* 【尖端为什么这么画】控制点放在 (xw, tip ∓ hook*0.15) 而不是 (xw, tip)：
+         * 放在 tip 上时曲线是水平切入尖端的，上下两段切线共线，出来是个钝头；
+         * 往回收一点，切线变成斜的（上段从左上来、下段往左下去），
+         * 两条斜切线在尖端交成锐角 —— 这才是数学大括号那个尖。 */
+        const qreal ctl = hook * 0.15;
+        QPainterPath path;
+        path.moveTo(xa, top);
+        path.quadTo(xw, top, xw, top + hook);            // 上勾
+        path.lineTo(xw, tip - hook);                     // 上主干
+        path.quadTo(xw, tip - ctl, xp, tip);             // 收成尖
+        path.quadTo(xw, tip + ctl, xw, tip + hook);      // 从尖出来
+        path.lineTo(xw, bottom - hook);                  // 下主干
+        path.quadTo(xw, bottom, xa, bottom);             // 下勾
+        p.drawPath(path);
+
+    }
+
+private:
+    /**
+     * 把某一列视口里的 y 换算到本控件的坐标系。
+     *
+     * 【必须绕全局坐标】QWidget::mapTo(target, ...) 只认**祖先**；
+     * 这两列和大括号是兄弟，直接 mapTo 会踩空指针崩掉（实测 0xC0000005）。
+     */
+    int mapFromList(QListWidget *w, int y) const
+    {
+        const QPoint g = w->viewport()->mapToGlobal(QPoint(0, y));
+        return const_cast<LayoutBrace *>(this)->mapFromGlobal(g).y();
+    }
+
+    QListWidget *m_pages = nullptr;
+    QListWidget *m_layouts = nullptr;
 };
 
 PageView::PageView(QWidget *parent)
@@ -483,14 +654,65 @@ PageView::PageView(QWidget *parent)
     setWindowTitle(QString());
     setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 
-    m_list = new QListWidget(this);
-    m_list->setSpacing(6);
-    m_list->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setWidget(m_list);
+    auto mkList = [this]() {
+        auto *w = new QListWidget(this);
+        w->setSpacing(4);
+        w->setSelectionMode(QAbstractItemView::SingleSelection);
+        w->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        /* 去掉边框，两列并排时能省下十来个像素 */
+        w->setFrameShape(QFrame::NoFrame);
+        return w;
+    };
+    m_list = mkList();
+    m_layouts = mkList();
+
+    /* 左列页面、右列当前页的布局，并排。中间那条 QSplitter 让人能自己调
+     * 两列的宽度 —— 页面名字长的时候左列要宽一点。 */
+    auto mkCol = [](const QString &title, QListWidget *w) {
+        auto *box = new QWidget;
+        auto *v = new QVBoxLayout(box);
+        v->setContentsMargins(0, 0, 0, 0);
+        v->setSpacing(2);
+        auto *cap = new QLabel(title, box);
+        cap->setAlignment(Qt::AlignHCenter);
+        cap->setStyleSheet(QStringLiteral("color:#555;"));
+        v->addWidget(cap);
+        v->addWidget(w, 1);
+        return box;
+    };
+    /* 两列中间夹一个大括号，把整列布局括起来指向左列当前那一页。
+     * 【为什么不用 QSplitter 了】两个预览都是定宽 128，本来也没什么可拖的；
+     * 中间要塞画笔画的东西，固定布局反而好算坐标。 */
+    auto *box = new QWidget(this);
+    auto *h = new QHBoxLayout(box);
+    h->setContentsMargins(0, 0, 0, 0);
+    h->setSpacing(0);
+    h->addWidget(mkCol(tr("当前页布局"), m_layouts), 1);
+
+    auto *braceCol = new QWidget(box);
+    auto *bv = new QVBoxLayout(braceCol);
+    bv->setContentsMargins(0, 0, 0, 0);
+    bv->setSpacing(2);
+    /* 上面留一格和两列的标题对齐，大括号才不会顶到标题上去 */
+    auto *spacer = new QLabel(braceCol);
+    spacer->setAlignment(Qt::AlignHCenter);
+    bv->addWidget(spacer);
+    m_brace = new LayoutBrace(m_list, m_layouts, braceCol);
+    bv->addWidget(m_brace, 1);
+    braceCol->setFixedWidth(LayoutBrace::kWidth);
+    h->addWidget(braceCol, 0);
+
+    h->addWidget(mkCol(tr("页面"), m_list), 1);
+    setWidget(box);
 
     connect(m_list, &QListWidget::itemClicked, this, &PageView::onClickedItem);
     connect(m_list, &QListWidget::itemChanged, this, &PageView::onItemChanged);
+    connect(m_layouts, &QListWidget::itemClicked, this, &PageView::onLayoutClicked);
+    /* 哪一列滚了大括号都要重画 —— 它的两端跟着两列的可视范围走 */
+    for (QListWidget *w : { m_list, m_layouts }) {
+        connect(w->verticalScrollBar(), &QScrollBar::valueChanged,
+                m_brace, QOverload<>::of(&QWidget::update));
+    }
 }
 
 PageView::~PageView() = default;
@@ -537,6 +759,133 @@ void PageView::reload()
     }
     m_list->setCurrentRow(m_mgr->currentPage());
     m_loading = false;
+    reloadLayouts();
+}
+
+/* ===================== 右列：当前页的顶层布局 ===================== */
+
+void PageView::reloadLayouts()
+{
+    if (!m_mgr || !m_layouts) {
+        return;
+    }
+    ScenesScreen *sc = m_mgr->currentScreen();
+    const QVector<UiNode *> screens = sc ? sc->screens() : QVector<UiNode *>();
+
+    /* 集合没变就只挪一下「当前」标记 —— 每选一次控件都重建 9 个预览太浪费 */
+    if (screens == m_layoutNodes) {
+        markCurrentLayout();
+        return;
+    }
+    m_layoutNodes = screens;
+
+    m_loading = true;
+    m_layouts->clear();
+    UiNode *page = m_mgr->model()->pages().value(m_mgr->currentPage(), nullptr);
+    for (int i = 0; i < screens.size(); ++i) {
+        UiNode *lo = screens.at(i);
+        auto *cell = new QWidget;
+        auto *lay = new QVBoxLayout(cell);
+        lay->setContentsMargins(2, 2, 2, 2);
+        lay->setSpacing(1);
+        /* forceRoot=true：这些布局大多是"默认隐藏"的，不强画就是一片黑 */
+        lay->addWidget(new PagePreview(page, lo, true), 0, Qt::AlignHCenter);
+
+        auto *cap = new QLabel(lo->name);
+        cap->setAlignment(Qt::AlignHCenter);
+        lay->addWidget(cap);
+        /* 第二行是状态：谁是运行时那一个、谁是默认隐藏的。
+         * 【为什么一定要标出来】画面看着都一样，不标的话很容易把"设备上根本
+         * 不会显示"的那几个当成会显示的。 */
+        auto *st = new QLabel;
+        st->setAlignment(Qt::AlignHCenter);
+        st->setObjectName(QStringLiteral("layoutState"));
+        lay->addWidget(st);
+
+        auto *it = new QListWidgetItem;
+        it->setSizeHint(cell->sizeHint());
+        it->setData(Qt::UserRole, i);
+        m_layouts->addItem(it);
+        m_layouts->setItemWidget(it, cell);
+    }
+    m_loading = false;
+    markCurrentLayout();
+}
+
+void PageView::markCurrentLayout()
+{
+    if (!m_mgr || !m_layouts) {
+        return;
+    }
+    ScenesScreen *sc = m_mgr->currentScreen();
+    const int cur = sc ? sc->currentScreenIndex() : -1;
+    m_loading = true;
+    for (int i = 0; i < m_layouts->count() && i < m_layoutNodes.size(); ++i) {
+        QWidget *cell = m_layouts->itemWidget(m_layouts->item(i));
+        auto *st = cell ? cell->findChild<QLabel *>(QStringLiteral("layoutState")) : nullptr;
+        if (!st) {
+            continue;
+        }
+        /* 【两件事，分开说】
+         *   会不会显示：只看"默认隐藏"（Canvas::applyVisibility 规则 1 就这一条），
+         *               没隐藏的**全都**会显示，会互相叠在一起；
+         *   是不是当前：currentScreenIndex()，纯编辑器概念（工具栏下拉框指向谁），
+         *               和设备上显不显示没关系。
+         * 早先把这两件事挤成一条三选一，"不是当前、又没隐藏"的就落进空白，
+         * 看的人只能猜。现在每一项都有话说。 */
+        const bool hidden = m_layoutNodes.at(i)->isDefaultHidden();
+        QStringList parts;
+        if (i == cur) {
+            parts << tr("当前");
+        }
+        parts << (hidden ? tr("默认隐藏") : tr("会显示"));
+        st->setText(parts.join(QStringLiteral(" · ")));
+        if (i == cur) {
+            st->setStyleSheet(QStringLiteral("color:#2b7dd1;font-weight:bold;"));
+        } else if (hidden) {
+            st->setStyleSheet(QStringLiteral("color:#999;"));
+        } else {
+            st->setStyleSheet(QStringLiteral("color:#333;"));
+        }
+        st->setToolTip(hidden
+            ? tr("这个布局设了「默认隐藏」，设备上不会显示。\n"
+                 "在这一列点它可以看它长什么样，不会改工程。")
+            : tr("这个布局没设「默认隐藏」，设备上会显示。\n"
+                 "同一页里没隐藏的布局会**同时**显示、叠在一起。"));
+    }
+    if (cur >= 0 && cur < m_layouts->count()) {
+        m_layouts->setCurrentRow(cur);
+    }
+    m_loading = false;
+    if (m_brace) {
+        m_brace->update();
+    }
+}
+
+QImage PageView::grabLayoutForTest(int i) const
+{
+    if (!m_mgr || i < 0 || i >= m_layoutNodes.size()) {
+        return QImage();
+    }
+    UiNode *page = m_mgr->model()->pages().value(m_mgr->currentPage(), nullptr);
+    if (!page) {
+        return QImage();
+    }
+    const QSize s = page->rect.isValid() ? page->rect.size() : QSize(128, 64);
+    PagePreview pv(page, m_layoutNodes.at(i), true);
+    return pv.grab().copy(QRect(QPoint(4, 4), s)).toImage()
+           .convertToFormat(QImage::Format_RGB32);
+}
+
+void PageView::onLayoutClicked(QListWidgetItem *a0)
+{
+    if (!a0 || !m_mgr || m_loading) {
+        return;
+    }
+    const int idx = a0->data(Qt::UserRole).toInt();
+    /* 走和工具栏「当前画面」下拉框同一条路 —— 两边永远一致 */
+    m_mgr->gotoScreen(idx);
+    emit layoutActivated(idx);
 }
 
 void PageView::onClickedItem(QListWidgetItem *a0)
@@ -546,6 +895,7 @@ void PageView::onClickedItem(QListWidgetItem *a0)
     }
     const int idx = a0->data(Qt::UserRole).toInt();
     m_mgr->setCurrentPage(idx);
+    reloadLayouts();                 // 换页了，右列整列都要换
     emit pageActivated(idx);
 }
 
