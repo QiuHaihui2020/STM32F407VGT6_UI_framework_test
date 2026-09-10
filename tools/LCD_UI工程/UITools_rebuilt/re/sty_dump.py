@@ -103,7 +103,11 @@ def parse(path):
             ctrls.append({
                 'off': p, 'type': raw[p], 'type_name': CTRL_TYPE.get(raw[p], '?'),
                 'ctrl_num': raw[p + 1], 'css_num': raw[p + 2], 'len': ln,
-                'page': raw[p + 4], 'id': cid & 0xFFFFFF,
+                # id 存**完整值**：页号在 bit22..28，超过 4 页时截成 24 位
+                # 会把页号削掉高位（原来就是这个 bug，害 verify_selfconsistent
+                # 在 11 页的工程上误报 365 个"page 段不符"）。要按名字查表的
+                # 地方自己 & 0xFFFFFF。
+                'page': raw[p + 4], 'id': cid,
                 'id_type': (cid >> 16) & 0x3F, 'id_hash': cid & 0xFFFF,
                 'css_off': struct.unpack_from('<I', raw, p + 12)[0],
                 'payload': raw[p + CHEAD_SZ:p + ln].hex(),

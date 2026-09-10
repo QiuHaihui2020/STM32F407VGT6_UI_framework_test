@@ -62,7 +62,14 @@ int textExtent(const QString &text, const LogFontSpec &f)
 TextBitmap rasterize(const QString &text, const LogFontSpec &f)
 {
     TextBitmap out;
-    out.height = qAbs(f.height);
+    /* 【高度向上取到 8 的倍数，宽度不取整】
+     * 位图是竖向分页存的（1 字节 = 8 个纵向像素），所以高度必须是 8 的倍数;
+     * 宽度则是 GetTextExtentPoint32 的原始 cx，不补齐。
+     *
+     * 以前两条都取整到 8，在 -16 的宋体上看不出来 —— 汉字进 16、ASCII 进 8,
+     * 任何串的 cx 本来就是 8 的倍数。直到发现原厂 result.str 里有 11/18/30 宽
+     * 的条目（那几格字体是 -11），才暴露宽度其实不补齐。见 ResFontDat.h。 */
+    out.height = (qAbs(f.height) + 7) / 8 * 8;
     if (out.height <= 0) {
         return out;
     }
@@ -76,7 +83,7 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
         GetTextExtentPoint32W(hdc, reinterpret_cast<const wchar_t *>(text.utf16()),
                               text.size(), &sz);
     }
-    out.width = (sz.cx + 7) / 8 * 8;
+    out.width = sz.cx;
     if (out.width <= 0) {
         SelectObject(hdc, oldFont);
         DeleteObject(hf);
@@ -116,7 +123,12 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
     SetBkMode(hdc, OPAQUE);
     SetBkColor(hdc, RGB(255, 255, 255));
     SetTextColor(hdc, RGB(0, 0, 0));
-    TextOutW(hdc, 0, 0, reinterpret_cast<const wchar_t *>(text.utf16()), text.size());
+    /* 【字比位图矮时要竖直居中】位图高度取到 8 的倍数，字号不是 8 的倍数时
+     * 就多出几行空白。原厂把字放在正中间：-11 的宋体画在 16 行里，上面留
+     * (16-11)/2 = 2 行 —— 和原厂 result.str 里那 27 条逐位对上。
+     * -16 时 (16-16)/2 = 0，和以前的行为一致。 */
+    const int topPad = (out.height - qAbs(f.height)) / 2;
+    TextOutW(hdc, 0, topPad, reinterpret_cast<const wchar_t *>(text.utf16()), text.size());
     GdiFlush();
 
     const int pages = (out.height + 7) / 8;
@@ -165,9 +177,9 @@ int textExtent(const QString &text, const LogFontSpec &f)
 TextBitmap rasterize(const QString &text, const LogFontSpec &f)
 {
     TextBitmap out;
-    out.height = qAbs(f.height);
+    out.height = (qAbs(f.height) + 7) / 8 * 8;
     const int adv = textExtent(text, f);
-    out.width = (adv + 7) / 8 * 8;
+    out.width = adv;
     if (out.width <= 0 || out.height <= 0) {
         out.ok = true;
         return out;
@@ -180,7 +192,8 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
     QFont qf = toQFont(f);
     p.setFont(qf);
     p.setPen(QColor(0, 0, 0));
-    p.drawText(0, QFontMetrics(qf).ascent(), text);
+    /* 竖直居中，理由同 Windows 分支 */
+    p.drawText(0, (out.height - qAbs(f.height)) / 2 + QFontMetrics(qf).ascent(), text);
     p.end();
 
     MonoImage m = toMono(img, 0x00FFFFFFu);

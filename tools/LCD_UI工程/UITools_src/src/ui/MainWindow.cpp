@@ -2306,9 +2306,12 @@ int MainWindow::runOpsTest(QString *report)
         });
         if (any) {
             onNodeSelected(any);
+            /* 挑一个**还能往上加**的框。坐标 X 的范围是 [0, 父宽-自身宽]
+             * （原厂规则，见 Position::setBounds()），控件铺满父容器时它就是
+             * [0,0] —— 拿它 +1 加不动，会误判成"没标脏"。 */
             QSpinBox *sp = nullptr;
             for (QSpinBox *s : m_prop->findChildren<QSpinBox *>()) {
-                if (s->isVisible()) {
+                if (s->isVisible() && s->value() < s->maximum()) {
                     sp = s;
                     break;
                 }
@@ -2400,6 +2403,188 @@ int MainWindow::runOpsTest(QString *report)
         EditorOps::commitPendingEdit();
         check(QStringLiteral("保存前的强制提交能把输入框里的值写进模型"),
               enameOfFrame() == probe, enameOfFrame());
+    }
+
+    /* --- 18l. 控件参数的取值范围要真的限住 ---
+     * 原厂是数据驱动的：范围写在 control.json 的属性里（min/max/maxlength），
+     * 提示语 "请输入%1~%2的整数" / "请输入 0~9999 内的整数"。
+     * 之前本版的数字框一律 ±9999 / ±99999，等于没限 —— 往 int8 字段里写
+     * 30000 也收，生成资源时被截断成别的数。
+     *
+     * 判据：把面板铺出来，逐个 QSpinBox 看它的 range 是不是收敛的。
+     *
+     * 位置坐标那四个框单独判 —— 规则是从原厂 exe 反汇编出来的
+     * （ui-tools.exe VA 0x00424AC0，见 Position::setBounds() 的注释）：
+     *     宽 <= 父宽、高 <= 父高（无条件）；
+     *     NewLayout / NewLayer：X/Y 都是 -999..999；
+     *     其余控件：X 是 0..(父宽-自身宽)、Y 是 0..(父高-自身高)。 */
+    {
+        onNodeSelected(frame);
+        QApplication::processEvents();
+        int wide = 0, total = 0;
+        for (QSpinBox *sp : findChildren<QSpinBox *>()) {
+            if (!sp->isVisibleTo(this)) {
+                continue;
+            }
+            const QString on = sp->objectName();
+            if (on == QLatin1String("spinX") || on == QLatin1String("spinY")) {
+                continue;                       // 坐标单独判
+            }
+            ++total;
+            if (sp->minimum() <= -99999 || sp->maximum() >= 99999) {
+                ++wide;
+            }
+        }
+        check(QStringLiteral("数字参数都有收敛的取值范围（没有 ±99999 这种）"),
+              wide == 0,
+              QStringLiteral("%1/%2 个还是敞开的").arg(wide).arg(total));
+
+        /* 位置坐标：分别拿一个容器（NewLayout/NewLayer）和一个叶子控件来验。 */
+        auto geoRange = [this](UiNode *node) {
+            onNodeSelected(node);
+            QApplication::processEvents();
+            /* 旧面板是 deleteLater 拆的，processEvents 不管 DeferredDelete，
+             * 不冲一下就会在对象树里撞到上一个节点那份 spinX。 */
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QApplication::processEvents();
+            struct R { int xlo, xhi, ylo, yhi, wlo, whi, hlo, hhi; bool ok; } r{};
+            auto pick = [this](const char *name) -> QSpinBox * {
+                for (QSpinBox *s : findChildren<QSpinBox *>(QLatin1String(name))) {
+                    if (s->isVisibleTo(this)) {
+                        return s;
+                    }
+                }
+                return nullptr;
+            };
+            QSpinBox *sx = pick("spinX");
+            QSpinBox *sy = pick("spinY");
+            QSpinBox *sw = pick("spinW");
+            QSpinBox *sh = pick("spinH");
+            r.ok = sx && sy && sw && sh;
+            if (r.ok) {
+                r.xlo = sx->minimum(); r.xhi = sx->maximum();
+                r.ylo = sy->minimum(); r.yhi = sy->maximum();
+                r.wlo = sw->minimum(); r.whi = sw->maximum();
+                r.hlo = sh->minimum(); r.hhi = sh->maximum();
+            }
+            return r;
+        };
+
+        /* 只在**当前页**里找 —— onNodeSelected 选不了别的页上的控件，
+         * 跨页去选的话量到的还是上一个控件的面板。 */
+        UiNode *container = nullptr;
+        UiNode *leaf = nullptr;
+        page->forEach([&](UiNode *x) {
+            const bool isBox = (x->type == QLatin1String("NewLayout")
+                                || x->type == QLatin1String("NewLayer"));
+            if (x == page || !x->parent || x->parent->rectOf(0).size().isEmpty()) {
+                return true;
+            }
+            if (isBox && !container) {
+                container = x;
+            }
+            if (!isBox && !leaf && !x->rectOf(0).isEmpty()) {
+                leaf = x;
+            }
+            return !(container && leaf);
+        });
+
+        if (container) {
+            const QSize p = container->parent->rectOf(0).size();
+            const auto r = geoRange(container);
+            check(QStringLiteral("容器(NewLayout/NewLayer)：宽<=父宽、高<=父高"),
+                  r.ok && r.whi == p.width() && r.hhi == p.height(),
+                  QStringLiteral("宽上限 %1(父 %2)，高上限 %3(父 %4)")
+                      .arg(r.whi).arg(p.width()).arg(r.hhi).arg(p.height()));
+            check(QStringLiteral("容器：X/Y 是 -999..999（列表行要能排到父容器外）"),
+                  r.ok && r.xlo == -999 && r.xhi == 999
+                       && r.ylo == -999 && r.yhi == 999,
+                  QStringLiteral("X %1..%2  Y %3..%4")
+                      .arg(r.xlo).arg(r.xhi).arg(r.ylo).arg(r.yhi));
+        }
+        if (leaf) {
+            const QSize p = leaf->parent->rectOf(0).size();
+            const QSize o = leaf->rectOf(0).size();
+            const auto r = geoRange(leaf);
+            check(QStringLiteral("叶子控件：宽<=父宽、高<=父高"),
+                  r.ok && r.whi == p.width() && r.hhi == p.height(),
+                  QStringLiteral("宽上限 %1(父 %2)，高上限 %3(父 %4)")
+                      .arg(r.whi).arg(p.width()).arg(r.hhi).arg(p.height()));
+            check(QStringLiteral("叶子控件：X/Y 从 0 起，且整块要留在父容器里"),
+                  r.ok && r.xlo == 0 && r.ylo == 0
+                       && r.xhi == qMax(0, p.width() - o.width())
+                       && r.yhi == qMax(0, p.height() - o.height()),
+                  QStringLiteral("X %1..%2(期望 0..%3)  Y %4..%5(期望 0..%6)")
+                      .arg(r.xlo).arg(r.xhi).arg(qMax(0, p.width() - o.width()))
+                      .arg(r.ylo).arg(r.yhi).arg(qMax(0, p.height() - o.height())));
+        }
+
+        /* 范围限制要让人看得见 —— 每个数字框都得有气泡提示，
+         * 而且提示里要出现它自己的上下限，不能是句放之四海皆准的空话。 */
+        {
+            onNodeSelected(leaf ? leaf : frame);
+            QApplication::processEvents();
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QApplication::processEvents();
+            int noTip = 0, noRange = 0, seen = 0;
+            QString sample;
+            for (QSpinBox *sp : findChildren<QSpinBox *>()) {
+                if (!sp->isVisibleTo(this)) {
+                    continue;
+                }
+                ++seen;
+                const QString tip = sp->toolTip();
+                if (tip.isEmpty()) {
+                    ++noTip;
+                    continue;
+                }
+                if (!tip.contains(QString::number(sp->maximum()))) {
+                    ++noRange;
+                }
+                if (sample.isEmpty() && sp->objectName() == QLatin1String("spinX")) {
+                    sample = tip;
+                }
+            }
+            check(QStringLiteral("每个数字框都有气泡提示"), noTip == 0,
+                  QStringLiteral("%1/%2 个没有").arg(noTip).arg(seen));
+            check(QStringLiteral("气泡提示里带着这个框自己的上限"), noRange == 0,
+                  QStringLiteral("%1/%2 个没带").arg(noRange).arg(seen));
+            check(QStringLiteral("坐标提示还说清了上限的来历"),
+                  sample.contains(QChar('\n')),
+                  sample.isEmpty() ? QStringLiteral("(没取到 X 的提示)")
+                                   : QString(sample).replace(QChar('\n'),
+                                                             QStringLiteral(" / ")));
+        }
+
+        onNodeSelected(frame);
+        QApplication::processEvents();
+
+        /* 模板写了 min/max 的，面板上必须照着来。z_order 是 int8 0..128。 */
+        UiNode *probe = nullptr;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                if (!probe && x->cssField(0, QStringLiteral("z_order"),
+                                          QStringLiteral("default")).isDouble()) {
+                    probe = x;
+                }
+                return !probe;
+            });
+            if (probe) {
+                break;
+            }
+        }
+        if (probe) {
+            onNodeSelected(probe);
+            QApplication::processEvents();
+            bool found = false;
+            for (QSpinBox *sp : findChildren<QSpinBox *>()) {
+                if (sp->isVisibleTo(this) && sp->minimum() == 0 && sp->maximum() == 128) {
+                    found = true;
+                    break;
+                }
+            }
+            check(QStringLiteral("z轴坐标按模板限成 0~128（int8）"), found);
+        }
     }
 
     /* --- 19. 这一通改完，工程还得能存能读 --- */

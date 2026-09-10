@@ -312,6 +312,80 @@ void DragButton::mouseMoveEvent(QMouseEvent *e)
     setDown(false);
 }
 
+/* ===================== 取值范围 =====================
+ *
+ * 原厂对控件参数是**数据驱动**地限范围的：范围写在 control.json 的属性里
+ * （min / max / maxlength），界面按它建编辑器。两条提示语能佐证：
+ *
+ *     0xc94de8  "请输入%1~%2的整数"     —— 属性写了 min/max 时用它
+ *     0xc94e44  "请输入 0~9999 内的整数" —— 没写时的兜底
+ *
+ * 实际数据（control.json 183 条属性里带约束的）：
+ *     int8   highlight / z_order / highlight_index   min=0  max=128
+ *     int16  cent_x / cent_y                         min=0  max=32768
+ *     text-str  source / code   maxlength=8 ；format maxlength=16
+ *     text-pic  str             maxlength=100
+ *     piclist   normal_image    maxlength=30 ；image/charge_image maxlength=0(不限)
+ *     arrlist   number/delimiter maxlength=10 ；space maxlength=2
+ */
+
+/** 属性声明的类型能装下的范围。0 表示"这个类型没有天然上限"。 */
+static void typeBound(const QString &ptype, int *lo, int *hi)
+{
+    if (ptype == QLatin1String("int8")) {
+        *lo = 0;
+        *hi = 255;
+    } else if (ptype == QLatin1String("int16")) {
+        *lo = 0;
+        *hi = 32768;
+    } else {
+        *lo = 0;
+        *hi = 9999;
+    }
+}
+
+/**
+ * 按原厂规则给整数编辑器定范围，并挂上原厂那句提示。
+ *
+ * @param po    属性的 json（要读 min / max / -type）
+ * @param allowNegative 允许负值（坐标 X/Y 用 —— oled 工程里真有 y=-11，
+ *                      钳成 0 会把用户已有的布局改掉）
+ */
+static void applyIntRange(QSpinBox *s, const QJsonObject &po, bool allowNegative = false)
+{
+    const QString ptype = po.value(QStringLiteral("-type")).toString();
+    int lo = 0, hi = 9999;
+    typeBound(ptype, &lo, &hi);
+
+    const QJsonValue mn = po.value(QStringLiteral("min"));
+    const QJsonValue mx = po.value(QStringLiteral("max"));
+    const bool declared = !mn.isUndefined() || !mx.isUndefined();
+    if (!mn.isUndefined()) {
+        lo = mn.toInt();
+    }
+    if (!mx.isUndefined()) {
+        hi = mx.toInt();
+    }
+    if (allowNegative && lo >= 0 && !declared) {
+        lo = -9999;             // 坐标：模板没写下限就不设下限
+    }
+    if (hi < lo) {
+        hi = lo;
+    }
+    s->setRange(lo, hi);
+    /* 原厂这两句是干巴巴的 "请输入%1~%2的整数" / "请输入 0~9999 内的整数"，
+     * 只说数字不说来历。这里补一句上限是哪来的 —— 模板写了就说模板，
+     * 没写就说是按声明的类型兜的底，出问题时好定位。 */
+    s->setToolTip(declared
+                  ? QStringLiteral("请输入 %1 ~ %2 的整数\n"
+                                   "范围来自控件模板 control.json 里这条属性的 min/max")
+                        .arg(lo).arg(hi)
+                  : QStringLiteral("请输入 %1 ~ %2 的整数\n"
+                                   "模板没写范围，这里按声明的类型 %3 兜底")
+                        .arg(lo).arg(hi)
+                        .arg(ptype.isEmpty() ? QStringLiteral("(未声明)") : ptype));
+}
+
 /* ===================== FileEdit ===================== */
 
 /** 按钮上那张缩略图的外框；比它大的按比例缩，小的保持原尺寸。 */
@@ -483,7 +557,6 @@ Position::Position(QWidget *parent)
     auto mkSpin = [this](const char *objName) {
         auto *s = new QSpinBox(this);
         s->setObjectName(QLatin1String(objName));
-        s->setRange(-9999, 9999);
         s->setFont(monoFont());
         return s;
     };
@@ -491,6 +564,12 @@ Position::Position(QWidget *parent)
     m_y = mkSpin("spinY");
     m_w = mkSpin("spinW");
     m_h = mkSpin("spinH");
+    /* 父级未知时的兜底范围。真正的范围由 setBounds() 按原厂规则重设 ——
+     * 面板每次铺开都会调一次，所以这里只要不挡路就行。 */
+    m_x->setRange(-999, 999);
+    m_y->setRange(-999, 999);
+    m_w->setRange(0, 9999);
+    m_h->setRange(0, 9999);
     form->addRow(tr("X:"), m_x);
     form->addRow(tr("Y:"), m_y);
     form->addRow(tr("宽度:"), m_w);
@@ -522,6 +601,66 @@ QRect Position::rect() const
     return QRect(m_x->value(), m_y->value(), m_w->value(), m_h->value());
 }
 
+void Position::setBounds(const QSize &parentSize, const QSize &ownSize, bool container)
+{
+    /* 【顺序照抄原厂】先无条件给宽高定上限，再按类型分叉定 X/Y。
+     * 上限用的是父容器的宽高，"自身宽/高"取的是节点里存着的值 ——
+     * 原厂在这一步还没往框里填值，读的就是模型。 */
+    const bool known = parentSize.isValid()
+                       && parentSize.width() > 0 && parentSize.height() > 0;
+    m_loading = true;
+    if (!known) {
+        m_x->setRange(-999, 999);
+        m_y->setRange(-999, 999);
+        m_w->setRange(0, 9999);
+        m_h->setRange(0, 9999);
+        for (QSpinBox *sp : { m_x, m_y, m_w, m_h }) {
+            sp->setToolTip(tr("找不到父容器，暂时不限范围"));
+        }
+        m_loading = false;
+        return;
+    }
+
+    const int pw = parentSize.width();
+    const int ph = parentSize.height();
+    /* 宽高的下限原厂从没设过，QSpinBox 默认就是 0 —— 照抄，不自作主张改成 1。 */
+    m_w->setRange(0, pw);
+    m_h->setRange(0, ph);
+    m_w->setToolTip(tr("宽度：%1 ~ %2\n上限是父容器的宽度，控件不能比装它的容器还宽")
+                    .arg(m_w->minimum()).arg(pw));
+    m_h->setToolTip(tr("高度：%1 ~ %2\n上限是父容器的高度，控件不能比装它的容器还高")
+                    .arg(m_h->minimum()).arg(ph));
+
+    if (container) {
+        /* NewLayout / NewLayer：位置不受父容器约束。
+         * 这不是宽松处理，是原厂就这么写的 —— 垂直列表的行本身是 NewLayout，
+         * 它们的 y 要能排到父容器高度之外（实测原厂工程里 y 排到 96、父高 48），
+         * 钳进去列表就没法多于一屏。 */
+        m_x->setRange(-999, 999);
+        m_y->setRange(-999, 999);
+        const QString why = tr("%1：%2 ~ %3\n"
+                               "图层和布局的位置不受父容器限制 —— "
+                               "垂直列表的每一行都是一个布局，"
+                               "要靠 Y 排到父容器下边缘之外，列表才能多于一屏");
+        m_x->setToolTip(why.arg(tr("X")).arg(m_x->minimum()).arg(m_x->maximum()));
+        m_y->setToolTip(why.arg(tr("Y")).arg(m_y->minimum()).arg(m_y->maximum()));
+    } else {
+        /* 叶子控件：整个矩形必须留在父容器里。
+         * 原厂是 setMaximum(父宽-自身宽) 之后再 setMinimum(0)；宽度大于父宽时
+         * 上限算出来是负数，Qt 会把区间收成 [0,0]，这里直接 qMax 到 0，等价。 */
+        m_x->setRange(0, qMax(0, pw - qMax(0, ownSize.width())));
+        m_y->setRange(0, qMax(0, ph - qMax(0, ownSize.height())));
+        const QString why = tr("%1：%2 ~ %3\n"
+                               "上限 = 父容器%4 %5 − 本控件%4 %6，"
+                               "整块必须留在父容器里；把%4改小，这里就能挪得更远");
+        m_x->setToolTip(why.arg(tr("X")).arg(m_x->minimum()).arg(m_x->maximum())
+                        .arg(tr("宽")).arg(pw).arg(qMax(0, ownSize.width())));
+        m_y->setToolTip(why.arg(tr("Y")).arg(m_y->minimum()).arg(m_y->maximum())
+                        .arg(tr("高")).arg(ph).arg(qMax(0, ownSize.height())));
+    }
+    m_loading = false;
+}
+
 /* ===================== Border ===================== */
 
 Border::Border(QWidget *parent)
@@ -533,16 +672,21 @@ Border::Border(QWidget *parent)
     auto *form = new QFormLayout;
     form->setVerticalSpacing(4);
 
-    auto mkSpin = [this]() {
+    auto mkSpin = [this](const QString &side) {
         auto *s = new QSpinBox(this);
         s->setRange(0, 255);
         s->setFont(monoFont());
+        /* 0~255 不是随手定的：四条边各占 element_css 里的 1 个字节
+         * （StyBuilder 写在 css+28..31），u8 装不下更大的值。 */
+        s->setToolTip(tr("%1边框宽度：0 ~ 255\n"
+                         "四条边各占资源里的 1 个字节，填 0 就是这条边不画")
+                      .arg(side));
         return s;
     };
-    m_l = mkSpin();
-    m_t = mkSpin();
-    m_r = mkSpin();
-    m_b = mkSpin();
+    m_l = mkSpin(tr("左"));
+    m_t = mkSpin(tr("上"));
+    m_r = mkSpin(tr("右"));
+    m_b = mkSpin(tr("下"));
     form->addRow(tr("左:"), m_l);
     form->addRow(tr("上:"), m_t);
     form->addRow(tr("右:"), m_r);
@@ -700,7 +844,14 @@ void CssProperty::showNode(UiNode *n)
         if (ptype == QLatin1String("rect")) {
             m_pos = new Position(this);
             m_pos->setTitle(cap.isEmpty() ? tr("位置坐标") : cap);
-            m_pos->setRect(n->rectOf(m_state));
+            /* 【先定范围再填值】原厂就是这个次序（先 setMaximum 再 setValue）。
+             * 反过来的话，值会被上一次的旧范围夹一道。 */
+            const QRect own = n->rectOf(m_state);
+            const bool container = (n->type == QLatin1String("NewLayout")
+                                    || n->type == QLatin1String("NewLayer"));
+            m_pos->setBounds(n->parent ? n->parent->rectOf(0).size() : QSize(),
+                             own.size(), container);
+            m_pos->setRect(own);
             m_box->addWidget(m_pos);
             connect(m_pos, &Position::rectEdited, this, [this](const QRect &r) {
                 if (!m_node) {
@@ -804,11 +955,7 @@ void CssProperty::showNode(UiNode *n)
         } else if (def.isDouble()) {
             m_box->addWidget(new QLabel(cap.isEmpty() ? pname : cap, this));
             auto *s = new QSpinBox(this);
-            /* 原厂给整数框挂的提示是"9999 内的整数"（模板里有 min/max 时
-             * 换成 "%2的整数"，%2 是那个范围）。 */
-            s->setToolTip(QStringLiteral("9999 内的整数"));
-            s->setRange(po.value(QStringLiteral("min")).toInt(-9999),
-                        po.value(QStringLiteral("max")).toInt(9999));
+            applyIntRange(s, po);
             s->setFont(monoFont());
             s->setValue(def.toInt());
             m_box->addWidget(s);
@@ -1368,16 +1515,7 @@ void ComProperty::showNode(UiNode *n)
             m_dynForm->addRow(cap, cb);
         } else if (def.isDouble()) {
             auto *sp = new QSpinBox(m_dyn);
-            {
-                const QJsonValue mn = p.raw.value(QStringLiteral("min"));
-                const QJsonValue mx = p.raw.value(QStringLiteral("max"));
-                sp->setToolTip((mn.isUndefined() || mx.isUndefined())
-                               ? QStringLiteral("9999 内的整数")
-                               : QStringLiteral("%1的整数")
-                                 .arg(QStringLiteral("%1..%2").arg(mn.toInt()).arg(mx.toInt())));
-            }
-            sp->setRange(p.raw.value(QStringLiteral("min")).toInt(-99999),
-                         p.raw.value(QStringLiteral("max")).toInt(99999));
+            applyIntRange(sp, p.raw);      // 范围和提示语都在里面，见它的抬头
             sp->setFont(monoFont());
             sp->setValue(def.toInt());
             connect(sp, QOverload<int>::of(&QSpinBox::valueChanged), this,
@@ -1393,6 +1531,9 @@ void ComProperty::showNode(UiNode *n)
             const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
             if (maxLen > 0) {
                 e->setMaxLength(maxLen);
+                e->setToolTip(tr("最多 %1 个字符\n"
+                                 "这是控件模板给这条属性定的长度，"
+                                 "固件那边按定长存，填不下就会被截掉").arg(maxLen));
             }
             connect(e, &QLineEdit::editingFinished, this, [commit, e]() {
                 const QString t = e->text();
@@ -1508,6 +1649,10 @@ QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
     lay->addWidget(cb);
 
     const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
+    btn->setToolTip(maxLen > 0
+                    ? tr("现在 %1 项，最多 %2 项\n点开挑内容；上限是控件模板定的")
+                          .arg(lst.size()).arg(maxLen)
+                    : tr("现在 %1 项，条数不限\n点开挑内容").arg(lst.size()));
     const QJsonArray init = lst;
     connect(btn, &QPushButton::clicked, this, [this, btn, init, maxLen, cap, commit]() {
         const PropertyContext &ctx = PropertyContext::instance();

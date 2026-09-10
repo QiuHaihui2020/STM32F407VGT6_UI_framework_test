@@ -147,6 +147,11 @@ projectresbuilder=false              ; true = 不重新生成资源
 UITools.exe --tools-root <UITools目录> --ops-test --out 报告.txt <工程.json>
 ```
 
+要**完全不弹窗**地跑（CI、远程、锁屏），设 `QT_QPA_PLATFORM=offscreen`。
+`platforms\qoffscreen.dll` 已经随包带上了 —— 少了它 Qt 会弹一个模态的
+"no Qt platform plugin could be initialized"，在无人值守的场景里就是**卡死**
+而不是报错退出。注意离屏平台不渲染文字，只适合跑逻辑判定，不能拿来截图验收。
+
 ### 命令行
 
 ```

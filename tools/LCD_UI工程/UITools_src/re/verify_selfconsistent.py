@@ -72,16 +72,26 @@ def load_defines(path):
 
 
 def load_pic_index(path):
+    """每页的最大图片编号。
+
+    一行长这样：
+        #define  BATTLVL1                 1       //D:\...\BATTLVL1.BMP
+    宏名里可以带空格和括号 —— 原厂对 "J3_lineart (1).bmp" 直接原样大写成
+    `J3_LINEART (1)`（见 docs/FILE_FORMATS.md 10.9）。所以不能按空格切第 3 段，
+    要取注释之前的最后一个整数。
+    """
     out, page = {}, -1
     for line in open(path, 'rb'):
         s = line.decode('latin1').rstrip()
         if s.startswith('//PAGE'):
             page = int(s.split()[1])
             out[page] = 0
-        else:
-            p = s.split()
-            if len(p) >= 3 and p[0] == '#define' and p[2].isdigit():
-                out[page] = max(out.get(page, 0), int(p[2]))
+            continue
+        if not s.startswith('#define'):
+            continue
+        m = re.search(r'(\d+)\s*$', s.split('//', 1)[0])
+        if m:
+            out[page] = max(out.get(page, 0), int(m.group(1)))
     return out
 
 

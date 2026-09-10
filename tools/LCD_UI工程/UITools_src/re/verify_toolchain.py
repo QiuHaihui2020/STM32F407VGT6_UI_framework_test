@@ -6,16 +6,26 @@
 例：
     python verify_toolchain.py C:\\bt\\uitools ..\\..\\ui_128_64_JL02\\模式界面\\project C:\\bt\\chain
 
-会打印一张表，列出每个产物"差多少字节、差在哪"。已知且**不可能消除**的差异：
+会打印一张表，列出每个产物"差多少字节、差在哪"。已知且**不可能消除**的差异
+（2026-09-09 把原厂 QtToolBin 在同一份工程上连跑三遍逐项比对确认，
+详见 docs/FILE_FORMATS.md 10.10 / 10.11）：
 
-  project.bin  Time/number 控件的 char format[16] 尾部是原厂没初始化的栈/堆内存
-               （四个控件各不相同的指针值），原厂自己重跑也不一样
-  result.bin   4 字节 resver（原厂是随机值，空资源文件里也非零）
-               + 调色板前缀的**排列顺序**（集合一致；OSD1 单色屏根本不用调色板）
+  project.bin  Time(+28) / number(+24) 的 char format[16]，原厂只 strcpy 了
+               strlen+1 个字节，剩下十来个字节是没清的堆内存（里面躺着两个
+               活指针）。原厂自己重跑一遍，那些指针也全变。本版整片清零。
+               外加没有子控件的 NewLayout：原厂在子指针里留了兄弟指针的值，
+               本版写 0（固件 layer.c 先判 ctrl_num 再解引用，写 0 是安全的）。
+  result.bin   4 字节 resver（原厂随机值）
+               + 调色板的**排列顺序**：原厂 <ColorList> 的次序来自 Qt5 QSet
+                 迭代，随机哈希种子，跑三遍三个样。集合一致，OSD1 单色屏也
+                 根本不查调色板。本版用确定性排序，同工程跑多少遍都一样。
   result.str   4 字节 resver
-  res_ver.h / result_*_index.h   生成时间戳
+  result.xml   同样只差 <Color> 的排序
+  result_str_index.h  时间戳 + 少数几行的**位置**（原厂 <CellList> 也是随机序）
+  res_ver.h / result_pic_index.h   生成时间戳
 
-除此之外应当**逐字节相同**。
+除此之外应当**逐字节相同** —— 图片的编号和像素、字符串的宽高和点阵、
+ename.h / result.h / result.csv 都必须一个字节不差。
 
 【要命的一点：参考产物就躺在工程目录里，会被覆盖】
 这里说的"原厂"，指的是工程目录里现成的那几个文件（project.bin / result.* …）。
@@ -43,15 +53,25 @@ FILES = [
     'result.csv', 'result.xml',
 ]
 
-# 每个文件允许的差异上限（字节），超了就算失败
+# 每个文件允许的差异上限（字节），超了就算失败。
+#
+# 这几个数是按"最坏情况能差多少"估的，不是实测值 —— 实测应当远小于它：
+#   project.bin  每个 Time / number 控件最多漏 12 字节未初始化尾巴，
+#                oled 工程 15 + 12 个这种控件 = 324；再加页表 CRC 和时间戳。
+#   result.bin   resver 4 字节 + 每页调色板 1024 字节全排错（11 页）。
+#   result.str   只有 resver。位图但凡差一个字节就是真错，不给预算。
+#   result.xml   <Color> 排序，每页十来行 × 每行几十字节。
+#   result_str_index.h  <CellList> 随机序挪动的行。
+# 原来这几个数是照 4 页的 TFT 工程定的，11 页的 oled 工程直接撑爆，
+# 那是预算的问题不是产物的问题（差异逐条归类过，见 FILE_FORMATS.md 10.11）。
 BUDGET = {
-    'project.bin': 96,          # 8 个 format[16] 尾部
-    'result.bin': 4 + 1024 * 3,  # resver + 三页调色板
+    'project.bin': 512,
+    'result.bin': 4 + 1024 * 12,
     'result.str': 4,
     'res_ver.h': 32,
     'result_pic_index.h': 8,
-    'result_str_index.h': 8,
-    'result.xml': 4096,
+    'result_str_index.h': 256,
+    'result.xml': 8192,
 }
 
 

@@ -33,8 +33,8 @@ struct LogFontSpec {
 };
 
 struct TextBitmap {
-    int        width = 0;       ///< 向上取整到 8 的倍数
-    int        height = 0;      ///< = |lfHeight|
+    int        width = 0;       ///< GetTextExtentPoint32 的 cx，不取整
+    int        height = 0;      ///< |lfHeight| 向上取到 8 的倍数（竖向分页）
     QByteArray data;            ///< width * ((height+7)/8)，竖向分页
     bool       ok = false;
 };

@@ -1,5 +1,7 @@
 #include "ResBuilderCore.h"
 
+#include <algorithm>
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -47,20 +49,57 @@ QByteArray bmpEntry(quint16 dataCrc, quint16 resType, quint16 typeId,
     return out;
 }
 
-/// 文件名 -> 宏名：去扩展名、转大写、非标识符字符换成下划线
+/**
+ * 数字感知的次序比较：把连续数字段当整数比，其余按字符比。
+ *
+ * 原厂给文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
+ * 不是 QStringList::sort() 的字典序（那会得到 m1 < m22 < m3）。
+ * 证据见 docs/FILE_FORMATS.md。
+ *
+ * @note 这套工程的 ResID 全是 m<数字> 形式，所以"按数字排"和"按 xls 行序排"
+ *       在现有数据上结果相同，无法区分。选数字序是因为它不依赖 xls 能不能读到。
+ */
+bool natLess(const QString &a, const QString &b)
+{
+    int i = 0, j = 0;
+    while (i < a.size() && j < b.size()) {
+        const QChar ca = a.at(i), cb = b.at(j);
+        if (ca.isDigit() && cb.isDigit()) {
+            int si = i, sj = j;
+            while (i < a.size() && a.at(i).isDigit()) {
+                ++i;
+            }
+            while (j < b.size() && b.at(j).isDigit()) {
+                ++j;
+            }
+            const QString na = a.mid(si, i - si), nb = b.mid(sj, j - sj);
+            const qlonglong va = na.toLongLong(), vb = nb.toLongLong();
+            if (va != vb) {
+                return va < vb;
+            }
+            continue;
+        }
+        if (ca != cb) {
+            return ca < cb;
+        }
+        ++i;
+        ++j;
+    }
+    return (a.size() - i) < (b.size() - j);
+}
+
+/**
+ * @brief 文件名 -> 宏名：只去扩展名 + 转大写，**不做字符净化**
+ *
+ * 原厂就是这么干的：config\bmp_128x64_lineart\J3_lineart (1).bmp 出来的是
+ *     #define  J3_LINEART (1)            1
+ * 括号和空格原样留着 —— 这是个会互相冲突的宏名（28 张图全叫 J3_LINEART），
+ * 属于原厂的缺陷。但 result_pic_index.h 固件一处都没引用，只是给人看的索引表，
+ * 所以这里照抄原厂，优先保证逐字节对齐。
+ */
 QString symbolOf(const QString &fileName)
 {
-    QString s = QFileInfo(fileName).completeBaseName().toUpper();
-    for (int i = 0; i < s.size(); ++i) {
-        const QChar c = s.at(i);
-        if (!(c.isLetterOrNumber() && c.unicode() < 128) && c != QLatin1Char('_')) {
-            s[i] = QLatin1Char('_');
-        }
-    }
-    if (!s.isEmpty() && s.at(0).isDigit()) {
-        s.prepend(QLatin1Char('_'));
-    }
-    return s;
+    return QFileInfo(fileName).completeBaseName().toUpper();
 }
 
 QByteArray toAnsi(const QString &s)
@@ -111,10 +150,15 @@ bool ResBuilderCore::collectPictures(BuildResult &r)
             it.symbol = symbolOf(it.path);
             items.append(it);
         }
-        // 原厂按宏名（大写）ASCII 升序分配 id，实测 104/104 吻合
+        /* 【按宏名的自然序分配 id，不是字典序】
+         * 原厂 Resbuilder.xml 里 <PictureList> 的次序每次运行都不一样
+         * （QSet 迭代序，见 docs/FILE_FORMATS.md），但 result_pic_index.h 里
+         * 的编号两次运行完全一致 —— 说明 ResBuilder 自己重排过。
+         * 排法是数字感知的：J3_LINEART (1) < (2) < ... < (10)，
+         * 字典序会排成 (1) < (10) < (2)。 */
         std::sort(items.begin(), items.end(),
                   [](const PictureItem &a, const PictureItem &b) {
-                      return a.symbol < b.symbol;
+                      return natLess(a.symbol, b.symbol);
                   });
         for (int i = 0; i < items.size(); ++i) {
             PictureItem &it = items[i];
@@ -142,6 +186,7 @@ bool ResBuilderCore::collectPictures(BuildResult &r)
     return true;
 }
 
+
 bool ResBuilderCore::collectStrings(BuildResult &r)
 {
     m_strings.clear();
@@ -156,7 +201,9 @@ bool ResBuilderCore::collectStrings(BuildResult &r)
             names.append(c);
         }
     }
-    names.sort();                       // 与图片同一规则：按名字排序后编号
+    /* 【按数字排，不是字典序】见 natLess() 抬头。图片那边仍是字典序 ——
+     * 它和原厂逐个吻合，不要一起改。 */
+    std::sort(names.begin(), names.end(), natLess);
     for (int i = 0; i < names.size(); ++i) {
         StringItem s;
         s.id = i + 1;
@@ -194,6 +241,14 @@ bool ResBuilderCore::collectStrings(BuildResult &r)
             r.warnings.append(QStringLiteral("xls 里没有 %1，按空串处理").arg(s.cell));
         }
     }
+
+    /* 逐格字体。工程目录里没有 Resbuilder.dat 是正常的（新建的工程还没
+     * 在原厂 ResBuilder 界面里改过字体），那就全用 <Fonts> 的默认值。 */
+    const QString datPath = QDir(m_cfg.baseDir).absoluteFilePath(
+        QStringLiteral("Resbuilder.dat"));
+    if (QFileInfo::exists(datPath) && !m_fontDat.load(datPath)) {
+        r.warnings.append(QStringLiteral("Resbuilder.dat 格式不认识，逐格字体忽略"));
+    }
     return true;
 }
 
@@ -208,11 +263,11 @@ bool ResBuilderCore::renderStrings(BuildResult &r)
         // 但产出的 result.str 全是 16 px 宋体 —— 也就是说原厂**没有**按语言下标
         // 去用那张表（详见 docs/FILE_FORMATS.md 10.5）。这里以宋体 -16 为默认，
         // 只有当 <Fonts> 明确给出**同样高度**的项时才采用它，避免莫名其妙换字体。
-        LogFontSpec f;
+        LogFontSpec langFont;
         if (lang < m_cfg.fonts.size()) {
             const LogFontSpec &x = m_cfg.fonts.at(lang);
-            if (qAbs(x.height) == qAbs(f.height)) {
-                f = x;
+            if (qAbs(x.height) == qAbs(langFont.height)) {
+                langFont = x;
             }
         }
         QVector<Raster> row;
@@ -221,6 +276,14 @@ bool ResBuilderCore::renderStrings(BuildResult &r)
             const int rowIdx = m_cellRow.value(s.cell.toLower(), -1);
             if (rowIdx >= 0) {
                 text = m_xls.at(rowIdx).value(1 + lang);
+            }
+            /* 这一格在 Resbuilder.dat 里单独设过字体就用它。
+             * .dat 的行列都是 1 起、且第 1 行是表头、第 1 列是 ResID，
+             * 所以 xls 行号 rowIdx（0 = 表头）对应 .dat 行 rowIdx + 1，
+             * 语言下标 lang（0 起）对应 .dat 列 lang + 2。 */
+            LogFontSpec f = langFont;
+            if (rowIdx >= 0) {
+                m_fontDat.fontAt(rowIdx + 1, lang + 2, &f);
             }
             const TextBitmap tb = rasterize(text, f);
             Raster ras;

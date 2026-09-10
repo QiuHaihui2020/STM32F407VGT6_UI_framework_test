@@ -652,6 +652,27 @@ int main(int argc, char *argv[])
         }
         out() << QStringLiteral("  写出 %1  %2 字节\n").arg(QLatin1String(f.name)).arg(f.data.size());
     }
+
+    /* 【Resbuilder.dat 要跟着 Resbuilder.xml 走】
+     * 它是字符串表的**逐格字体**（见 docs/FILE_FORMATS.md 10.6），
+     * ResBuilder 在 xml 所在目录找它。原厂只会就地生成，两者天然同目录；
+     * 本版支持 -o 输出到别处，不带过去就会丢掉逐格字体 —— 该用宋体 -11 的
+     * 那几条会按默认的 -16 渲染，result.str 直接对不上。 */
+    {
+        const QString srcDat = QDir(QFileInfo(jsonPath).absolutePath())
+                               .absoluteFilePath(QStringLiteral("Resbuilder.dat"));
+        const QString dstDat = dir.absoluteFilePath(QStringLiteral("Resbuilder.dat"));
+        if (QFileInfo::exists(srcDat)
+            && QFileInfo(srcDat).absoluteFilePath() != QFileInfo(dstDat).absoluteFilePath()) {
+            QFile::remove(dstDat);
+            if (QFile::copy(srcDat, dstDat)) {
+                out() << QStringLiteral("  带上 Resbuilder.dat（逐格字体）\n");
+            } else {
+                out() << QStringLiteral("  警告: 复制 Resbuilder.dat 失败，"
+                                        "逐格字体会退回默认字体\n");
+            }
+        }
+    }
     out().flush();
 
     int rc = 0;

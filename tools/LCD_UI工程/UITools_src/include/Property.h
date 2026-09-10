@@ -142,6 +142,31 @@ public:
     void  setRect(const QRect &r);
     QRect rect() const;
 
+    /**
+     * @brief 按原厂规则给四个框定取值范围
+     *
+     * 规则是从原厂 ui-tools.exe 反汇编出来的（属性面板刷新那个函数，
+     * VA 0x00424AC0），不是猜的，也不是从工程数据反推的：
+     *
+     * @code
+     *   宽.setMaximum(父宽);  高.setMaximum(父高);        // 无条件，先做
+     *   if (自身类型 == NewLayout(3) || 自身类型 == NewLayer(4)) {
+     *       X.setRange(-999, 999);  Y.setRange(-999, 999);
+     *   } else {
+     *       X.setMaximum(父宽 - 自身宽);  X.setMinimum(0);
+     *       Y.setMaximum(父高 - 自身高);  Y.setMinimum(0);
+     *   }
+     * @endcode
+     *
+     * 宽/高的**最小值原厂一次都没设**，QSpinBox 默认就是 0，所以宽高可以填 0。
+     * 详见 docs/FACTORY_UI.md 第 10 节。
+     *
+     * @param parentSize 父容器的宽高；给空 QSize 表示父级未知，四个框回到宽松默认
+     * @param ownSize    自身当前的宽高（原厂取的是节点里的值，不是框里的值）
+     * @param container  自身是不是 NewLayout / NewLayer
+     */
+    void  setBounds(const QSize &parentSize, const QSize &ownSize, bool container);
+
 signals:
     void rectEdited(const QRect &r);
 

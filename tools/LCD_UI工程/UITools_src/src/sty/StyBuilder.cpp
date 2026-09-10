@@ -1,5 +1,6 @@
 #include "StyBuilder.h"
 
+#include <algorithm>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -70,16 +71,67 @@ void poke32(QByteArray &b, int off, quint32 v)
 void put16(QByteArray &b, quint16 v) { char t[2]; qToLittleEndian(v, reinterpret_cast<uchar *>(t)); b.append(t, 2); }
 void put32(QByteArray &b, quint32 v) { char t[4]; qToLittleEndian(v, reinterpret_cast<uchar *>(t)); b.append(t, 4); }
 
-/// 万分比换算：原厂用的是**向上取整**，不是四舍五入（95*10000/128=7421.875 -> 7422）
+
+/**
+ * 数字感知的次序比较：把连续数字段当整数比，其余按字符比。
+ *
+ * 原厂给文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
+ * 不是 QStringList::sort() 的字典序（那会得到 m1 < m22 < m3）。
+ * 证据见 docs/FILE_FORMATS.md。
+ *
+ * @note 这套工程的 ResID 全是 m<数字> 形式，所以"按数字排"和"按 xls 行序排"
+ *       在现有数据上结果相同，无法区分。选数字序是因为它不依赖 xls 能不能读到。
+ */
+static bool natLess(const QString &a, const QString &b)
+{
+    int i = 0, j = 0;
+    while (i < a.size() && j < b.size()) {
+        const QChar ca = a.at(i), cb = b.at(j);
+        if (ca.isDigit() && cb.isDigit()) {
+            int si = i, sj = j;
+            while (i < a.size() && a.at(i).isDigit()) {
+                ++i;
+            }
+            while (j < b.size() && b.at(j).isDigit()) {
+                ++j;
+            }
+            const QString na = a.mid(si, i - si), nb = b.mid(sj, j - sj);
+            const qlonglong va = na.toLongLong(), vb = nb.toLongLong();
+            if (va != vb) {
+                return va < vb;
+            }
+            continue;
+        }
+        if (ca != cb) {
+            return ca < cb;
+        }
+        ++i;
+        ++j;
+    }
+    return (a.size() - i) < (b.size() - j);
+}
+
+/**
+ * 万分比换算：`(v * 10000 + ref - 1) / ref`，**正负都走这一条**，
+ * 除法用 C 的向零截断。正数看起来像"向上取整"（95*10000/128=7421.875 -> 7422）。
+ *
+ * 【负数不要另开分支】以前这里给负数单独写了 -((-num)/d)，等于对负数做向零
+ * 截断，和原厂对不上：原厂 SDK 那个 y=-11 的控件（父高 64），
+ *     本版 -((110000)/64)          = -1718
+ *     原厂 (-110000 + 63) / 64     = -1717   （project.bin 0x54C4 实测）
+ * 差 1。原厂就是不分正负套同一个式子，负数时 "+ref-1" 反而把商往零推了一格。
+ * 这套工程里只有一个负坐标，所以一直没暴露。
+ *
+ * 对照件：jl701n_soundbox_release_v1.4.2_oled/sdk/cpu/br28/tools/UI工程/
+ *         ui_128_64_JL02/模式界面/project/project.bin（原厂工具自己生成的）
+ */
 int perMyriad(int v, int ref)
 {
     if (ref == 0) {
         return 0;
     }
-    // 注意：C++ 的整数除法向零截断，不能照搬 Python 的 -((-a)//b)。
-    const qint64 num = qint64(v) * 10000;
-    const qint64 d = ref;
-    return int(num >= 0 ? (num + d - 1) / d : -((-num) / d));
+    const qint64 num = qint64(v) * 10000 + ref - 1;
+    return int(num / ref);          // C++ 整数除法向零截断，和原厂一致
 }
 
 /// "#AARRGGBB" -> (RGB565, alpha 百分比)。空串是"未设置"，用 0xFFFFFF/100 当哨兵。
@@ -148,16 +200,10 @@ static const char *const kLangNames[22] = {
     "\xe9\x98\xbf\xe6\x8b\x89\xe4\xbc\xaf\xe8\xaf\xad",     // 阿拉伯语
 };
 
+/// 文件名 -> 宏名。不做字符净化，理由见 ResBuilderCore.cpp 的同名函数。
 QString symbolOf(const QString &path)
 {
-    QString s = QFileInfo(path).completeBaseName().toUpper();
-    for (int i = 0; i < s.size(); ++i) {
-        const QChar c = s.at(i);
-        if (!(c.isLetterOrNumber() && c.unicode() < 128) && c != QLatin1Char('_')) {
-            s[i] = QLatin1Char('_');
-        }
-    }
-    return s;
+    return QFileInfo(path).completeBaseName().toUpper();
 }
 
 } // namespace
@@ -495,12 +541,16 @@ Output Builder::build(const Options &opt)
         for (const QString &p : pagePicRefs[pi]) {
             syms.append(symbolOf(p));
         }
-        syms.sort();
+        /* 【自然序】必须和 ResBuilderCore::collectPictures() 一致，
+         * 否则 project.bin 里引用的图片号和 result_pic_index.h 对不上。 */
+        std::sort(syms.begin(), syms.end(), natLess);
         for (int i = 0; i < syms.size(); ++i) {
             picId[pi].insert(syms.at(i), i + 1);
         }
     }
-    allCells.sort();
+    /* 【按数字排，不是字典序】和 ResBuilderCore::collectStrings() 必须一致，
+     * 否则 project.bin 里写的字符串号和 result_str_index.h 对不上。 */
+    std::sort(allCells.begin(), allCells.end(), natLess);
     for (int i = 0; i < allCells.size(); ++i) {
         cellId.insert(allCells.at(i), i + 1);
     }
@@ -772,7 +822,16 @@ Output Builder::build(const Options &opt)
                 arrU16(rec, 68, QStringLiteral("delimiter"), 10);
                 arrU16(rec, 88, QStringLiteral("space"), 2);
                 break;
-            case 33:                                   // vslider
+            /* 【slider 和 vslider 记录布局完全一样】以前只写了 33(vslider)，
+             * 28(slider) 掉进 default 什么都不做 —— step 不写、子元素指针留空、
+             * 重定位表里也少一项。固件按空指针找不到滑块子元素，水平 slider
+             * 在设备上就是画不出滑块。
+             * 对照原厂 project.bin（jl701n SDK 那份 oled 工程）：
+             *   slider  +16 = 01 ff ff ff   +20 = a4 01 00 00
+             *   本版原来 +16 = 00 00 00 00   +20 = 00 00 00 00
+             * vslider 两边本来就一致，正好说明是这个 case 漏了。 */
+            case 28:                                   // slider（水平）
+            case 33:                                   // vslider（垂直）
                 rec[16] = char(propOf(n->obj, QStringLiteral("step"))
                                .value(QStringLiteral("default")).toInt());
                 rec[17] = char(0xFF);       // u8 step 后面的对齐空洞
@@ -954,7 +1013,12 @@ Output Builder::build(const Options &opt)
 
     QByteArray sty;
     put32(sty, uiVersion);
-    put32(sty, 0x6A978292u);
+    /* 【这不是魔数，是生成时间戳】以前当常量抄了一个样本值。实测原厂两份
+     * 产物这里分别是 0x6AA11723 / 0x6A85455D，换算成 Unix 时间正好等于各自
+     * project.bin 的文件时间（精确到秒）。固件 struct ui_file_head 把前 16
+     * 字节当 res[16] 不透明块，只读前 4 字节的 UI_VERSION，这一格不参与任何
+     * 判断 —— 和 resver 一样属于"天然不可复现"的字段。 */
+    put32(sty, quint32(QDateTime::currentSecsSinceEpoch()));
     put32(sty, 16);
     put32(sty, quint32(cur - HEAD_SZ - WHEAD_SZ * npg));
     sty.append(char(1));

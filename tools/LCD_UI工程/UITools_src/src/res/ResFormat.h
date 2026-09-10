@@ -97,8 +97,15 @@ inline quint16 crc16(const QByteArray &b, quint16 init = 0)
  */
 inline int monoSize(int w, int h) { return w * ((h + 7) / 8); }
 
-/// 原厂 dwLength 字段的值（保留这个 bug 以便和原厂输出逐字节对齐）
-inline int legacyLength(int w, int h) { return (w + 7) * ((h + 7) / 8); }
+/**
+ * @brief 原厂写进 dwLength 的值（保留这个 bug 以便和原厂输出逐字节对齐）
+ * @note  括号打错的位置是 **h 那一边**：正确写法 ((w+7)/8)*h，原厂写成
+ *        (w+7)*h/8。当 h 是 8 的倍数时两种理解（(w+7)*(h/8) 与 (w+7)*h/8）
+ *        结果相同，全工程 314 张图里只有 26x26 那 4 张 h 不是 8 的倍数，
+ *        原厂给的是 (26+7)*26/8 = 107 而不是 (26+7)*4 = 132 —— 以此定案。
+ *        存进文件的仍然是 monoSize() 那么多字节，dwLength 只是个错的声明。
+ */
+inline int legacyLength(int w, int h) { return (w + 7) * h / 8; }
 
 } // namespace res
 

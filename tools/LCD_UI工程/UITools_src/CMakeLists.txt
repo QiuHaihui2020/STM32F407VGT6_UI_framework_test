@@ -123,6 +123,7 @@ set(RES_CORE
     src/res/TextRaster.cpp
     src/res/XlsReader.cpp
     src/res/ResConfig.cpp
+    src/res/ResFontDat.cpp
     src/res/ResBuilderCore.cpp
 )
 

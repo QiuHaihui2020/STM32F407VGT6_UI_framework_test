@@ -12,6 +12,7 @@
 #include <QVector>
 
 #include "ResConfig.h"
+#include "ResFontDat.h"
 #include "ResFormat.h"
 
 namespace res {
@@ -73,6 +74,7 @@ private:
     QVector<int>                   m_langs;     ///< 生效语言下标
     QVector<QStringList>           m_xls;       ///< xls 原始表（含表头行）
     QMap<QString, int>             m_cellRow;   ///< 小写 cell -> xls 行号
+    ResFontDat                     m_fontDat;   ///< Resbuilder.dat 里的逐格字体
 
     struct Raster { int w = 0; int h = 0; QByteArray data; };
     QVector<QVector<Raster> > m_strBits;        ///< [语言][字符串]
