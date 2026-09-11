@@ -272,10 +272,11 @@ ResBuilder.exe [Resbuilder.xml] [-o 输出目录] [--verify 参考目录]
 
 ```
 tools\LCD_UI工程\
-    UIProject\                             37 MB
-        step1/2/3-*.bat  clear.bat         打开 / 生成 / 自检
+    UIProject\                             40 MB
+        注册文件关联.bat  新建工程.bat       一次性动作
         project\                           工程本体（打开的就是它）
         tool\                              三个 exe + Qt + assets\
+        tool_src\                          源码，编出来装进 tool\
 ```
 
 工程里的相对路径只有一条约定：从 `<UI工程>\project` 看，工具在 `..\tool`。
@@ -398,12 +399,12 @@ CSS属性_N → 控件专有属性）；右侧页面栏逐页渲染；画布贴�
 ## 目录
 
 ```
-UITools_src/
+tool_src/
 ├─ build.bat            编三个 exe
 ├─ dist.bat             打成能独立运行的一套
-├─ mkdist_tooldir.bat   装配 ..\UIToolkit\
-├─ mkdist_project.bat   装配 ..\ui_128_64_app\
-├─ tooldir\             装进工具目录的覆盖层：README / 新建工程.bat
+├─ mkdist_tooldir.bat   装配 ..\tool\
+├─ mkdist_project.bat   种一个新工程（一次性）
+├─ tooldir\             装进 tool\ 的覆盖层：README / 自检 / clear
 ├─ projectdir\          装进工程目录的覆盖层：family / screen / newproject
 ├─ CMakeLists.txt  UITools.pro
 ├─ include/          编辑器的 21 个头文件

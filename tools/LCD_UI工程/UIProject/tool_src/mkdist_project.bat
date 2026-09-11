@@ -3,7 +3,7 @@ rem ===========================================================================
 rem  Seed a UI project dir from an existing project.
 rem
 rem  Usage:  mkdist_project.bat [target dir] [source project] [force]
-rem      defaults:  ..\UIProject   ..\ui_128_64_JL02
+rem      defaults:  ..   ..\..\ui_128_64_JL02
 rem
 rem  Shape produced (the tools go in with mkdist_tooldir.bat):
 rem      <ui project>\
@@ -34,7 +34,7 @@ rem      release.bat       wildcard deletes (del *.txt / *.xml / config\*.png)
 rem                        that also wipe version.txt and the text preview
 rem                        images - tool\clear.bat does the job precisely
 rem
-rem  Overlaid from UITools_src\projectdir\ (so this stays reproducible):
+rem  Overlaid from tool_src\projectdir\ (so this stays reproducible):
 rem      screen\   -> target root   file-association + new-project scripts,
 rem                                 project\Application Data\ui-config,
 rem                                 project\copy_file.bat
@@ -46,9 +46,9 @@ setlocal enabledelayedexpansion
 
 set HERE=%~dp0
 set OUT=%~1
-if "%OUT%"=="" set OUT=%HERE%..\UIProject
+if "%OUT%"=="" set OUT=%HERE%..
 set SRC=%~2
-if "%SRC%"=="" set SRC=%HERE%..\ui_128_64_JL02
+if "%SRC%"=="" set SRC=%HERE%..\..\ui_128_64_JL02
 set FORCE=%~3
 
 if not exist "%SRC%" (

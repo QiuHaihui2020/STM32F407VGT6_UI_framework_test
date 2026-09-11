@@ -10,7 +10,7 @@ setlocal
 set EXE=%~dp0tool\UITools.exe
 if not exist "%EXE%" (
     echo [关联] 找不到 %EXE%
-    echo [关联] 先在 UITools_src 里跑 build.bat 和 mkdist_tooldir.bat
+    echo [关联] 先在 tool_src 里跑 build.bat 和 mkdist_tooldir.bat
     pause
     exit /b 1
 )

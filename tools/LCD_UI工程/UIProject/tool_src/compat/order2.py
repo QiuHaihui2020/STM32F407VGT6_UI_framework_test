@@ -3,7 +3,6 @@
 import struct
 import sys
 from collections import defaultdict, Counter
-sys.path.insert(0, r'D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\UITools_src\re')
 from sty_dump import parse
 from sty_blocks import PTRS, NONE
 

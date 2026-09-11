@@ -4,8 +4,8 @@
 本目录住在它服务的那个 UI 工程里 —— `<UI工程>\tool\` ——
 所以工程里的脚本用 `..\tool` 就找到这里。固件那边一行都不用改。
 
-源码在 [`../../UITools_src/`](../../UITools_src/)。
-本目录由 `UITools_src\mkdist_tooldir.bat` 生成，**不要手改** —— 改了下次重新
+源码在 [`../tool_src/`](../tool_src/)。
+本目录由 `tool_src\mkdist_tooldir.bat` 生成，**不要手改** —— 改了下次重新
 生成就没了。唯一的例外是 `assets\`：它在版本库里，改了直接提交。
 
 ---
@@ -22,7 +22,7 @@
 
 ### 数据与配置
 
-全在 `assets\` 下（代码里的解析和兜底见 `../UITools_src/src/core/AssetPaths.h`）：
+全在 `assets\` 下（代码里的解析和兜底见 `../tool_src/src/core/AssetPaths.h`）：
 
 | 文件 | 干什么 |
 |---|---|
@@ -190,7 +190,7 @@ UITools.exe --ops-test --out r.txt      # 不给工程路径
 
 工程没找到的话控件库那一串断言立刻塌下来（正常是 449 项全过）。
 
-其余脚本见 `../UITools_src/README.md` 的校验脚本表。
+其余脚本见 `../tool_src/README.md` 的校验脚本表。
 
 ---
 

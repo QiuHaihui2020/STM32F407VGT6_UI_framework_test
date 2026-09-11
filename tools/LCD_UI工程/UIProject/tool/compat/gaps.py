@@ -2,7 +2,6 @@
 """把 sty_blocks 没覆盖到的字节打出来看。"""
 import struct
 import sys
-sys.path.insert(0, r'D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\UITools_src\re')
 from sty_dump import parse
 from sty_blocks import PTRS, CSS_SIZE, NONE, u16, u32
 

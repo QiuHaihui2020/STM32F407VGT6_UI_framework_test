@@ -3,7 +3,7 @@ rem ===========================================================================
 rem  Assemble the tool dir that lives inside a UI project: <ui project>\tool\ .
 rem
 rem  Usage:  mkdist_tooldir.bat [target dir] [Qt root]
-rem      defaults:  ..\UIProject\tool   C:\Qt\5.15.2\msvc2019_64
+rem      defaults:  ..\tool   C:\Qt\5.15.2\msvc2019_64
 rem
 rem  Run build.bat first.
 rem
@@ -11,7 +11,7 @@ rem  What this script puts in:
 rem      UITools.exe QtToolBin.exe ResBuilder.exe  the three tools
 rem      Qt5*.dll platforms\ imageformats\ styles\ Qt runtime (no env needed)
 rem      compat\                                  the verification scripts
-rem      README.md, self-check + clear scripts    from UITools_src\tooldir\
+rem      README.md, self-check + clear scripts    from tool_src\tooldir\
 rem      template\                                empty project to clone
 rem
 rem  What is ALREADY there and is NOT touched:
@@ -36,7 +36,7 @@ setlocal enabledelayedexpansion
 
 set HERE=%~dp0
 set OUT=%~1
-if "%OUT%"=="" set OUT=%HERE%..\UIProject\tool
+if "%OUT%"=="" set OUT=%HERE%..\tool
 set QT_DIR=%~2
 if "%QT_DIR%"=="" set QT_DIR=C:\Qt\5.15.2\msvc2019_64
 set BUILD_DIR=C:\bt\uitools

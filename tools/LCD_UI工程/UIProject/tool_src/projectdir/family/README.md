@@ -76,5 +76,5 @@ cd project
 清生成物用 `tool\clear.bat`，它按实际产物**逐个文件**删。别用通配符删这个
 目录 —— `version.txt` 和 `config\*.png` 不是生成物，删了找不回来。
 
-这个目录当初是 `..\UITools_src\mkdist_project.bat` 从既有工程种出来的。
+这个目录当初是 `tool_src\mkdist_project.bat` 从既有工程种出来的。
 **别再跑一次** —— 那会把这里的设计覆盖回种子工程的样子（脚本本身也会拦）。
