@@ -1,6 +1,6 @@
 @echo off
 rem ===========================================================================
-rem  JieLi UI toolchain (rebuilt) - one-shot build
+rem  Dot-matrix UI toolchain - one-shot build
 rem
 rem  Builds three executables:
 rem      UITools.exe     layout editor (replaces ui-tools.exe)

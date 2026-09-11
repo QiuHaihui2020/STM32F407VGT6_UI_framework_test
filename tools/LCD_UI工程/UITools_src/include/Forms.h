@@ -1,18 +1,17 @@
 /*
  * Forms.h —— 画布上的可编辑控件族
  *
- * 【接口来源】类名、继承关系、signals/slots 全部取自 ui-tools.exe 里逆向出的
- * Qt moc 元数据（见 docs/RECOVERED_CLASSES.txt）。带 ★ 的成员是原始二进制里
- * 确实存在的，签名逐字一致，不要改；其余是本次重写为了实现功能新增的。
+ * 【类族】继承关系与 signals/slots 如下。带 ★ 的是画布控件对外的固定接口，
+ * 别的地方按签名连着，改动要一起改。
  *
  *   FormResizer      : QWidget      ★ signal formWindowSizeChanged(QRect, QRect)
  *   SizeHandleRect   : QWidget      ★ signal mouseButtonReleased(QRect, QRect)
  *   BaseForm         : FormResizer  ★ enum ObjTypes + 13 个槽
  *   NewLayer/NewLayout/NewFrame/NewList/NewGrid : BaseForm
  *
- * FormResizer / SizeHandleRect 这两个名字来自 Qt Designer 自带的
- * qdesigner_internal（formresizer.cpp / widgetselection.cpp）。原作者把那份
- * 代码抄进了工程并挪出命名空间 —— 从二进制看它们是全局符号，不带命名空间。
+ * FormResizer / SizeHandleRect 这两个名字沿用 Qt Designer 自带的
+ * qdesigner_internal（formresizer.cpp / widgetselection.cpp）里的叫法，
+ * 但这里是全局符号，不带命名空间。
  */
 #ifndef FORMS_H
 #define FORMS_H
@@ -48,7 +47,7 @@ public:
     void updatePosition();
 
 signals:
-    /* ★ 原始签名：void mouseButtonReleased(QRect, QRect) —— 参数在二进制里没有名字 */
+    /* ★ 签名：void mouseButtonReleased(QRect, QRect) */
     void mouseButtonReleased(QRect a0, QRect a1);
 
 protected:
@@ -127,7 +126,7 @@ class BaseForm : public FormResizer
     Q_OBJECT
 
 public:
-    /* ★ 逆向自二进制的枚举，取值不要动：.sty 里控件 type 依赖它 */
+    /* ★ 取值不要动：.sty 里控件 type 依赖它 */
     enum ObjTypes {
         T_NewLayer  = 0,
         T_NewLayout = 1,
@@ -167,7 +166,7 @@ public:
     /**
      * 画布和对象树共用的右键菜单。
      *
-     * 原厂两边是同一套动作 —— 从 ui-tools.exe 里扒出来的那一串菜单文字
+     * 两边是同一套动作 —— 那一串菜单文字
      * （"删除当前-%1 / 保存成控件 / 显示同类容器 / 显示 / 隐藏同类容器 /
      * 隐藏 / 复制 / 粘贴 / 查找对像" 加上 "移到顶层 / 移上一层 / 移下一层 /
      * 移到底层"）就是这个菜单，TreeDock 只是把右键位置转发过来。
@@ -176,7 +175,7 @@ public:
 
     /* 右键菜单里那几个动作也单独暴露出来：对象树要用，自测（--ops-test）
      * 也要用 —— 只有能在没人点鼠标的情况下跑，这些限制才谈得上回归。 */
-    /** "粘贴"。判得了就贴，判不了按原厂的话术拒绝。 */
+    /** "粘贴"。判得了就贴，判不了按提示语拒绝。 */
     void doPaste();
     /** "保存成控件"。 */
     void saveAsTemplate();
@@ -192,7 +191,7 @@ signals:
     void userHideRequested(UiNode *n);
 
 public slots:
-    /* ★ 以下 13 个槽的名字与签名逐字来自二进制 */
+    /* ★ 以下 13 个槽的名字与签名各处都按它连着，别随手改 */
     void onXYWHChangedValue(int v);
     void onSwapViewObject();
     void onClearJsonValue();

@@ -1,7 +1,7 @@
 /*
  * BuildDate.h —— 标题栏上那个"(Build:YYYY-MM-DD)"。
  *
- * 原厂标题就是 "UI编辑工具(Build:2020-06-09) SmallColorTFT" 这个样子，
+ * 标题形如 "UI编辑工具(Build:2020-06-09) SmallColorTFT"，
  * 三个工具都跟着来，这样用户报问题时报的标题能直接对上是哪个版本。
  *
  * 【为什么用 __DATE__ 而不是运行时的今天】它标的是"你手上这个 exe 是哪天编的"。

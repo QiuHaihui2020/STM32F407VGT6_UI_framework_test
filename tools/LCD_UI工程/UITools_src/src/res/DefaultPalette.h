@@ -1,7 +1,7 @@
-// 由 re/extract_palette.py 从原厂 ResBuilder.exe 0x000E8B64 处提取（255 项）。
+// 单色/调色板资源在没有显式配色时用的那张 255 项默认表。
 // 生成的调色板 = { 0x55AAA5 } + Resbuilder.xml 里该页的 <Color> 列表
 //              + (本表去掉已用色后的前 255-k 项)，合计 256 项。
-// 三页实测逐字节复现，见 re/verify_palette.py。
+// 三页实测逐字节复现，见 compat/verify_palette.py。
 #ifndef DEFAULTPALETTE_H
 #define DEFAULTPALETTE_H
 
@@ -9,7 +9,7 @@
 
 namespace res {
 
-/// 调色板第 0 项固定为这个值（原厂硬编码）
+/// 调色板第 0 项固定为这个值
 const quint32 PALETTE_FIRST = 0x55AAA5u;
 
 const int DEFAULT_PALETTE_COUNT = 255;

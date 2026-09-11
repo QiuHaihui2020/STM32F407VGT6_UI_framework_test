@@ -41,7 +41,7 @@
 #define Q_TYPE(header)      ((int)(header) & Q_TYPE_MASK)
 
 /* ======================================================================
- * 错误码 —— 照抄杰理 SDK interface/system/os/os_error.h 的【枚举顺序】
+ * 错误码 —— 取值与 SDK 侧 os_error.h 的【枚举顺序】保持一致
  *
  * 顺序不能动: 杰理代码里会直接比 OS_TASKQ / OS_TIMEOUT / OS_Q_FULL 这些名字,
  * 取值必须和 703 一致(OS_TASKQ = 13, OS_TIMEOUT = 11, ...)。

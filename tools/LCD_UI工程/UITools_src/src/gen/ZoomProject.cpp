@@ -9,7 +9,7 @@
 #include <QVBoxLayout>
 
 /*
- * 文字逐字来自 ui-tools.exe：
+ * 界面文字：
  *     工程缩放 / 界面尺寸 / 当前尺寸: / 新的尺寸: / 更新工程尺寸
  *     对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零.
  *     注意: 该工程对应的图片资源也要进行缩放，否则显示不完整.
@@ -33,7 +33,7 @@ ZoomProject::ZoomProject(QWidget *parent)
     m_w->setObjectName(QStringLiteral("spinBoxW"));
     m_h = new QSpinBox(this);
     m_h->setObjectName(QStringLiteral("spinBoxH"));
-    /* 原厂整数输入框的上限提示是"9999 内的整数"，这里跟着走 */
+    /* 整数输入框的上限提示是"9999 内的整数" */
     m_w->setRange(1, 9999);
     m_h->setRange(1, 9999);
 
@@ -56,7 +56,7 @@ ZoomProject::ZoomProject(QWidget *parent)
 
     auto *box = new QDialogButtonBox(this);
     box->setObjectName(QStringLiteral("buttonBox"));
-    /* 原厂的确定按钮就叫"更新工程尺寸"，不是 OK */
+    /* 确定按钮叫"更新工程尺寸"，不是 OK */
     box->addButton(QStringLiteral("更新工程尺寸"), QDialogButtonBox::AcceptRole);
     box->addButton(QStringLiteral("取消"), QDialogButtonBox::RejectRole);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);

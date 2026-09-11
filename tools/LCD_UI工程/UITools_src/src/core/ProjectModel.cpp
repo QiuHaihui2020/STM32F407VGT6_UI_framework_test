@@ -95,7 +95,7 @@ QRect UiNode::rectOf(int state) const
 }
 
 /* ---- CSS 状态的增删改 ---------------------------------------------------
- * 原厂属性面板上"清除 / 复制添加 / 复制插入 / 删除活动项"四个按钮动的就是
+ * 属性面板上"清除 / 复制添加 / 复制插入 / 删除活动项"四个动作动的就是
  * property[-name=="element_css"].struct 这个数组，一项 = 一个 CSS 状态，
  * 也就是页签上的 CSS属性_0 / _1 / …  改完必须把属性和节点一起标脏，否则
  * nodeToJson() 会直接吐原始 m_raw，改动全丢。 */
@@ -350,7 +350,7 @@ UiNode *ProjectModel::nodeFromJson(const QJsonObject &o, UiNode *parent)
 QJsonObject ProjectModel::nodeToJson(const UiNode *n)
 {
     /* 起点永远是原始对象：没动过的键、没建模的键都原样带走。
-     * QJsonObject 的键天然按字典序，与原厂 Qt 写出来的顺序一致。 */
+     * QJsonObject 的键天然按字典序，和工程文件里的顺序一致。 */
     QJsonObject o = n->m_raw;
 
     bool childDirty = false;
@@ -475,7 +475,7 @@ bool ProjectModel::load(const QString &path, QString *err)
     const QJsonObject root = doc.object();
     if (root.value(QStringLiteral("-type")).toString() != QLatin1String("project")) {
         if (err) {
-            *err = QStringLiteral("不是 ui-tools 工程文件（顶层 -type 应为 project）");
+            *err = QStringLiteral("不是 UI 工程文件（顶层 -type 应为 project）");
         }
         return false;
     }
@@ -506,7 +506,7 @@ QByteArray ProjectModel::toJsonBytes() const
             root.insert(QStringLiteral("lang_excel"), m_langExcel);
         }
     } else {
-        /* activePage 是纯视图状态，原厂也会随手更新，单独放行 */
+        /* activePage 是纯视图状态，会被随手更新，单独放行 */
         root.insert(QStringLiteral("activePage"), m_activePage);
     }
 
@@ -527,7 +527,7 @@ QByteArray ProjectModel::toJsonBytes() const
         root.insert(QStringLiteral("pages"), pageArr);
     }
 
-    /* 原厂就是 QJsonDocument::toJson(Indented)：4 空格、键字典序、
+    /* 格式就是 QJsonDocument::toJson(Indented)：4 空格、键字典序、
      * 空数组 "[\n<缩进>]"、UTF-8 不转义、末尾一个 \n。二进制写出即字节一致。 */
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
@@ -535,7 +535,7 @@ QByteArray ProjectModel::toJsonBytes() const
 bool ProjectModel::save(const QString &path, QString *err) const
 {
     /* QSaveFile：写一半崩掉不会毁掉原工程 —— 这类文件动辄几 MB，
-     * 写崩一次就是一天的活。注意必须是二进制模式，原厂是纯 LF。 */
+     * 写崩一次就是一天的活。注意必须是二进制模式，行尾是纯 LF。 */
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly)) {
         if (err) {
@@ -634,7 +634,7 @@ void ProjectModel::createDefault(const QString &projName, const QSize &pageSize,
     page->caption = QStringLiteral("页面_0");
     page->rect = QRect(1, 1, pageSize.width(), pageSize.height());
     UiProperty rp;
-    rp.raw = mkBareRect(page->rect);      // -name 留空 = 原厂那种裸 rect
+    rp.raw = mkBareRect(page->rect);      // -name 留空 = 裸 rect
     page->props.append(rp);
     page->m_childKeysPresent.append(QStringLiteral("layer"));
 
@@ -689,8 +689,8 @@ void ProjectModel::createDefault(const QString &projName, const QSize &pageSize,
      * 找没被占用的名字的 —— 在 mkBox 里分配的话，图层还没挂上去，
      * 扫不到它，图层和布局会双双拿到 "BaseForm"。
      * 重名的后果：ename.h 里同一个宏 define 两遍，谁后写谁赢，
-     * 业务代码引用到的是哪个全看运气（原厂/本版对拍时表现为这一条的
-     * 类型码对不上：原厂给的是图层的 4，本版给的是布局的 3）。
+     * 业务代码引用到的是哪个全看运气（比对时表现为这一条的
+     * 类型码对不上：该是图层的 4，给成了布局的 3）。
      *
      * 空的 ename 同样致命：宏名是空的，写出来就是 `#define  0XC30002`。 */
     page->forEach([this](UiNode *n) {
@@ -829,12 +829,12 @@ int ProjectModel::nodeSeq(const UiNode *node) const
 /**
  * 对象树第一列显示什么。
  *
- * 【为什么不能直接显示 -name】原厂工程里绝大多数节点的 -name 就是
+ * 【为什么不能直接显示 -name】工程里绝大多数节点的 -name 就是
  * "<caption>_<序号>"（图层_0 / 电池电量_2 …），直接显示没问题；但
  * VerticalList 这类节点的 -name 是**裸的类型名** "VerticalList"，
- * 而原厂界面上显示的是 "垂直列表_16" —— 也就是说原厂在 -name 没被正经
+ * 而界面上要显示成 "垂直列表_16" —— 也就是说 -name 没被正经
  * 命名过的时候，是拿 caption + 序号 现算的。之前我照搬 -name，树上就
- * 冒出一个英文 "VerticalList"，和原厂对不上。
+ * 冒出一个英文 "VerticalList"，和其它节点的显示风格对不上。
  *
  * 【说清楚不确定的地方】能区分这两种规则的样本只有这一种（-name == -type），
  * 所以"什么算没正经命名"我取的是最保守的判据：空、等于 -type、等于 -class。

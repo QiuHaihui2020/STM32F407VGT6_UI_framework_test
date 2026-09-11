@@ -44,7 +44,7 @@ QVector<int> ResConfig::activeLanguages() const
 
 quint16 ResConfig::panelTypeCode() const
 {
-    // 实测：LCDPANEL 落盘为 0。原厂空工程里出现过 1（OLEDPANEL）。
+    // 实测：LCDPANEL 落盘为 0。空工程里出现过 1（OLEDPANEL）。
     return panelType.compare(QLatin1String("OLEDPANEL"), Qt::CaseInsensitive) == 0 ? 1 : 0;
 }
 
@@ -61,7 +61,7 @@ bool ResConfig::load(const QString &path, QString *error)
     f.close();
     baseDir = QFileInfo(path).absolutePath();
 
-    // 编码：原厂写的确实是 UTF-8（原厂随工具发的 UITools/Resbuilder.xml 里
+    // 编码：写的确实是 UTF-8（现成的 UITools/Resbuilder.xml 里
     // "多"是 E5 A4 9A、"宋体"是 E5 AE 8B E4 BD 93），和 XML 头声明的一致。
     // 但历史上本工具自己写出过 GBK 的版本（toLocal8Bit，见 StyBuilder.cpp 里
     // 那段说明），所以读的时候仍然两种都认：先按 UTF-8 试，解出替换字符或者
@@ -71,7 +71,7 @@ bool ResConfig::load(const QString &path, QString *error)
     if (text.contains(QChar(0xFFFD)) || text.toUtf8() != raw) {
         text = QString::fromLocal8Bit(raw);
     }
-    // 原厂 XML 头写的是 version='2.0'（世上并没有 XML 2.0），QXmlStreamReader
+    // XML 头写的是 version='2.0'（世上并没有 XML 2.0），QXmlStreamReader
     // 会直接报 "Unsupported XML version"。改成 1.0 再解析。
     if (text.startsWith(QLatin1String("<?xml"))) {
         const int end = text.indexOf(QLatin1String("?>"));

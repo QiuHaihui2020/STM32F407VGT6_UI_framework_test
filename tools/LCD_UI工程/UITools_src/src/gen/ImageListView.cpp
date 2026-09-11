@@ -54,7 +54,7 @@ QIcon thumbOf(const QString &absPath)
 ImageListView::ImageListView(QWidget *parent)
     : QDialog(parent)
 {
-    /* 标题逐字来自原厂（ui-tools.exe 0xc988e4） */
+    /* 标题 */
     setWindowTitle(QStringLiteral("图片编辑(双击选中图片并更新到控件)"));
     resize(720, 460);
 
@@ -88,7 +88,7 @@ ImageListView::ImageListView(QWidget *parent)
     });
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    /* 提示语也逐字来自原厂（0xc98918） */
+    /* 提示语 */
     auto *hint = new QLabel(QStringLiteral("双击选中图片并更新到控件显示."), this);
 
     auto *left = new QVBoxLayout;

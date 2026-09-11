@@ -1,10 +1,9 @@
-/* ImageFileDialog.h —— 类名/基类/槽签名来自 ui-tools.exe 的 moc 元数据，
- * 界面控件名来自 uic 留在二进制里的 QStringLiteral（treeView / listView …）。
- * 槽体是按行为重写的：原始实现是编译过的机器码，还原不了。
+/* ImageFileDialog.h ——
+ * 界面控件名：treeView / listView …。
  *
  * 用途：编辑控件的图片列表属性（json 里 -type 为 piclist / arrlist 的那些，
  * 例如 ImageList 的 normal_image、Battery 的 image、Time 的 number）。
- * 返回的路径是**相对工程目录**的正斜杠形式，和原厂工程文件里一致
+ * 返回的路径是**相对工程目录**的正斜杠形式，和工程文件里一致
  * （"config/pic_lcd/BATTLVL1.BMP"）。
  */
 #ifndef IMAGEFILEDIALOG_H

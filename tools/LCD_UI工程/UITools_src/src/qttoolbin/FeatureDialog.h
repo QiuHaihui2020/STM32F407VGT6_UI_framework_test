@@ -1,7 +1,7 @@
 /*
- * FeatureDialog.h —— 「功能设置」（原厂窗口标题是「配置界面」）。
+ * FeatureDialog.h —— 「功能设置」。
  *
- * 版式照原厂那一页复刻（见 temp/功能设置.jpg）：
+ * 版式：
  *   上半：「配置语言」表格 —— 语言 / 语言 / 字体 / 字号 / 斜体 / 加粗 / 下划线，
  *         右侧 上移 / 下移 / 增加 / 删除，再下面显示"选中: 13"
  *   左下：图片、资源文件名、bmp_transparent_color、png_background_color、
@@ -9,9 +9,8 @@
  *   右下：屏幕类型、大小端模式、颜色表类型、压缩方式(图片/字符)
  *   底部：对应 ResBuilder.exe 版本提示 + 确定
  *
- * 【表格里哪一行算"启用"】原厂是靠整行选中（截图里 1/2/5 行是蓝的）来表示的，
- * 右边那个"选中: 13"就是这几行拼出来的语言掩码（0x13 = bit0|bit1|bit4 =
- * 简体中文+繁体中文+英语）。这里照同一套：选中的行 = 启用的语言。
+ * 【表格里哪一行算"启用"】靠整行选中来表示，右边那个"选中: 13"就是这几行
+ * 拼出来的语言掩码（0x13 = bit0|bit1|bit4 = 简体中文+繁体中文+英语）。
  */
 #ifndef FEATUREDIALOG_H
 #define FEATUREDIALOG_H
@@ -42,7 +41,7 @@ public:
     ResbuilderOptions options() const;
 
     /* ---- 自检用（QFontDialog 是模态的，无人值守点不了）---- */
-    /** 单元格是不是都不可直接编辑（原厂就是只读，改字体走双击弹窗）。 */
+    /** 单元格是不是都不可直接编辑（只读，改字体走双击弹窗）。 */
     bool cellsReadOnlyForTest() const;
     /** 模拟"双击弹窗里选了这个字体然后按 OK"。 */
     void applyFontForTest(int row, const QFont &f);
@@ -52,7 +51,7 @@ public:
     void addLangForTest(const QString &name, const QString &key);
 
 private slots:
-    /** 双击整行 -> 标准 Select Font 弹窗（原厂就是这个）。 */
+    /** 双击整行 -> 标准 Select Font 弹窗。 */
     void onEditFont(int row, int col);
     void onMoveUp();
     void onMoveDown();

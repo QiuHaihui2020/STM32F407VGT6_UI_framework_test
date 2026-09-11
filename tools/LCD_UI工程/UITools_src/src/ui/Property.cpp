@@ -232,11 +232,9 @@ static void applyNoWheel(QWidget *root)
     }
 }
 
-/* 属性区里数值/枚举一律等宽字体 —— 原厂就是这个观感（截图里
- * ALIGN_CENTER / ELM_FLAG_NORMAL / SCROLL 都是等宽的）。 */
-/* 原厂属性区的数值/枚举是等宽的老式点阵观感（ALIGN_CENTER / ELM_FLAG_NORMAL /
- * BACKLIGHT_VALUE_LIST），对应 Windows 上的 Courier New；Consolas 太"现代"，
- * 字形对不上。 */
+/* 属性区里数值/枚举一律等宽字体：ALIGN_CENTER / ELM_FLAG_NORMAL /
+ * BACKLIGHT_VALUE_LIST 这类值排起来才齐。用 Windows 上的 Courier New，
+ * Consolas 太"现代"，和点阵屏的观感对不上。 */
 static QFont monoFont()
 {
     QFont f(QStringLiteral("Courier New"));
@@ -289,8 +287,8 @@ void DragButton::mouseMoveEvent(QMouseEvent *e)
 
     /* 【拖影】不给 pixmap 的话，鼠标底下什么都没有，用户根本看不出自己正在
      * 拖东西 —— 只有指针形状变一下。这里拿按钮自己的样子做拖影：控件列表的
-     * 按钮就是纯文字的（原厂 control.json 里引用的 config\images\*.ico
-     * 在原厂目录里压根不存在，所以原厂按钮也没图标），拖着一个写着"垂直列表"
+     * 按钮就是纯文字的（control.json 里引用的 config\images\*.ico 实际
+     * 并不存在，所以按钮上没图标），拖着一个写着"垂直列表"
      * 的小方块跟着鼠标走，一眼就知道拖的是什么。
      * 半透明是为了不挡住底下的落点。 */
     QPixmap shot = grab();
@@ -314,11 +312,11 @@ void DragButton::mouseMoveEvent(QMouseEvent *e)
 
 /* ===================== 取值范围 =====================
  *
- * 原厂对控件参数是**数据驱动**地限范围的：范围写在 control.json 的属性里
- * （min / max / maxlength），界面按它建编辑器。两条提示语能佐证：
+ * 控件参数是**数据驱动**地限范围的：范围写在 control.json 的属性里
+ * （min / max / maxlength），界面按它建编辑器。提示语两条：
  *
- *     0xc94de8  "请输入%1~%2的整数"     —— 属性写了 min/max 时用它
- *     0xc94e44  "请输入 0~9999 内的整数" —— 没写时的兜底
+ *     "请输入%1~%2的整数"     —— 属性写了 min/max 时用它
+ *     "请输入 0~9999 内的整数" —— 没写时的兜底
  *
  * 实际数据（control.json 183 条属性里带约束的）：
  *     int8   highlight / z_order / highlight_index   min=0  max=128
@@ -345,7 +343,7 @@ static void typeBound(const QString &ptype, int *lo, int *hi)
 }
 
 /**
- * 按原厂规则给整数编辑器定范围，并挂上原厂那句提示。
+ * 给整数编辑器定范围，并挂上对应的提示语。
  *
  * @param po    属性的 json（要读 min / max / -type）
  * @param allowNegative 允许负值（坐标 X/Y 用 —— oled 工程里真有 y=-11，
@@ -373,7 +371,7 @@ static void applyIntRange(QSpinBox *s, const QJsonObject &po, bool allowNegative
         hi = lo;
     }
     s->setRange(lo, hi);
-    /* 原厂这两句是干巴巴的 "请输入%1~%2的整数" / "请输入 0~9999 内的整数"，
+    /* 这两句本身干巴巴的 "请输入%1~%2的整数" / "请输入 0~9999 内的整数"，
      * 只说数字不说来历。这里补一句上限是哪来的 —— 模板写了就说模板，
      * 没写就说是按声明的类型兜的底，出问题时好定位。 */
     s->setToolTip(declared
@@ -412,9 +410,9 @@ FileEdit::FileEdit(QWidget *parent)
     lay->addWidget(m_pick, 0);
     lay->addWidget(m_clear, 0);
 
-    /* 【必须用原厂那个弹窗，不能用系统文件对话框】
+    /* 【必须用自带的图片弹窗，不能用系统文件对话框】
      *
-     * 原厂点"背景图片"弹的是 ImageListView（标题"图片编辑(双击选中图片并更新
+     * 点"背景图片"要弹 ImageListView（标题"图片编辑(双击选中图片并更新
      * 到控件)"，左目录树右缩略图，双击选中），和图片列表那个弹窗一个版式。
      *
      * 更要命的是路径形式：工程 json 里存的是**相对工程目录**的
@@ -458,7 +456,7 @@ void FileEdit::setFilePath(const QString &p)
  * 按钮上的样子：**选了图就显示这张图的缩略图**，和图片列表那边一致；
  * 没选就是原来的"背景图片"四个字。
  *
- * 【为什么不显示文件名】原厂就是直接把图画在按钮上 —— 点阵屏的图大多是
+ * 【为什么不显示文件名】直接把图画在按钮上 —— 点阵屏的图大多是
  * v_block / A0007JL 这类没有语义的名字，看名字根本认不出是哪张。
  */
 void FileEdit::refreshFace()
@@ -504,8 +502,8 @@ Backgroud::Backgroud(QWidget *parent)
     m_pick = new QPushButton(this);
     m_pick->setIcon(QIcon(QStringLiteral(":/icon/icons/gradient.png")));
     m_pick->setFixedWidth(34);
-    /* 原厂截图里"背景颜色"右边还有一个小按钮，就是手册 2.3 说的那个
-     * "删除背景颜色"的箭头：删掉之后它自己变灰。 */
+    /* "背景颜色"右边还有一个小按钮，就是手册 2.3 说的那个
+     * "删除背景颜色"：删掉之后它自己变灰。 */
     m_clear = new QPushButton(this);
     m_clear->setIcon(QIcon(QStringLiteral(":/icon/icons/act_del.png")));
     m_clear->setFixedWidth(24);
@@ -564,7 +562,7 @@ Position::Position(QWidget *parent)
     m_y = mkSpin("spinY");
     m_w = mkSpin("spinW");
     m_h = mkSpin("spinH");
-    /* 父级未知时的兜底范围。真正的范围由 setBounds() 按原厂规则重设 ——
+    /* 父级未知时的兜底范围。真正的范围由 setBounds() 重设 ——
      * 面板每次铺开都会调一次，所以这里只要不挡路就行。 */
     m_x->setRange(-999, 999);
     m_y->setRange(-999, 999);
@@ -603,9 +601,9 @@ QRect Position::rect() const
 
 void Position::setBounds(const QSize &parentSize, const QSize &ownSize, bool container)
 {
-    /* 【顺序照抄原厂】先无条件给宽高定上限，再按类型分叉定 X/Y。
+    /* 【次序要紧】先无条件给宽高定上限，再按类型分叉定 X/Y。
      * 上限用的是父容器的宽高，"自身宽/高"取的是节点里存着的值 ——
-     * 原厂在这一步还没往框里填值，读的就是模型。 */
+     * 这一步还没往框里填值，读的就是模型。 */
     const bool known = parentSize.isValid()
                        && parentSize.width() > 0 && parentSize.height() > 0;
     m_loading = true;
@@ -623,7 +621,7 @@ void Position::setBounds(const QSize &parentSize, const QSize &ownSize, bool con
 
     const int pw = parentSize.width();
     const int ph = parentSize.height();
-    /* 宽高的下限原厂从没设过，QSpinBox 默认就是 0 —— 照抄，不自作主张改成 1。 */
+    /* 宽高的下限不设，QSpinBox 默认就是 0 —— 别自作主张改成 1。 */
     m_w->setRange(0, pw);
     m_h->setRange(0, ph);
     m_w->setToolTip(tr("宽度：%1 ~ %2\n上限是父容器的宽度，控件不能比装它的容器还宽")
@@ -633,8 +631,8 @@ void Position::setBounds(const QSize &parentSize, const QSize &ownSize, bool con
 
     if (container) {
         /* NewLayout / NewLayer：位置不受父容器约束。
-         * 这不是宽松处理，是原厂就这么写的 —— 垂直列表的行本身是 NewLayout，
-         * 它们的 y 要能排到父容器高度之外（实测原厂工程里 y 排到 96、父高 48），
+         * 这不是宽松处理 —— 垂直列表的行本身是 NewLayout，
+         * 它们的 y 要能排到父容器高度之外（既有工程里 y 排到 96、父高 48），
          * 钳进去列表就没法多于一屏。 */
         m_x->setRange(-999, 999);
         m_y->setRange(-999, 999);
@@ -646,7 +644,7 @@ void Position::setBounds(const QSize &parentSize, const QSize &ownSize, bool con
         m_y->setToolTip(why.arg(tr("Y")).arg(m_y->minimum()).arg(m_y->maximum()));
     } else {
         /* 叶子控件：整个矩形必须留在父容器里。
-         * 原厂是 setMaximum(父宽-自身宽) 之后再 setMinimum(0)；宽度大于父宽时
+         * 先 setMaximum(父宽-自身宽) 再 setMinimum(0)；宽度大于父宽时
          * 上限算出来是负数，Qt 会把区间收成 [0,0]，这里直接 qMax 到 0，等价。 */
         m_x->setRange(0, qMax(0, pw - qMax(0, ownSize.width())));
         m_y->setRange(0, qMax(0, ph - qMax(0, ownSize.height())));
@@ -819,7 +817,7 @@ void CssProperty::clearRows()
 
 /* 这一页完全由数据驱动：element_css.struct[state] 里有什么属性就铺什么，
  * caption / -type / enum / 默认值全来自工程 json（源头是 control.json）。
- * 原厂那一列"对齐方式 / 默认隐藏 / 位置坐标 / 背景颜色 / 背景图片 /
+ * "对齐方式 / 默认隐藏 / 位置坐标 / 背景颜色 / 背景图片 /
  * 内边框线"就是这么来的 —— 写死反而会和别的控件对不上。 */
 QStringList CssProperty::rowsForTest() const
 {
@@ -872,16 +870,16 @@ void CssProperty::showNode(UiNode *n)
 
         if (ptype == QLatin1String("rect")) {
             /* 【列表/表格里的那一项不给填坐标】它的几何完全由容器的
-             * sizehw / space 决定（见 docs/FACTORY_UI.md §14.9）：第几格
+             * sizehw / space 决定（见 docs/UI_BEHAVIOR.md §14.9）：第几格
              * 就在第几格，宽高就是一格的大小。填了也会被下一次重排盖掉。
-             * 原厂就是不显示这一组 —— 用户对着原厂逐项比出来的。 */
+             * 所以这一组不显示。 */
             if (n->parent && (n->parent->cls == QLatin1String("NewList")
                               || n->parent->cls == QLatin1String("NewGrid"))) {
                 continue;
             }
             m_pos = new Position(this);
             m_pos->setTitle(cap.isEmpty() ? tr("位置坐标") : cap);
-            /* 【先定范围再填值】原厂就是这个次序（先 setMaximum 再 setValue）。
+            /* 【先定范围再填值】次序是先 setMaximum 再 setValue。
              * 反过来的话，值会被上一次的旧范围夹一道。 */
             const QRect own = n->rectOf(m_state);
             const bool container = (n->type == QLatin1String("NewLayout")
@@ -1031,7 +1029,7 @@ ComProperty::ComProperty(QWidget *parent)
     m_id->setFont(monoFont());
     m_box->addWidget(m_id);
 
-    /* m_dyn 不挂进自己的布局：原厂它排在 CSS属性 页签下面，
+    /* m_dyn 不挂进自己的布局：它排在 CSS属性 页签下面，
      * 由第二列的 dock 通过 dynamicSection() 取走摆放。 */
     m_dyn = new QWidget;
     m_dynForm = new QFormLayout(m_dyn);
@@ -1206,7 +1204,7 @@ QStringList ComProperty::dynRowsForTest(PropSection sec) const
 
 QStringList ComProperty::dynRowsForTest() const
 {
-    /* 【默认给两页合起来的】面板对拍(18x) 比的是"json 里该有的行有没有
+    /* 【默认给两页合起来的】面板自检(18x) 比的是"json 里该有的行有没有
      * 都铺出来"，拆成两页之后必须两页合起来看，否则每一页都会报"漏行"。 */
     return dynRowsForTest(SecBasic) + dynRowsForTest(SecResource);
 }
@@ -1232,7 +1230,7 @@ void ComProperty::showNode(UiNode *n)
 
     /* 除 id / rect 之外的属性按 control.json 的描述动态铺出来：
      * 有 enum[] 就给下拉框，是整数就给 spin，其余给单行编辑。
-     * 原厂那两项 "滚动方式 / 默认高亮行号" 就是这么来的。 */
+     * "滚动方式 / 默认高亮行号" 那两项就是这么来的。 */
     for (int pi = 0; pi < n->props.size(); ++pi) {
         const UiProperty &p = n->props.at(pi);
         /* id 单独在最上面；element_css 归 CSS属性 页签管；
@@ -1345,13 +1343,13 @@ void ComProperty::showNode(UiNode *n)
              *   数字 ui_number.c:76 只认 %0Nd / %Nd / %d，最多两个，
              *                       写别的整个控件不显示
              *
-             * 【真正会坑人的是分隔符不够】分隔符图片取不到（原厂是 0xffff）
+             * 【真正会坑人的是分隔符不够】分隔符图片取不到（值 0xffff）
              * 时固件**就地截断，后面全不画**，屏上只剩前半截，而且不报错。
              * 工程里就有一个：oled 的 时间_461 用 "h:m:s" 却一张分隔符都没配。
              * 所以下面那行实时算一遍、不够就用红字点出来。 */
             const bool isTime = (n->type == QLatin1String("Time"));
             const QString curFmt = def.toString();
-            /* 【预设一律不带结尾的 '/'】原厂工程里有 "m:s/"、"%04d/" 这种写法，
+            /* 【预设一律不带结尾的 '/'】既有工程里有 "m:s/"、"%04d/" 这种写法，
              * 看着像"结束符"，其实**它什么也没做**：
              *   time_vsprintf / number_vsprintf 在循环之后无条件补终止符
              *       buf[i + 1] = 0xff; buf[i] = 0xff;      (ui_time.c:125)
@@ -1420,7 +1418,7 @@ void ComProperty::showNode(UiNode *n)
                         have = q.raw.value(QStringLiteral("list")).toArray().size();
                     }
                 }
-                /* 末尾那个 '/' 是原厂惯用的"到此为止"写法（靠分隔符耗尽
+                /* 末尾那个 '/' 是惯用的"到此为止"写法（靠分隔符耗尽
                  * 来截断），不算它缺图 */
                 QString body = f;
                 if (body.endsWith(QLatin1Char('/'))) {
@@ -1565,7 +1563,7 @@ void ComProperty::showNode(UiNode *n)
              * 资源里没有，画布上本来只能是空的 —— 排版时看不到字，很难判断
              * 这个框够不够宽、对齐对不对。这里配一句假的顶上。
              *
-             * 【绝对不写进工程】写进去就不是原厂那份 json 了（读写要逐字节
+             * 【绝对不写进工程】写进去就改动了工程文件的内容（读写要逐字节
              * 相同是硬指标）。存在工具自己的配置里，按"工程名 + ID号"做键，
              * 工程目录和资源一个字节都不碰。 */
             auto *preset = new QLineEdit(Preview::presetText(n), dynHost);
@@ -1662,8 +1660,8 @@ void ComProperty::showNode(UiNode *n)
 
 /* ---- 三个"开子对话框"的按钮 ---------------------------------------------
  * 图片列表 / 文字列表 / 事件动作在 json 里都是数组，塞不进一行编辑框。
- * 原厂也是点开一个独立窗口（ImageFileDialog / I18nLanguage / ActionList），
- * 这里照做，按钮上直接显示当前条目数，省得点进去才知道有没有配。 */
+ * 所以各开一个独立窗口（ImageFileDialog / I18nLanguage / ActionList），
+ * 按钮上直接显示当前条目数，省得点进去才知道有没有配。 */
 
 static QStringList jsonToStringList(const QJsonArray &a)
 {
@@ -1715,7 +1713,7 @@ QComboBox *ComProperty::makeEntryCombo(const UiProperty &p, bool isText)
     for (const QJsonValue &v : lst) {
         const QString rel = v.toString();
         if (isText) {
-            /* 原厂显示成"蓝牙#m1"：前面是这条 ResID 在多国语言表里的内容，
+            /* 显示成"蓝牙#m1"：前面是这条 ResID 在多国语言表里的内容，
              * 后面是 ResID 本身。只给 ResID 的话，面板上看不出画的是哪句话。 */
             const QString s = Preview::stringOf(rel);
             cb->addItem(s.isEmpty() ? rel : QStringLiteral("%1#%2").arg(s, rel));
@@ -1750,7 +1748,7 @@ QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
 
     /* 条目下拉框：**只用来看**，不写任何字段。
      * 【为什么不能让它改预览】piclist 的 default 几乎都不在 list 里（模板
-     * 残留），拿它当"当前条目"存下去等于凭空改工程文件，产物就和原厂不一样
+     * 残留），拿它当"当前条目"存下去等于凭空改工程文件，产物也跟着变
      * 了。要换预览的那一条，改"默认高亮"（ImageList 有这个参数）。 */
     auto *cb = makeEntryCombo(p, false);
     if (p.name == QLatin1String("normal_image")) {
@@ -1831,7 +1829,7 @@ QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap
         dlg.setWindowTitle(cap);
         dlg.setMaxCount(maxLen);
         QString err;
-        /* 大表读起来要几百毫秒，原厂在这儿改光标并打两条状态：
+        /* 大表读起来要几百毫秒，这儿改光标并打两条状态：
          * "加载多国语言..." / "加载多国语言完成.."。没有反馈的话点下去
          * 界面像卡住了。 */
         QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -1858,7 +1856,7 @@ QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap
                                    : QStringLiteral("%1 …").arg(sel.join(QLatin1Char(','))));
         commit([&arr, &sel](QJsonObject &o) {
             o.insert(QStringLiteral("list"), arr);
-            // default 是"当前显示的那条"，原厂就是列表第一项
+            // default 是"当前显示的那条"，取列表第一项
             o.insert(QStringLiteral("default"), sel.value(0));
         });
         if (m_node) {

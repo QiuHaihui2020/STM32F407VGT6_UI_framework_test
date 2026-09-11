@@ -1,9 +1,8 @@
-# qmake 工程（给习惯 Qt Creator / 原厂那套 Qt 5.9 mingw 工具链的人）
+# qmake 工程（给习惯 Qt Creator / mingw 工具链的人）
 #
 #   qmake UITools.pro && mingw32-make
 #
-# 想复刻原始二进制的形态：32 位 mingw + 静态 Qt 5.9.3，
-# 原程序就是这么出的（.text 12.5 MB，无外部 Qt DLL 依赖）。
+# 想要单文件、无外部 Qt DLL 依赖的形态：32 位 mingw + 静态 Qt。
 
 QT += core gui widgets
 CONFIG += c++11

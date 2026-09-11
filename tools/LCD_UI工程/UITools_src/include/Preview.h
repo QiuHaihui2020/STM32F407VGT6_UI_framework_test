@@ -2,14 +2,14 @@
  * Preview.h —— 画布上的**内容**渲染
  *
  * 【为什么单独一块】在这之前画布只画背景色和边框，图片、文字、数字一个都
- * 没渲染 —— 是"布局预览"，不是"内容预览"。原厂是有内容预览的。
+ * 没渲染 —— 那是"布局预览"，不是"内容预览"。
  *
  * 【怎么保证画的和屏上一致】不自己另发明一套画法，直接复用生成资源那条链：
  *   图片  ResBuilder 的判定是"非透明色即点亮"，透明色来自 Resbuilder.xml 的
  *         <bmp_transparent_color>（本工程 0x00FFFFFF，即白色透明）。
  *         这里同一套判定，所以画布上亮的点就是 .res 里置 1 的点。
  *   文字  用 res::rasterize()，就是生成 result.str 用的那个 GDI 光栅化器 ——
- *         它的输出和原厂 result.str 逐字节相同（141/141，见 re/verify_str.py）。
+ *         它的输出和既有 result.str 逐字节相同（141/141，见 compat/verify_str.py）。
  *         字体取 Resbuilder.xml <Fonts> 里对应语言的 LOGFONT。
  *   数字/时间  按控件的 format 拼数字图片列表里的位图，和固件的做法一致。
  *
@@ -79,7 +79,7 @@ QPixmap contentOf(UiNode *n, const QColor &lit);
 /* ---- 单色屏语义 --------------------------------------------------------
  * 这是**点阵屏**工具，屏上只有"亮/灭"，没有颜色。工程 json 里那一堆
  * #D9EE94 / #368FEE 之类的背景色，在设备上并不会显示成绿色蓝色 ——
- * 固件（User/ui_framework/lcd_drive/middle/ui_synthesis_oled.c）在
+ * 固件在
  * DC_DATA_FORMAT_MONO 下只认三个魔数：
  *
  *     #define BGC_MONO_SET  0x555aaa   背景：只有它填充，其余一律清除
@@ -128,9 +128,9 @@ extern const char *const kMonoLit;       ///< "#ffffffff" 普通点亮（工程�
  *
  * 于是给这类控件配一句**只用于预览**的假文字。
  *
- * 【绝对不能写进工程文件】写进去就不是原厂那份 json 了 —— 读写要逐字节相同
+ * 【绝对不能写进工程文件】写进去就改动了工程文件 —— 读写要逐字节相同
  * 是这套工具的硬指标（见 --json-roundtrip）。所以存在工具自己的配置里
- * （GlobalSettings，按 "工程文件名 + 控件标识" 做键），工程目录、原厂目录
+ * （GlobalSettings，按 "工程文件名 + 控件标识" 做键），工程目录、资源目录
  * 一个字节都不碰，也不会进资源。
  */
 

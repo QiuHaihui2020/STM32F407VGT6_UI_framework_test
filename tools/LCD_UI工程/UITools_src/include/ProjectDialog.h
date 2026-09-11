@@ -1,14 +1,14 @@
 /*
  * ProjectDialog.h —— 新建工程对话框
  *
- * 【接口来源】ui-tools.exe 的 moc 元数据：
+ * 【槽】
  *     ★ public  slot void onAccepted()
  *     ★ private slot void on_pushButton_clicked()
  * 后者是 Qt 的自动连接命名（connectSlotsByName），说明界面上存在一个
  * objectName == "pushButton" 的按钮。
  *
  * 【界面还原】ProjectDialog.ui 被 uic 编译进了 exe，控件名以 QStringLiteral
- * 形式残留在 .rdata 里，用 re/strlit_scan.py 抓到的原始顺序是：
+ * 形式残留在 .rdata 里，用 compat/strlit_scan.py 抓到的原始顺序是：
  *     buttonBox, label_3, prjname, layoutWidget2, verticalLayout,
  *     pushButton, ":/icon/icons/fileopen.png", view_lang, filestatus,
  *     groupBox, layoutWidget, gridLayout, label, spinBox, label_2,

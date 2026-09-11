@@ -1,12 +1,12 @@
 /*
- * main.cpp —— UITools（重建版）入口
+ * main.cpp —— UITools 入口
  *
  * 命令行：
  *   UITools [--tools-root <UITools目录>] [工程.json]
  *   UITools --sty-dump <JL.sty>      只解析 .sty 并打印结构 + 往返校验，不开界面
  *   UITools --json-roundtrip <工程.json> [--out <新.json>]
  *                                    读入工程再写出，与原文件逐字节比较
- *                                    —— 这是「能否顶替原厂 ui-tools.exe」的验收项
+ *                                    —— 工程文件读写兼容性的验收项
  *   UITools --dialog-smoke [工程目录] [--out <PNG输出目录>]
  *                                    把每个对话框造一遍再销毁，检查有没有一开就崩
  *   UITools --tools-root <UITools目录> --click-test <N> <工程.json>
@@ -23,7 +23,7 @@
  *                                    "改过的重建出来也一样" —— 属性面板一编辑就走这条路
  *
  * --tools-root 默认取可执行文件同级目录；控件库(control/control.json)、
- * 控件图标、多国语言表都从这里找，和原厂 ui-tools.exe 的相对布局一致。
+ * 控件图标、多国语言表都从这里找。
  */
 #include <QApplication>
 #include <QCommandLineParser>
@@ -60,9 +60,8 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    /* 原厂是 Qt 5.9，Windows 上默认字体 "MS Shell Dlg 2"，中文回落到 SimSun(宋体)。
-     * Qt 5.15 默认换成了系统 UI 字体（中文机器上是微软雅黑），字形一眼就不一样。
-     * 显式钉死成宋体 9pt，才和原厂截图对得上。 */
+    /* Qt 5.15 默认用系统 UI 字体（中文机器上是微软雅黑），点阵屏工程里
+     * 字形偏大偏圆，排版看不准。显式钉死成宋体 9pt。 */
     {
         QFont f(QStringLiteral("SimSun"), 9);
         f.setStyleStrategy(QFont::PreferDefault);
@@ -123,7 +122,7 @@ int main(int argc, char *argv[])
     p.addOption(optOps);
     QCommandLineOption optSample(QStringList() << QStringLiteral("make-sample"),
                                  QStringLiteral("造一份每种控件各一个+各种组合的样例工程"
-                                                "（给原厂/本版工具链对拍用）"),
+                                                "（兼容性比对用）"),
                                  QStringLiteral("out.json"));
     QCommandLineOption optSamplePic(QStringList() << QStringLiteral("sample-pics"),
                                     QStringLiteral("样例工程里图片控件到哪儿找图"
@@ -150,9 +149,9 @@ int main(int argc, char *argv[])
     QTextStream out(stdout);
 
     if (p.isSet(optRt)) {
-        /* 这是「能不能顶替原厂 ui-tools.exe」的硬指标：
-         * 原厂工程 json 就是 Qt 的 toJson(Indented) 输出，
-         * 我们读进来再写出去必须逐字节相同，否则下游 QtToolBin 拿到的东西就变了。 */
+        /* 工程文件读写兼容性的硬指标：
+         * 工程 json 就是 Qt 的 toJson(Indented) 格式，
+         * 读进来再写出去必须逐字节相同，否则下游 QtToolBin 拿到的东西就变了。 */
         const QString f = p.value(optRt);
         QString rep;
         const bool ok = ProjectModel::verifyRoundTrip(f, &rep);
@@ -358,15 +357,15 @@ int main(int argc, char *argv[])
 
     MainWindow w;
 
-    /* 工具目录：命令行给了就用；否则先看 exe 自己旁边（重建版工具目录里就有
-     * control/ 和 config/），再按原厂的目录约定往上找三级。这样在工程目录里
+    /* 工具目录：命令行给了就用；否则先看 exe 自己旁边（工具目录里就有
+     * control/ 和 config/），再按目录约定往上找三级。这样在工程目录里
      * 双击启动脚本、一个参数都不给也能跑起来。 */
     QString root = p.value(optRoot);
     if (root.isEmpty()) {
         QStringList cand;
         cand << QCoreApplication::applicationDirPath()
              << QDir::cleanPath(QDir::current().absoluteFilePath(
-                    QStringLiteral("../../../UITools_rebuilt")))
+                    QStringLiteral("../../../UIToolkit")))
              << QDir::cleanPath(QDir::current().absoluteFilePath(
                     QStringLiteral("../../../UITools")));
         for (const QString &c : cand) {
@@ -385,7 +384,7 @@ int main(int argc, char *argv[])
 
     /* 要打开哪个工程：命令行给了就用；否则读当前目录的
      * config/ini/project.ini 里的 projectfilename —— 和 QtToolBin 同一份配置，
-     * 也是原厂那套启动脚本（cd project && start ui-tools.exe）能工作的原因。 */
+     * 也是启动脚本（cd project && start UITools.exe）能工作的原因。 */
     QString openPath = p.positionalArguments().value(0);
     if (openPath.isEmpty()) {
         const QString ini = QDir::current().absoluteFilePath(
@@ -402,7 +401,7 @@ int main(int argc, char *argv[])
         w.openProject(openPath);
     }
 
-    /* 编辑操作与限制的无人值守回归。原厂那套限制（建控件要先选布局、
+    /* 编辑操作与限制的无人值守回归。那套限制（建控件要先选布局、
      * 粘贴只认布局、宽高不能为零……）本来全靠弹框拦人，弹框在没人点的
      * 环境里会把进程挂死，所以 runOpsTest() 先开 EditorOps 的无人值守开关。 */
     if (p.isSet(optSample)) {

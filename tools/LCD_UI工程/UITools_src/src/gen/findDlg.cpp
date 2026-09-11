@@ -9,7 +9,7 @@
 findDlg::findDlg(QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(QStringLiteral("查找对像"));   // 原厂就写"对像"
+    setWindowTitle(QStringLiteral("查找对像"));   // 沿用"对像"这个写法
 
     auto *label = new QLabel(QStringLiteral("对像名称:"), this);
     m_edit = new QLineEdit(this);

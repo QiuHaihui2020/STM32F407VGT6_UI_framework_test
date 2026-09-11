@@ -1,4 +1,4 @@
-/* ActionList.h —— 类名/基类/槽签名来自 ui-tools.exe 的 moc 元数据。
+/* ActionList.h ——
  *
  * 用途：编辑控件的事件动作（json 里 -type == "action" 的属性）。
  * 该属性的结构是"模板 + 实例"：
@@ -14,8 +14,8 @@
  * 落到 .sty 里就是 struct element_event_action：
  *     u16 num; struct event_action { u16 event; u16 action; int id; u8 argc;
  *                                    char argv[]; } [num];   // 每条 4 字节对齐
- * 注意：本工程 277 个控件的 action 全是 num=0，**没有真实样本可对拍**，
- * 二进制那侧只能保证结构对。
+ * 注意：本工程 277 个控件的 action 全是 num=0，**没有真实样本可比对**，
+ * 只能保证结构对。
  */
 #ifndef ACTIONLIST_H
 #define ACTIONLIST_H
@@ -39,7 +39,7 @@ public:
 
     /// 属性里的整个 action 数组（模板 + values）
     void       setActionProperty(const QJsonArray &arr);
-    /** 带类型校验的版本。不是数组就返回 false，error 是原厂那句"格式错误,必须是数组类型"。 */
+    /** 带类型校验的版本。不是数组就返回 false，error 是"格式错误,必须是数组类型"。 */
     bool       setActionPropertyChecked(const QJsonValue &v, QString *error);
     /// 改过之后的 action 数组，直接写回 property
     QJsonArray actionProperty() const;

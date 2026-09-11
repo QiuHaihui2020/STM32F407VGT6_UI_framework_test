@@ -26,7 +26,7 @@ struct MonoImage {
  * @param transparentRgb  透明色（Resbuilder.xml 的 bmp_transparent_color，
  *                        典型值 0x00FFFFFF）。**颜色不等于它的像素才点亮**。
  * @param pngBackgroundRgb 带 alpha 的图先合成到这个底色上再判定
- * @note  实测 104/104 张原厂图片按这个规则转换后与 result.bin 里的字节完全一致。
+ * @note  实测 104/104 张图片按这个规则转换后与 result.bin 里的字节完全一致。
  */
 MonoImage toMono(const QString &path, quint32 transparentRgb = 0x00FFFFFFu,
                  quint32 pngBackgroundRgb = 0x00000000u);

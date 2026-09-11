@@ -1,6 +1,6 @@
-// 最小 .xls（BIFF8）读取器：够读原厂那张"多国语言"表。
+// 最小 .xls（BIFF8）读取器：够读那张"多国语言"表。
 //
-// 为什么自己写：原厂 ResBuilder 靠 Excel/OLE 读表，重建版不想拖一个 Excel 依赖，
+// 为什么自己写：靠 Excel/OLE 读表要拖一个 Excel 依赖，
 // 也不想拖第三方库。BIFF8 里我们只需要 SST + LABELSST/LABEL，量很小。
 //
 // .xls 是 CFBF（复合文档）容器：512 字节头 -> DIFAT -> FAT -> 目录项，

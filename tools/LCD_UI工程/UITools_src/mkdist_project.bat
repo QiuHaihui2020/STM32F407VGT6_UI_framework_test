@@ -1,11 +1,10 @@
 @echo off
 rem ===========================================================================
-rem  Build "ui_128_64_JL02_rebuilt" - a full working UI project laid out exactly
-rem  like the factory ui_128_64_JL02\, but driven by UITools_rebuilt\ instead of
-rem  the factory UITools\.
+rem  Build "ui_128_64_app" - a full working UI project laid out exactly
+rem  The 128x64 dot-matrix UI project dir, driven by UIToolkit\.
 rem
 rem  Usage:  mkdist_project.bat [target dir] [source project family]
-rem      defaults:  ..\ui_128_64_JL02_rebuilt   ..\ui_128_64_JL02
+rem      defaults:  ..\ui_128_64_app   ..\ui_128_64_JL02
 rem
 rem  Copied from the source project (the actual design + assets):
 rem      <screen>\project\*.json          the UI designs
@@ -13,11 +12,11 @@ rem      <screen>\project\config\         images, option.ini, project.ini
 rem      <screen>\project\backgrounds\
 rem      <screen>\project\copy_file.bat  release.bat  version.txt
 rem
-rem  NOT copied - factory caches / intermediates / generated output. The rebuilt
+rem  NOT copied - caches / intermediates / generated output. This
 rem  toolchain regenerates all of it, so shipping stale copies only confuses:
 rem      autosave.json     editor autosave, 5 MB
-rem      uitoolbin.bin     factory QtToolBin intermediate, 4.6 MB
-rem      Resbuilder.dat    factory ResBuilder cache
+rem      uitoolbin.bin     QtToolBin intermediate, 4.6 MB
+rem      Resbuilder.dat    ResBuilder cache
 rem      qtread.csv  imagelist.txt        stale caches with another PC's paths
 rem      project.bin ename.h debug.txt Resbuilder.xml res_ver.h
 rem      result.* result_pic_index.h result_str_index.h    <- step2 makes these
@@ -33,7 +32,7 @@ setlocal enabledelayedexpansion
 
 set HERE=%~dp0
 set OUT=%~1
-if "%OUT%"=="" set OUT=%HERE%..\ui_128_64_JL02_rebuilt
+if "%OUT%"=="" set OUT=%HERE%..\ui_128_64_app
 set SRC=%~2
 if "%SRC%"=="" set SRC=%HERE%..\ui_128_64_JL02
 
@@ -72,5 +71,5 @@ if errorlevel 8 exit /b 1
 
 echo.
 echo [project] done. In each screen dir there are now step1 / step2 / step3
-echo [project] scripts pointing at ..\..\..\UITools_rebuilt\ .
+echo [project] scripts pointing at ..\..\..\UIToolkit\ .
 exit /b 0

@@ -1,6 +1,6 @@
 [Project]
 Size=128*64
-CustomTemplateDir=../../../UITools_rebuilt/control/ex
+CustomTemplateDir=../../../UIToolkit/control/ex
 Dir=.
 ImageDir=config
-TemplateJson=../../../UITools_rebuilt/control/control.json
+TemplateJson=../../../UIToolkit/control/control.json

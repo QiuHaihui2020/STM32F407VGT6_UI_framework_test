@@ -1,4 +1,4 @@
-/* RuleWidget.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据。
+/* RuleWidget.h ——
  * 画布边上的标尺。横竖两种用同一个类，按 orientation 分。
  */
 #ifndef RULEWIDGET_H

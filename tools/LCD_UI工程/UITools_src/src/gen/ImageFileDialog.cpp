@@ -20,7 +20,7 @@
 
 namespace {
 
-/// 原厂工程里图片路径一律是相对工程目录的正斜杠形式
+/// 工程里图片路径一律是相对工程目录的正斜杠形式
 QString toRel(const QString &projectDir, const QString &abs)
 {
     if (projectDir.isEmpty()) {
@@ -39,7 +39,7 @@ const QStringList &imageFilters()
     return f;
 }
 
-/** 缩略图的外框；比这个大的按比例缩小，小的按**原尺寸**画（和原厂一样）。 */
+/** 缩略图的外框；比这个大的按比例缩小，小的按**原尺寸**画。 */
 const QSize kThumbMax(128, 40);
 
 /** 取一张图的缩略图，带缓存 —— 一个目录里可能有两百多张，每次重画都去解
@@ -69,7 +69,7 @@ QIcon thumbOf(const QString &absPath)
  *
  * 【原来这里是坏的】文件列表用的是 QFileSystemModel，它给的是"一个文件"
  * 的通用图标 —— 一屏两百多个一模一样的小方块，等于没有预览，得靠文件名
- * 猜哪张是哪张。原厂那个对话框是把每张位图画出来的（见 temp/图片列表.jpg）。
+ * 猜哪张是哪张。这个对话框要把每张位图画出来。
  *
  * 【为什么不换成自己填 QListWidget】QFileSystemModel 顺带管了排序、过滤、
  * 换目录、增删同步，换掉就得自己再写一遍。挂个图标提供器最省事，也不动
@@ -108,13 +108,13 @@ ImageFileDialog::ImageFileDialog(QWidget *parent)
     }
     m_treeView->setHeaderHidden(true);
 
-    /* 中间那栏：自己填，一行一张"缩略图 + 文件名"（原厂就是这样，
+    /* 中间那栏：自己填，一行一张"缩略图 + 文件名"（
      * 见 temp/图片列表.jpg）。不用 QFileSystemModel 的原因见头文件。 */
     m_listView = new QListWidget(this);
     m_listView->setIconSize(kThumbMax);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     /* 【隔行底色】图片都是黑白点阵，一张挨一张贴着，不分行根本看不出
-     * 哪张是哪张的。原厂也是隔行深浅。 */
+     * 哪张是哪张的。隔行深浅。 */
     m_listView->setAlternatingRowColors(true);
 
     m_selListView = new QListWidget(this);
@@ -212,7 +212,7 @@ void ImageFileDialog::setSelected(const QStringList &rel)
             addSelectedRow(r);
         }
     }
-    /* 【直接定位到当前图片所在的目录】原厂打开时 pic_lcd 就是选中态
+    /* 【直接定位到当前图片所在的目录】打开时 pic_lcd 就该是选中态
      * （见 temp/图片列表.jpg）。不这么做的话，每次进来中间那栏都是空的，
      * 还得自己从树里一层层点进去找到图在哪 —— 而绝大多数时候要换的图
      * 就在同一个目录里。 */
@@ -320,7 +320,7 @@ void ImageFileDialog::addPath(const QString &absPath)
         return;
     }
     const QString rel = toRel(m_projectDir, absPath);
-    // 允许重复：原厂的数字图片列表就可能出现同一张图占多位
+    // 允许重复：数字图片列表就可能出现同一张图占多位
     addSelectedRow(rel);
 }
 

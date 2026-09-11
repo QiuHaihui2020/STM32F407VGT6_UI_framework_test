@@ -1,7 +1,7 @@
 /* ToolBinWindow.h —— QtToolBin 的界面。
  *
- * 原厂 QtToolBin.exe（标题 "UIToolBin工具(V1.10.1)"）是**弹窗**用的：
- * 双击 step2 弹出来，在界面上点「生成资源文件(F5)」才开始干活。行按原厂排：
+ * QtToolBin（标题 "UIToolBin工具(V1.10.1)"）是**弹窗**用的：
+ * 双击 step2 弹出来，在界面上点「生成资源文件(F5)」才开始干活。行是这么排的：
  *
  *     运行:      [ 生成资源文件(F5) ]
  *     进度条:    [                    ] 0%
@@ -14,7 +14,7 @@
  *     版本配置:  [ ]
  *
  * 界面上的值就是 project\config\ini\project.ini 里那几项，点生成时写回去
- * —— 和原厂同一份配置，命令行模式读的也是它。
+ * —— 命令行模式读的也是同一份配置。
  */
 #ifndef TOOLBINWINDOW_H
 #define TOOLBINWINDOW_H

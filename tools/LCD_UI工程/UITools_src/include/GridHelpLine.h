@@ -1,4 +1,4 @@
-/* GridHelpLine.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据。
+/* GridHelpLine.h ——
  * 画布上的像素网格层：透明、不吃鼠标事件，只负责画格子。
  */
 #ifndef GRIDHELPLINE_H

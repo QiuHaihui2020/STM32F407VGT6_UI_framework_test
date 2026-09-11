@@ -54,7 +54,7 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     rightBtns->addStretch();
 
     auto *right = new QVBoxLayout;
-    /* 字号：0 表示"不指定，跟控件默认走"。原厂就是这么写的，
+    /* 字号：0 表示"不指定，跟控件默认走"，
      * 别把 0 当成"字号 0px"去渲染。 */
     m_fontSize = new QSpinBox(this);
     m_fontSize->setRange(0, 9999);
@@ -118,11 +118,11 @@ I18nLanguage::~I18nLanguage() = default;
 
 bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
 {
-    /* 失败的三种情形，话术逐字照原厂：
+    /* 失败的三种情形：
      *   文件不在        -> "XLS文件找不到."
      *   文件在但打不开  -> "xls 打不开,请查看[全局设置]里的路径目录是否正确"
      *   打开了但内容不对 -> "XLS文件内容不正确,不能有单元合并的单元,请选择一个正解的文件."
-     * 原厂特意点名"单元合并"：BIFF8 里合并单元格只有左上角那格有值，
+     * 特意点名"单元合并"：BIFF8 里合并单元格只有左上角那格有值，
      * 其余是空的，按行列取会整列错位。 */
     if (xlsPath.isEmpty() || !QFileInfo::exists(xlsPath)) {
         if (error) {
@@ -155,7 +155,7 @@ bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
         }
         const QString zh = sh.cell(r, 1).trimmed();
         const QString en = sh.cell(r, 5).trimmed();
-        /* 【显示成"内容#ResID"】原厂就是这个写法（见 temp/文字列表.jpg：
+        /* 【显示成"内容#ResID"】就是这个写法（
          * "蓝牙#m1"）—— 一眼看到的是**这条到底是什么字**，ResID 只是尾巴。
          * 以前这里是 "m1    蓝牙    Bluetooth"，先看到的是没有意义的编号，
          * 而且已选列表那边只显示 "m1"，根本对不上是哪句话。
@@ -266,7 +266,7 @@ void I18nLanguage::on_item_re_clicked()
 
 void I18nLanguage::onItemSelected(QModelIndex index)
 {
-    // 点行也当成切换勾选，和原厂一样省一次瞄准复选框的操作
+    // 点行也当成切换勾选，省一次瞄准复选框的操作
     QListWidgetItem *it = m_itemWidget->item(index.row());
     if (it) {
         it->setCheckState(it->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);

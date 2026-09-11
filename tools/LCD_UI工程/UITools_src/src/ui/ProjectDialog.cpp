@@ -64,7 +64,7 @@ ProjectDialog::ProjectDialog(QWidget *parent)
     auto *pushButton = new QPushButton(QIcon(QStringLiteral(":/icon/icons/fileopen.png")),
                                        QStringLiteral("打开多国语言文件"), this);
     pushButton->setObjectName(QStringLiteral("pushButton"));   // ★ 名字决定自动连接
-    /* 原厂这一栏的默认内容就是"行车记录仪.xls"（他们自己的样例表名） */
+    /* 这一栏的默认内容是"行车记录仪.xls"（一个样例表名） */
     m_filestatus = new QLabel(QStringLiteral("行车记录仪.xls"), this);
     m_filestatus->setObjectName(QStringLiteral("filestatus"));
     langRow->addWidget(pushButton);
@@ -77,7 +77,7 @@ ProjectDialog::ProjectDialog(QWidget *parent)
 
     m_buttonBox = new QDialogButtonBox(this);
     m_buttonBox->setObjectName(QStringLiteral("buttonBox"));
-    /* 原厂的确定按钮叫"创建"，不是 OK */
+    /* 确定按钮叫"创建"，不是 OK */
     m_buttonBox->addButton(QStringLiteral("创建"), QDialogButtonBox::AcceptRole);
     m_buttonBox->addButton(QStringLiteral("取消"), QDialogButtonBox::RejectRole);
     verticalLayout->addWidget(m_buttonBox);
@@ -129,10 +129,10 @@ void ProjectDialog::on_pushButton_clicked()
     m_langXls = f;
     m_filestatus->setText(QFileInfo(f).fileName());
 
-    /* 原厂的多国语言表就是 UITools/多国语言_128_64.xls，
+    /* 多国语言表默认是 UITools/多国语言_128_64.xls，
      * 第一行是语言列名（Chinese_Simplified / English / ...），
      * 与 result.h 里的 LANGUAGEID 一一对应。这里只列出文件名，
-     * 真正的解析要等 .str 资源写入实现（见 docs/RE_REPORT.md 未决项）。 */
+     * 真正的解析要等 .str 资源写入实现。 */
     m_viewLang->clear();
     m_viewLang->addItem(tr("已选择：%1").arg(f));
 }

@@ -1,13 +1,11 @@
 /*
  * EditorOps.h —— 编辑器的"操作与限制"集中处
  *
- * 【为什么单独一个文件】原厂 ui-tools.exe 的编辑限制（谁能挂到谁下面、
- * 剪贴板能往哪儿贴、删除要不要确认）散在 CompoentControls / BaseForm /
- * TreeDock 三处，但规则是同一套。重建版把规则收在这里，三处调用同一份，
- * 免得三处各写一遍再各错一遍。
+ * 【为什么单独一个文件】编辑限制（谁能挂到谁下面、剪贴板能往哪儿贴、
+ * 删除要不要确认）会被 CompoentControls / BaseForm / TreeDock 三处用到，
+ * 但规则是同一套。收在这里三处调同一份，免得各写一遍再各错一遍。
  *
- * 【规则的出处】不是猜的，是 ui-tools.exe 里那几条提示语反推出来的
- * （re 目录下的字符串扫描，见 docs/FACTORY_UI.md）：
+ * 【提示语】沿用用户已经熟悉的说法（包括"对像"这种写法），换工具不用重新适应：
  *     "请选择一个布局或者新建一个并选中它."          -> 建控件要先选中布局
  *     "请选择一个图层或者新建一个图层,并选中它."      -> 建布局要先选中图层
  *     "当前类型容器不接受粘贴!"                       -> 只有布局收粘贴
@@ -15,8 +13,6 @@
  *     "当前的选中的对像不支持剪切板里的对像粘贴,请选择一个<布局>对像."
  *     "你真的要删除当前%1吗?删除之后不可以撤消,请选择<删除>删除."
  *     "宽高不能设置为零."
- * 提示语原文照抄（含原厂的标点和"对像"这个写法），这样用户从原厂换过来
- * 看到的东西是一样的。
  */
 #ifndef EDITOROPS_H
 #define EDITOROPS_H
@@ -50,7 +46,7 @@ bool isList(const UiNode *n);       ///< NewList：垂直列表 / 水平列表
 bool isGrid(const UiNode *n);       ///< NewGrid：表格控件
 
 /* ---- 谁能装什么 ------------------------------------------------------
- * 来自原厂两个工程 277 个节点的全量统计（一个反例都没有）：
+ * 来自既有两个工程 277 个节点的全量统计（一个反例都没有）：
  *
  *   装「布局」的：图层(64)、布局(3，套娃)、**列表(165)**
  *   装「控件」的：只有布局(494)
@@ -58,7 +54,7 @@ bool isGrid(const UiNode *n);       ///< NewGrid：表格控件
  * 列表那 165 个就是它的行/项模板 —— 列表的孩子**清一色是 NewLayout**，
  * 一个 NewFrame 都没有。所以控件不能直接塞进列表，得先有行布局。
  * 这不是洁癖：固件那边按"列表的孩子是行"来遍历，塞个裸控件进去，
- * 生成出来的 .sty 是原厂从来没产出过的形状。
+ * 生成出来的 .sty 就是个从没出现过的形状，固件读不对。
  *
  * 【表格 NewGrid 和列表同等对待】工程里没有表格样本，但三件事都对得上：
  *   · option.ini 里 NewGrid / VerticalList / HorizontalList **同为类型码 5**，
@@ -70,7 +66,7 @@ bool isGrid(const UiNode *n);       ///< NewGrid：表格控件
  *
  * 【水平列表不用单独处理】它的 -class 是 NewList，isList() 天然覆盖。
  * 【slider / vslider 这些扩展控件也不用】control/ex 里它们的 -class 就是
- *   NewLayout，本来就按布局收孩子（原厂 MUSIC_FILE_SLIDER 底下挂着三个图片）。
+ *   NewLayout，本来就按布局收孩子（工程里的 MUSIC_FILE_SLIDER 底下就挂着三个图片）。
  */
 
 /** 能不能往它下面挂一个**布局**：图层 / 布局 / 列表 / 表格。 */
@@ -78,43 +74,40 @@ bool acceptsLayout(const UiNode *n);
 /** 能不能往它下面挂一个**普通控件**（NewFrame）：只有布局。 */
 bool acceptsWidget(const UiNode *n);
 
-/** 能不能往它下面收粘贴。原厂那三条提示语写死了"请选择一个<布局>对像"。 */
+/** 能不能往它下面收粘贴。那三条提示语写死了"请选择一个<布局>对像"。 */
 bool acceptsChild(const UiNode *n);
 
 /* ---- 点按钮建东西时，孩子到底挂到谁下面 ------------------------------
- * 规则不是猜的，是 ui-tools.exe 里 CompoentControls 那四个槽反出来的
- * （qt_static_metacall @0x458550 -> 槽 0/1/2/3）：
+ * 规则如下：
  *
- *   onCreateCompoentToCanvas @0x4212C0   「新建控件」
+ *   「新建控件」
  *       选中为空                       -> 提示"请选择一个布局或者新建一个并选中它."
  *       选中是 NewLayer                -> 同上提示
  *       选中是 NewFrame/NewList/NewGrid -> 挂到**它的父级**（当兄弟，不钻进去）
  *       其它（NewLayout）              -> 挂到它自己
  *
- *   onCreateNewLayout @0x421500          「新建布局」
+ *   「新建布局」
  *       选中为空                       -> 提示"请选择一个图层或者新建一个图层,并选中它."
- *       选中是 NewLayout               -> 挂到它自己（布局套布局，原厂工程里 3 例）
+ *       选中是 NewLayout               -> 挂到它自己（布局套布局，既有工程里 3 例）
  *       选中是 NewLayer                -> 挂到它自己
  *       选中是 NewFrame/NewList        -> 挂到**它的父级**
  *       其它                           -> 什么也不做，连提示都没有
  *
- * 注意"挂到父级"这一条：以前本版是直接拦下报错，和原厂不是一回事 ——
- * 原厂选中一个文字控件再点「新建文字」，是在**同一个布局里**再加一个。
+ * 注意"挂到父级"这一条：一度是直接拦下报错，那不对 ——
+ * 选中一个文字控件再点「新建文字」，本意是在**同一个布局里**再加一个。
  *
- * 【★ 有意偏离原厂的一条】选中**列表或表格**点「新建布局」：原厂对列表是
- * 加到它的父级（[sel+0x34] 是父指针，0x41CA9B / 0x41D6A3 那两处 new 完就把
- * 容器写进去了），对表格是**连判都不判**、静默什么也不做。想给列表加行只能走
- * 列表自己的右键菜单「添加行」，表格则根本没有加项的入口。
- * 本版这两种都改成**加进去**，因为那才是用户点这一下想要的东西。
+ * 【★ 一处取舍】选中**列表或表格**点「新建布局」，这里是**加进去**，
+ * 因为那才是用户点这一下想要的东西；另一种做法是加到它的父级、加行只能走
+ * 右键菜单「添加行」，表格则连加项的入口都没有。
  * 产物不受影响：加进去的还是 NewLayout、还是挂 listwidget 键，
- * 和原厂那 165 行一模一样的形状。
+ * 和既有工程里那 165 行一模一样的形状。
  */
 
 /** @return 「新建控件」该挂到哪儿；nullptr = 该弹那句"请选择一个布局…". */
 UiNode *hostForNewControl(UiNode *sel);
 /**
  * @return 「新建布局」该挂到哪儿；nullptr = 拦下。
- * @param needTip 拦下时要不要弹"请选择一个图层…"。原厂只有"选中为空"这一种
+ * @param needTip 拦下时要不要弹"请选择一个图层…"。只有"选中为空"这一种
  *                情况弹，其余是静默返回。
  */
 UiNode *hostForNewLayout(UiNode *sel, bool *needTip);
@@ -122,7 +115,7 @@ UiNode *hostForNewLayout(UiNode *sel, bool *needTip);
 /**
  * 列表/表格里第 index 项（行/列/单元）该占的矩形，相对容器自己。
  *
- * 【为什么必须算】原厂工程里的行不是随便摆的，`sizehw` / `space` 决定了
+ * 【为什么必须算】工程里的行不是随便摆的，`sizehw` / `space` 决定了
  * 每一格多大、隔多远，行自己的 rect 就是那一格：
  *
  *   垂直列表 VerticalList rect=(0,16,128,32) sizehw=16 space=0
@@ -143,21 +136,17 @@ QRect cellRectFor(const UiNode *container, int index);
 /**
  * 往 parent 下面挂孩子时该用哪个 json 键。
  *
- * 【别想当然写 "widget"】原厂 SmallColorTFT.json 里根本没有 widget 这个键，
+ * 【别想当然写 "widget"】SmallColorTFT.json 里根本没有 widget 这个键，
  * 全工程只用三个（277 个节点统计出来的实际组合）：
  *     ScenesScreen --layer--------> NewLayer
  *     NewLayer     --layout-------> NewLayout
  *     NewLayout    --layout-------> NewFrame / NewLayout / NewList
  *     NewList      --listwidget---> NewLayout   （列表的行模板，两个工程共 165 个）
  * 表格控件（NewGrid）的孩子也走 `listwidget`。
- * 【别用 "GridWidget"】那个名字确实在 ui-tools.exe 的键名池里
- * （静态初始化 @0x105DE5F，全局槽 0x170E454），但它是个**死字符串**：
- * 全 .text 里只有 0x409625 / 0x409633 两处引用，那是 QString 的
- * 构造/析构登记桩，**没有任何代码读它**。而原厂读子节点只认三个键
- * （0x412000-0x416000 段里对全局键的引用只有 layer / layout / listwidget）,
- * 写成 GridWidget 的话那棵子树在原厂工具里直接看不见。
- * 表格和列表同为类型码 5，固件那边的项也同样是 layout_info，走 listwidget
- * 是唯一既能被原厂读到、语义又对得上的选择。
+ * 【别用 "GridWidget"】读子节点只认 layer / layout / listwidget 三个键，
+ * 写成别的名字，那棵子树在下游就直接看不见。
+ * 表格和列表同为类型码 5，项也同样是 layout_info，走 listwidget
+ * 是唯一既读得到、语义又对得上的选择。
  * 键写错了，文件本身还是合法 json，但下游 QtToolBin 遍历不到那棵子树，
  * 表现是"编辑器里有这个控件，生成出来的 .sty 里没有"。
  */
@@ -179,7 +168,7 @@ void tip(QWidget *parent, const QString &text);
 /** 标题「警告」。 */
 void warn(QWidget *parent, const QString &text);
 /**
- * 原厂的删除确认框：标题「删除提示」，按钮是 <删除> / 取消，
+ * 删除确认框：标题「删除提示」，按钮是 <删除> / 取消，
  * 不是 Qt 默认的 Yes/No —— 正文里那句"请选择<删除>删除"就是在说这个按钮。
  * @param what 填进 "你真的要删除当前%1吗" 的那个词，如 "布局" / "页面"。
  */
@@ -203,7 +192,7 @@ UiNode *pasteInto(UiNode *parent);
  *
  * 【为什么粘贴必须重分配】剪贴板里存的是节点的 json 副本，ename 一起带过来了；
  * 直接贴上去，ename.h 里就会出现两个同名宏（`#define X ...` 两次），
- * 业务代码引用到哪一个全看运气。原厂粘出来的控件 ID 号也是新的。
+ * 业务代码引用到哪一个全看运气，所以粘出来的控件 ID 号一律是新的。
  *
  * 去重范围是**整棵工程树**（从 parent 一路往上找到根），不是只看兄弟节点。
  */
@@ -225,7 +214,7 @@ QString uniqueName(const UiNode *parent, const QString &base);
 /**
  * 新建节点的默认名字：`<中文名>_<全局序号>`，例如 `布局_37`。
  *
- * 【为什么要单独抽出来】原厂建出来的东西名字是**中文 caption 加序号**
+ * 【为什么要单独抽出来】建出来的东西名字要是**中文 caption 加序号**
  * （图层_0 / 布局_1 / 文字_48），序号是**跨页连着走的全局计数**。
  * 以前只有 CompoentControls::appendChild() 这一条路照做，列表右键「添加行」
  * 那条路是自己现搭一个 `-name: "NewLayout"`，于是同一个工程里冒出英文名。
@@ -260,8 +249,8 @@ UiNode *makeFromTemplate(UiNode *parent, const QString &type,
                          const QString &caption = QString());
 
 /* ---- 自定义控件目录 ---------------------------------------------------
- * 原厂[全局设置]里那一项："自定义的模版控件目录,默认是 widgets 目录"。
- * 重建版默认落到 <UITools>/control/ex/ —— ControlLibrary 扫的就是它，
+ * [全局设置]里那一项："自定义的模版控件目录,默认是 widgets 目录"。
+ * 默认落到 <UITools>/control/ex/ —— ControlLibrary 扫的就是它，
  * 存进去下次启动就能在"自定义控件"那一组里看到。 */
 void    setCustomWidgetDir(const QString &dir);
 QString customWidgetDir();
@@ -269,7 +258,7 @@ QString customWidgetDir();
 /**
  * 把焦点里那个编辑器还没提交的改动逼出来。
  *
- * 属性面板上的输入框都是 editingFinished 才写回模型（和原厂一致），而
+ * 属性面板上的输入框都是 editingFinished 才写回模型，而
  * **工具栏按钮是 Qt::NoFocus** —— 点"保存"/"资源导出"不会让输入框失焦，
  * editingFinished 不发，刚敲进去的值还停在控件里没进模型。
  * 用户看到的现象就是"改完直接点保存，参数没保存，得先点一下别处"。

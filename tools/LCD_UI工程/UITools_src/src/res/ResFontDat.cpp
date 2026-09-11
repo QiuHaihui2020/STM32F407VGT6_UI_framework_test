@@ -44,7 +44,7 @@ bool ResFontDat::load(const QString &path)
         const qint32 col = rd32(r + COL_OFF);
         if (row <= 0 || col <= 0 || col > MAX_COL) {
             /* 网格之外的记录：文件不是我们认识的那种，整份作废，
-             * 免得半读半猜生成一份既不像原厂也不像自己的资源。 */
+             * 免得半读半猜生成一份四不像的资源。 */
             m_cells.clear();
             return false;
         }

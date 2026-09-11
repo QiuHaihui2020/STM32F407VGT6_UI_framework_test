@@ -1,5 +1,5 @@
-/* findDlg.h —— 类名/基类/槽签名来自 ui-tools.exe 的 moc 元数据；
- * 控件名（label / lineEdit / pushButton）来自 uic 的 QStringLiteral。
+/* findDlg.h ——
+ * 控件名：label / lineEdit / pushButton
  *
  * 用途：按 ename 或名字在对象树里找控件。找到就发 found()，由主窗口去选中。
  */

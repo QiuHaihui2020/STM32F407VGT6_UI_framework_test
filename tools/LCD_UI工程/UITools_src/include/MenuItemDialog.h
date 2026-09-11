@@ -1,4 +1,4 @@
-/* MenuItemDialog.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据。
+/* MenuItemDialog.h ——
  * 列表类控件（VerticalList / HorizontalList / NewGrid）的"菜单项"编辑：
  * 一行一项，编辑图标 + 文字 ResID，确定后由调用方生成子控件。
  */

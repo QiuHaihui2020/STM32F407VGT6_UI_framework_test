@@ -57,7 +57,7 @@ ActionList::~ActionList() = default;
 
 bool ActionList::setActionPropertyChecked(const QJsonValue &v, QString *error)
 {
-    /* ★ 原厂的类型校验（"格式错误" + "格式错误,必须是数组类型"）。
+    /* ★ 类型校验（"格式错误" + "格式错误,必须是数组类型"）。
      * 事件属性在工程 json 里必须是数组；写成对象或标量说明这个控件模板坏了，
      * 硬着头皮往下读只会得到一张空表，用户还以为是自己没配过事件。 */
     if (!v.isArray()) {
@@ -178,7 +178,7 @@ QJsonArray ActionList::actionProperty() const
 
 void ActionList::onCustomContextMenu(QPoint pos)
 {
-    /* 六项逐字来自 ui-tools.exe：插入行 / 删除当前行 / 上移一行 / 移到顶部 /
+    /* 六项：插入行 / 删除当前行 / 上移一行 / 移到顶部 /
      * 下移一行 / 移到底部。之前是我自己起的"添加/删除/上移/下移"。 */
     QMenu menu(this);
     QAction *add = menu.addAction(QIcon(QStringLiteral(":/icon/icons/act_add.png")),

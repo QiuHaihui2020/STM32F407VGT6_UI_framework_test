@@ -4,7 +4,7 @@ rem  Called by QtToolBin after the resources are generated.
 rem  Copies them into the STM32 project. Adjust the two paths below if your
 rem  tree differs.
 rem
-rem  Layout assumed (same as the factory one):
+rem  Layout assumed:
 rem    <repo>\tools\LCD_UI...\<project>\<screen>\project\   <- you are here
 rem    ..(x1)=screen ..(x2)=project-family ..(x3)=LCD_UI... ..(x4)=tools
 rem

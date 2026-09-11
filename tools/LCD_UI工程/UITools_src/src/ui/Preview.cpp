@@ -59,8 +59,8 @@ void ensureStrings()
     }
     const res::XlsSheet &sh = xls.sheets().first();
     /* 第 0 行是表头（ResID, Chinese_Simplified, …），数据从第 1 行起。
-     * 【不要 trim】尾随空格在这套资源里是有意义的（原厂 5 条英文就靠它多占
-     * 8 px 宽），见 re/verify_str.py。 */
+     * 【不要 trim】尾随空格在这套资源里是有意义的（有 5 条英文就靠它多占
+     * 8 px 宽），见 compat/verify_str.py。 */
     for (int r = 1; r < sh.rows.size(); ++r) {
         const QString id = sh.cell(r, 0).trimmed();     // ResID 本身可以 trim
         if (id.isEmpty()) {
@@ -252,7 +252,7 @@ QPixmap hcat(const QVector<QPixmap> &parts)
  * 时间（ui_time.c:65-124 time_vsprintf）
  *   Y -> 4 位，M/D/h/m/s -> 各 2 位，**其余字符一律原样进串**；
  *   然后逐字符换图：数字取 number[d]，非数字取 delimiter[j++]。
- *   分隔符用完（原厂是取到 0xffff）就 **停止渲染后面全部内容**。
+ *   分隔符用完（取到 0xffff）就 **停止渲染后面全部内容**。
  *
  *   【'/' 不是结束符】以前这里把 '/' 特判成"结束符，不画"。固件里它就是个
  *   普通字面字符，一样吃一张分隔符图 —— 工程里 "Y/M/D" 配了 2 张分隔符，
@@ -261,7 +261,7 @@ QPixmap hcat(const QVector<QPixmap> &parts)
  *
  * 数字（ui_number.c:76-143 number_vsprintf）
  *   占位符只认 %0Nd / %Nd / %d 三种（N=1..9），**最多两个**，出现第三个或
- *   写成别的（如 %0x）整个控件就不画了（原厂打印 "not support yet" 后返回）。
+ *   写成别的（如 %0x）整个控件就不画了（固件打印 "not support yet" 后返回）。
  *   %0Nd 补 0，%Nd 补空格（空格取 space[] 那张图），%d 不补。
  *
  * 预览摆的是 0，目的是让人看清"几位数字、多宽、什么字形"，不是显示实时值。
@@ -657,7 +657,7 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
          * 【text 下配了文字列表也不会显示那句话】init 时 attrs.str 指向的是
          * _str[]，也就是**u16 的 ResID 数组**，不是字符串。字库把那几个字节
          * 当字符渲染出来是乱码，不是"蓝牙"。所以这里一样不画 —— 画了就是骗人。
-         * 原厂工程里 19 个 text、4 个 ascii 控件的文字列表**全是空的**，
+         * 既有工程里 19 个 text、4 个 ascii 控件的文字列表**全是空的**，
          * 正好印证这条。
          *
          * 别的取值（含空串）固件三个分支都不匹配，屏上什么都没有，这里同理。 */
@@ -709,8 +709,8 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
          * 设备里的字形。
          *
          * 【字体不能直接取 fonts[0]】Resbuilder.xml 的 <Fonts> 里 font00..05
-         * 写的是 -32，但原厂产出的 result.str 全是 **16px 宋体** —— 也就是说
-         * 原厂根本没按语言下标去用那张表（见 ResBuilderCore::renderStrings()
+         * 写的是 -32，但既有 result.str 全是 **16px 宋体** —— 也就是说
+         * 根本没按语言下标去用那张表（见 ResBuilderCore::renderStrings()
          * 和 docs/FILE_FORMATS.md 10.5）。照搬 fonts[0] 的话，「蓝牙」会渲成
          * 64x32，塞进 32x16 的控件里只能看到一角。
          * 这里和 ResBuilderCore 用同一条规则：默认宋体 -16，只有当表里那项

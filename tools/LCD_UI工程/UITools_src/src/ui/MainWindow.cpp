@@ -48,9 +48,9 @@
 #include <QKeySequence>
 #include <QCloseEvent>
 
-/* 配色直接从原厂截图采样：
+/* 界面配色：
  *   面板绿 #C0DCC0 / 属性区 #CEE2CE / 列表内白底 #F1F1F1 / 画布灰 #F0F0F0 */
-static const char *const kFactoryQss = R"(
+static const char *const kAppQss = R"(
 QMainWindow, QMainWindow > QWidget { background: #F0F0F0; }
 QDockWidget { background: #C0DCC0; }
 QDockWidget > QWidget { background: #C0DCC0; }
@@ -95,13 +95,13 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setObjectName(QStringLiteral("MainWindow"));
     setWindowTitle(tr("UI编辑工具(Build:%1)").arg(common::buildDate()));
-    /* 尺寸按原厂截图实测：客户区 1687x969（工具栏 31 + 内容 969），
+    /* 默认窗口尺寸：客户区 1687x969（工具栏 31 + 内容 969），
      * 四列 263 / 232 / 927 / 255。 */
     resize(1694, 1032);
 
     m_mgr = new CanvasManager(this);
 
-    /* 中央：可滚动的画布宿主。原厂画布贴左上角，不居中。 */
+    /* 中央：可滚动的画布宿主。画布贴左上角，不居中。 */
     m_canvasHost = new QWidget(this);
     m_scroll = new QScrollArea(this);
     m_scroll->setObjectName(QStringLiteral("centralWidget"));
@@ -113,7 +113,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     buildDocks();
     buildToolBar();
-    applyFactoryStyle();
+    applyAppStyle();
 
     m_mgr->attachHost(m_canvasHost);
 
@@ -138,9 +138,9 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow() = default;
 
-void MainWindow::applyFactoryStyle()
+void MainWindow::applyAppStyle()
 {
-    setStyleSheet(QLatin1String(kFactoryQss));
+    setStyleSheet(QLatin1String(kAppQss));
 }
 
 void MainWindow::buildDocks()
@@ -169,7 +169,7 @@ void MainWindow::buildDocks()
     sideLay->addWidget(m_components, 0);
 
     /* 属性区：ID号(ComProperty) -> CSS属性_0(PropertyTab) -> 控件专有属性
-     * 这个上下次序就是原厂的次序。 */
+     * 上下次序就按这个来。 */
     auto *propArea = new BaseScrollArea(side);
     auto *propHost = new QWidget;
     auto *propLay = new QVBoxLayout(propHost);
@@ -271,15 +271,15 @@ void MainWindow::buildToolBar()
 
     QToolBar *tb = addToolBar(tr("主工具栏"));
     tb->setObjectName(QStringLiteral("mainToolBar"));
-    /* 原厂是"图标在上、文字在下"的大按钮，一排排到底（temp/Snipaste_2026-09-09_08-46-05.jpg）。
-     * 之前做成了 16px 小图标 + 文字在右，一眼就不是那个东西。 */
+    /* 工具栏用"图标在上、文字在下"的大按钮，一排排到底。
+     * 之前做成 16px 小图标 + 文字在右，太挤，也不好认。 */
     tb->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     tb->setIconSize(QSize(28, 28));
     tb->setFloatable(false);
-    tb->setMovable(true);          // 原厂左端有那个可拖的点阵手柄
+    tb->setMovable(true);          // 左端留一个可拖的点阵手柄
     tb->setMinimumHeight(58);      // 28 图标 + 文字 + 上下留白
 
-    /* 图标从 exe 的 qrc 里扔出来的 77 个中挑最接近原厂那一排的 */
+    /* 工具栏按钮 */
     QAction *aNew    = tb->addAction(icon("category_vcs.png"),     tr("新建工程(P)"));
     QAction *aOpen   = tb->addAction(icon("document-open.png"),    tr("打开工程(O)"));
     QAction *aSave   = tb->addAction(icon("Save_Icon.png"),        tr("保存工程(S)"));
@@ -288,9 +288,8 @@ void MainWindow::buildToolBar()
     QAction *aNewPage = tb->addAction(icon("canvas-diagram.png"),      tr("新建页面(N)"));
     QAction *aDelPage = tb->addAction(icon("removesubmitfield.png"),   tr("删除页面(D)"));
     tb->addSeparator();
-    /* 【原厂没有这个按钮】原厂要退出编辑器、再双击 step2 的脚本弹 UIToolBin
-     * 才能出资源。这里把那一页直接搬进来（同一个 ToolBinWindow 类，同一条
-     * 生成链），改完布局当场就能导出，省掉来回切窗口。 */
+    /* 【资源导出】把导出那一页直接嵌进主窗口（同一个 ToolBinWindow 类、
+     * 同一条生成链），改完布局当场就能导出，不用退出去再跑一遍脚本。 */
     QAction *aExport = tb->addAction(icon("build.png"),               tr("资源导出"));
     aExport->setToolTip(QStringLiteral(
         "把当前工程导出成资源文件（project.bin / ename.h / result.bin …），"
@@ -311,17 +310,17 @@ void MainWindow::buildToolBar()
 
     tb->addSeparator();
 
-    /* ---- 以下是原厂没有的，跟在原厂那一排后面，同一排 --------------------
+    /* ---- 视图辅助开关，跟在主按钮那一排后面，同一排 ----------------------
      * 点阵屏工程 128x64 在 927px 宽的画布上就是左上角一个指甲盖，没有缩放
      * 基本没法编；一个图层下又常挂着好几个全屏尺寸的互斥布局，不做隔离就是
      * 一团糊。这几个开关是干这个用的。
      *
      * 【为什么装在一个子控件里，而不是直接 tb->addAction】第一排换成
      * "图标在上、文字在下"的大按钮之后，工具栏会把每个直属按钮都撑成那个
-     * 高度和宽度，11 个原厂按钮 + 这几个就一千七百多像素，末尾那句状态文字
+     * 高度和宽度，11 个主按钮 + 这几个就一千七百多像素，末尾那句状态文字
      * 直接被挤出窗口。装进一个自带 QHBoxLayout 的 QWidget 里，它们就不受
      * 工具栏的 ToolButtonStyle 管，按各自的文字宽度排，省下一半宽度，
-     * 既保住了原厂那一排的形状，也不用把任何一项挪走或藏起来。 */
+     * 既保住了主按钮那一排的形状，也不用把任何一项挪走或藏起来。 */
     auto *viewBar = new QWidget(tb);
     /* 【必须钉死横向策略】QWidget 默认是 Preferred，QToolBarLayout 会把一排
      * 用剩的宽度全塞给它，末尾那句状态文字就被顶出窗口了。 */
@@ -354,7 +353,7 @@ void MainWindow::buildToolBar()
     m_zoomBox = new QComboBox(zoomCol);
     m_zoomBox->setEditable(false);
     /* 宽度对齐上面那行标题的文字宽度 —— 这一列看着就是齐的一小块。
-     * 别写死像素：字体换了（原厂是宋体 9pt，别的机器上未必）宽度要跟着走。 */
+     * 别写死像素：字体换了（默认宋体 9pt，别的机器上未必）宽度要跟着走。 */
     m_zoomBox->setFixedWidth(
         zoomCap->fontMetrics().size(Qt::TextSingleLine, zoomCap->text()).width());
     m_zoomBox->setFixedHeight(22);
@@ -439,7 +438,7 @@ void MainWindow::buildToolBar()
 
     tb->addWidget(viewBar);
 
-    /* 原厂状态文字就挂在工具栏末尾（截图右边那句「编译成功」），没有独立状态栏 */
+    /* 状态文字挂在工具栏末尾，不做独立状态栏 */
     m_status = new QLabel(tr("初始化编辑环境完成"), tb);
     m_status->setContentsMargins(10, 0, 6, 0);
     m_status->setStyleSheet(QStringLiteral("color: #1A4FA0;"));
@@ -467,11 +466,11 @@ void MainWindow::buildToolBar()
     connect(aGlobal,  &QAction::triggered, m_mgr, &CanvasManager::onGlobalBtn);
     connect(aZoom,    &QAction::triggered, m_mgr, &CanvasManager::onZoomProject);
     connect(aAbout,   &QAction::triggered, m_mgr, &CanvasManager::onAboutBtn);
-    /* 这两个在原二进制里是 private slot，用字符串连接走 moc 元调用 */
+    /* 这两个是 private slot，用字符串连接走 moc 元调用 */
     connect(aNewPage, SIGNAL(triggered()), m_mgr, SLOT(onCreateNewScenesScreen()));
     connect(aDelPage, SIGNAL(triggered()), m_mgr, SLOT(onDelCurrentScenesScreen()));
 
-    /* 逆向出来但原厂工具栏上没有的入口，放右键菜单里，不破坏工具栏形状 */
+    /* 不常用的入口放右键菜单里，不占工具栏的位置 */
     addAction(aNew);
     auto *aDump = new QAction(tr("解析 .sty 并校验往返"), this);
     connect(aDump, &QAction::triggered, this, &MainWindow::onDumpSty);
@@ -508,8 +507,8 @@ void MainWindow::closeEvent(QCloseEvent *e)
      * 一起吞掉 —— 模型没被标脏，工具会以为没什么可存的。 */
     EditorOps::commitPendingEdit();
 
-    /* ★ 原厂退出要问两次：先"是否真的退出程序?"，再问没保存的改动。
-     * 重建版之前是直接关，改了一下午的东西点个叉就没了。 */
+    /* ★ 退出要问两次：先"是否真的退出程序?"，再问没保存的改动。
+     * 之前是直接关，改了一下午的东西点个叉就没了。 */
     QMessageBox box(this);
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(QStringLiteral("退出程序"));
@@ -553,7 +552,7 @@ void MainWindow::onFindObject()
                 }
             }
             if (!hit) {
-                /* 原厂原话，前面那个空格也是原厂的 */
+                /* 提示语原文，前面那个空格是有意留的 */
                 QMessageBox::warning(this, QStringLiteral("警告"),
                                      kw + QStringLiteral(" 不存在,或者已经被删除,或者已经被重命名."));
                 return;
@@ -585,7 +584,7 @@ void MainWindow::refreshPropertyContext(const QString &projectJson)
     PropertyContext &ctx = PropertyContext::instance();
     ctx.projectDir = QFileInfo(projectJson).absolutePath();
 
-    /* 多国语言表：工程里记了就用工程的，否则按原厂目录结构去
+    /* 多国语言表：工程里记了就用工程的，否则按约定的目录结构去
      * <工程>/../../../UITools/ 下找唯一一个 .xls */
     QString xls = m_mgr->model()->langExcel();
     if (!xls.isEmpty() && !QFileInfo(xls).isAbsolute()) {
@@ -812,8 +811,8 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
         });
         return found;
     };
-    /* 【新建的页面是空的】原厂「新建页面」只建页节点，图层和布局要自己加
-     * （onCreateNewLayer @0x421780 是"永远加到当前页"，和选中什么无关）。
+    /* 【新建的页面是空的】「新建页面」只建页节点，图层和布局要自己加
+     * （新建图层是"永远加到当前页"，和选中什么无关）。
      * 这里照着补齐，否则后面拿 firstLayout() 会拿到空指针。 */
     auto pageOf = [&](int i) -> UiNode * {
         while (m_mgr->model()->pages().size() <= i) {
@@ -1144,9 +1143,8 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 1. 建控件：选中控件时加到它的兄弟位置 ---
-     * 规则出处 ui-tools.exe onCreateCompoentToCanvas @0x4212C0：
-     * 选中是 NewFrame/NewList/NewGrid 时，容器取 sel 的**父级**。
-     * 本版一度写成"直接拦下报错"，比原厂严。 */
+     * 规则：选中是 NewFrame/NewList/NewGrid 时，容器取 sel 的**父级**。
+     * 一度写成"直接拦下报错"，那样太严，正常操作也被挡掉了。 */
     int before = countNodes(page);
     UiNode *const frameHost = frame->parent;
     const int hostKidsWas = frameHost ? frameHost->children.size() : -1;
@@ -1154,7 +1152,7 @@ int MainWindow::runOpsTest(QString *report)
     EditorOps::clearLastMessage();
     m_components->createControl(QStringLiteral("NewFrame"), QStringLiteral("Text"),
                                 QStringLiteral("文字"));
-    check(QStringLiteral("选中控件时建控件：建得出来（原厂不拦）"),
+    check(QStringLiteral("选中控件时建控件：建得出来（不拦）"),
           countNodes(page) == before + 1
           && EditorOps::lastMessage().isEmpty(),
           EditorOps::lastMessage());
@@ -1165,7 +1163,7 @@ int MainWindow::runOpsTest(QString *report)
           .arg(hostKidsWas).arg(frameHost ? frameHost->children.size() : -1)
           .arg(frame->children.size()));
 
-    /* 选中图层建控件才是真拦 —— 原厂那一条 isClass("NewLayer") 判死的 */
+    /* 选中图层建控件才是真拦 —— isClass("NewLayer") 判死 */
     before = countNodes(page);
     onNodeSelected(layer);
     EditorOps::clearLastMessage();
@@ -1192,15 +1190,15 @@ int MainWindow::runOpsTest(QString *report)
           made && made->cssStateCount() > 0);
 
     /* --- 3. 建布局：图层下、布局里套一层，都行 ---
-     * 规则出处 ui-tools.exe onCreateNewLayout @0x421500：NewLayout 和 NewLayer
-     * 都是"挂到自己"，NewFrame/NewList 挂到父级，其余静默。本版一度写成
-     * "只能挂图层下"，于是布局套布局建不出来（原厂工程里有 3 例）。 */
+     * 规则：NewLayout 和 NewLayer 都是"挂到自己"，NewFrame/NewList 挂到
+     * 父级，其余静默。一度写成"只能挂图层下"，于是布局套布局建不出来
+     * —— 而既有工程里就有 3 例这种嵌套。 */
     before = countNodes(page);
     const int layoutKidsWas = layout->children.size();
     onNodeSelected(layout);                      // 选中的是布局
     EditorOps::clearLastMessage();
     m_components->onCreateNewLayout();
-    check(QStringLiteral("选中布局建布局：套在它里面（原厂工程里有 3 例这种嵌套）"),
+    check(QStringLiteral("选中布局建布局：套在它里面（既有工程里有 3 例这种嵌套）"),
           countNodes(page) == before + 1
           && layout->children.size() == layoutKidsWas + 1,
           EditorOps::lastMessage());
@@ -1500,16 +1498,16 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 14. 负坐标要能原样留住 ---
-     * 固件的 struct element_css 里 left/top 是**有符号 int**，原厂
-     * SmallColor_oled.json 里就有 (0,-11) 的控件 —— 让内容从父容器上边缘
-     * 露出去是他们在用的手法。我一度在拖动里把坐标夹到 [0,父级尺寸]，
+     * left/top 是**有符号**的，SmallColor_oled.json 里就有 (0,-11) 的控件
+     * —— 让内容从父容器上边缘露出去是常用手法。
+     * 一度在拖动里把坐标夹到 [0,父级尺寸]，
      * 那是凭空多出来的限制，会把用户已有的负坐标改掉。这条守着它别再回来。 */
     sc->rebuild();
     if (BaseForm *f = sc->formFor(frame)) {
         const QRect g0 = f->geometry();
         f->setGeometry(QRect(-7, -11, qMax(1, g0.width()), qMax(1, g0.height())));
         f->syncRectToNode();
-        check(QStringLiteral("负坐标能写进节点（原厂允许，别钳）"),
+        check(QStringLiteral("负坐标能写进节点（允许，别钳）"),
               frame->rectOf(0).topLeft() == QPoint(-7, -11),
               QStringLiteral("rect=(%1,%2)")
                   .arg(frame->rectOf(0).x()).arg(frame->rectOf(0).y()));
@@ -1536,10 +1534,9 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 15. 树上的显示名 ---
-     * 原厂界面上 VerticalList 那两个节点显示的是"垂直列表_16"/"垂直列表_25"，
-     * 可它们的 -name 在 json 里是**裸的类型名** "VerticalList"。也就是说
-     * -name 没被正经命名过时，原厂是拿 caption+序号 现算的。我一开始直接显示
-     * -name，树上就冒出个英文名。 */
+     * 有些节点的 -name 在 json 里是**裸的类型名**（比如 "VerticalList"），
+     * 直接拿去显示，树上就冒出个英文名。所以 -name 没被正经命名过时，
+     * 改成拿 caption+序号 现算，显示成"垂直列表_16"这种。 */
     {
         UiNode *bare = nullptr;
         int bareSeq = -1;
@@ -1592,7 +1589,7 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 16. 画布预览：默认隐藏 / 单独预览 / 画面翻页 / 眼睛 / 缩放 ---
-     * 一个图层下常挂着好几个**全屏尺寸**的互斥布局（原厂页0 有 5 个
+     * 一个图层下常挂着好几个**全屏尺寸**的互斥布局（有的页就有 5 个
      * (0,0,128,64)），全画出来最上面那个把下面全盖死，什么都编不了。 */
     sc->rebuild();
     {
@@ -2037,7 +2034,7 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18d. 列表类参数必须和预览对得上 ---
-     * 原厂面板每个列表类属性下面都跟着一个条目下拉框（图片"缩略图+文件名"、
+     * 每个列表类属性下面都要跟一个条目下拉框（图片"缩略图+文件名"、
      * 文字"内容#ResID"），而且**停在预览真正画的那一条上**。以前这里只有
      * 一个按钮，面板上根本看不出画布上那张图是列表里的哪一条 —— 参数和
      * 预览对不上就是这么来的。 */
@@ -2190,7 +2187,7 @@ int MainWindow::runOpsTest(QString *report)
             }
             /* 【预览文字】text/ascii 的内容运行时才有，画布上本来是空的。
              * 配一句只用于预览的假文字顶上，方便看排版 —— 但它只能存在工具
-             * 配置里：写进工程就不是原厂那份 json 了，而且**不能**把工程标记
+             * 配置里：写进工程就改动了工程文件的内容，而且**不能**把工程标记
              * 成改过（标题带 * / 退出问保存都是看这个）。 */
             {
                 /* 先把 code 切到 ascii，**再**抓基准 —— 切 code 本身会改
@@ -2412,8 +2409,8 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18h. 两个列表编辑对话框里也要有预览 ---
-     * 原厂的「图片编辑」是把每张位图画出来的，「显示列表」是"内容#ResID"
-     * （见 temp/图片列表.jpg、temp/文字列表.jpg）。以前这两个都退化成了
+     * 「图片编辑」要把每张位图画出来，「显示列表」要显示"内容#ResID"。
+     * 以前这两个都退化成了
      * 纯文件名 / 纯 ResID：图片那边 QFileSystemModel 给的是通用文件图标，
      * 一屏两百多个一模一样的小方块，只能靠文件名猜。 */
     {
@@ -2507,7 +2504,7 @@ int MainWindow::runOpsTest(QString *report)
      *   2) 每个像素非亮即灭（= 没有残留的彩色块；屏上只有这两种状态）
      *
      * 【不能写死黑白】「点亮/熄灭」的颜色现在是[全局设置]里可配的
-     * （见 docs/FACTORY_UI.md 8.4），配成绿底蓝字这条断言照样得成立。
+     * （见 docs/UI_BEHAVIOR.md 8.4），配成绿底蓝字这条断言照样得成立。
      * 所以拿 Preview::monoLit()/monoDark() 当基准比，而不是比灰阶。 */
     if (m_pages) {
         const QImage img = m_pages->grabPageForTest(m_mgr->currentPage());
@@ -2541,8 +2538,8 @@ int MainWindow::runOpsTest(QString *report)
      * 出过的问题：这一行点开的是系统文件对话框，回来的是**绝对路径**，
      * 而工程 json 里存的是 "config/pic_lcd/v_block.bmp" 这种相对工程目录的
      * 形式；再加上画布压根没画 background-image —— 用户选完图什么都没发生，
-     * 看着就是"设置不了"。原厂点开的是 ImageListView（标题
-     * "图片编辑(双击选中图片并更新到控件)"，见 docs/FACTORY_UI.md 8.6）。 */
+     * 看着就是"设置不了"。这里点开的是 ImageListView（标题
+     * "图片编辑(双击选中图片并更新到控件)"，见 docs/UI_BEHAVIOR.md 8.6）。 */
     {
         const QString projDir = QFileInfo(m_mgr->model()->filePath()).absolutePath();
         ImageListView dlg(this);
@@ -2619,8 +2616,7 @@ int MainWindow::runOpsTest(QString *report)
         refreshTitle();
         check(QStringLiteral("干净工程标题上没有 *"),
               !windowTitle().contains(QLatin1Char('*')), windowTitle());
-        /* 标题格式：UI编辑工具(Build:YYYY-MM-DD) <工程名>，
-         * 不带"重建版"这类字眼 */
+        /* 标题格式：UI编辑工具(Build:YYYY-MM-DD) <工程名> */
         check(QStringLiteral("标题带构建日期、不带重建字样"),
               windowTitle().contains(QStringLiteral("Build:"))
                   && !windowTitle().contains(QStringLiteral("重建")),
@@ -2637,7 +2633,7 @@ int MainWindow::runOpsTest(QString *report)
         if (any) {
             onNodeSelected(any);
             /* 挑一个**还能往上加**的框。坐标 X 的范围是 [0, 父宽-自身宽]
-             * （原厂规则，见 Position::setBounds()），控件铺满父容器时它就是
+             * （见 Position::setBounds()），控件铺满父容器时它就是
              * [0,0] —— 拿它 +1 加不动，会误判成"没标脏"。 */
             QSpinBox *sp = nullptr;
             for (QSpinBox *s : m_prop->findChildren<QSpinBox *>()) {
@@ -2666,8 +2662,8 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18j. 新建的控件必须自带一个唯一的 ID 号 ---
-     * 原厂建出来"唯一ID号"就是填好的（BaseForm / BaseForm_1 / …），空着的话
-     * 生成资源时这个控件拿不到 ename.h 里的宏，业务代码引用不到它。 */
+     * 建出来的控件"唯一ID号"必须是填好的（BaseForm / BaseForm_1 / …），
+     * 空着的话生成资源时它拿不到 ename.h 里的宏，业务代码引用不到。 */
     {
         onNodeSelected(layout);
         const int n0 = countNodes(page);
@@ -2736,15 +2732,14 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18l. 控件参数的取值范围要真的限住 ---
-     * 原厂是数据驱动的：范围写在 control.json 的属性里（min/max/maxlength），
+     * 取值范围是数据驱动的：写在 control.json 的属性里（min/max/maxlength），
      * 提示语 "请输入%1~%2的整数" / "请输入 0~9999 内的整数"。
-     * 之前本版的数字框一律 ±9999 / ±99999，等于没限 —— 往 int8 字段里写
+     * 之前数字框一律 ±9999 / ±99999，等于没限 —— 往 int8 字段里写
      * 30000 也收，生成资源时被截断成别的数。
      *
      * 判据：把面板铺出来，逐个 QSpinBox 看它的 range 是不是收敛的。
      *
-     * 位置坐标那四个框单独判 —— 规则是从原厂 exe 反汇编出来的
-     * （ui-tools.exe VA 0x00424AC0，见 Position::setBounds() 的注释）：
+     * 位置坐标那四个框单独判（见 Position::setBounds() 的注释）：
      *     宽 <= 父宽、高 <= 父高（无条件）；
      *     NewLayout / NewLayer：X/Y 都是 -999..999；
      *     其余控件：X 是 0..(父宽-自身宽)、Y 是 0..(父高-自身高)。 */
@@ -3287,7 +3282,7 @@ int MainWindow::runOpsTest(QString *report)
     /* --- 18q. 列表/表格是容器，下面放得进东西 ---
      * 用户实测："为什么我的垂直列表下面不能放其他控件？"
      * 本版的 EditorOps::acceptsChild() 只认 NewLayout，于是列表怎么都收不到
-     * 孩子，永远是空的。而原厂两个工程里，列表下面一共挂着 165 个布局
+     * 孩子，永远是空的。而既有的两个工程里，列表下面一共挂着 165 个布局
      * （键 listwidget）—— 那就是列表的行/项模板，控件再放进这些行布局里。 */
     if (list) {
         sc->rebuild();
@@ -3320,9 +3315,9 @@ int MainWindow::runOpsTest(QString *report)
                   t ? t->name : QStringLiteral("落不下去"));
         }
 
-        /* ★ 选中列表点「新建布局」：本版有意和原厂不一样，建进列表。
-         * 原厂是加到列表的父级（0x421500 那条 isClass("NewList") 走
-         * [sel+0x34]），加行只能走列表的右键菜单「添加行」。 */
+        /* ★ 选中列表点「新建布局」：建进列表里。
+         * 另一种做法是加到列表的父级、加行只能走右键菜单「添加行」，
+         * 这里选前者，直觉上更顺。 */
         {
             const int rowsWas0 = list->children.size();
             const int sibsWas = list->parent ? list->parent->children.size() : -1;
@@ -3360,8 +3355,8 @@ int MainWindow::runOpsTest(QString *report)
             check(QStringLiteral("行布局里放得进控件"),
                   row->children.size() == inRow + 1);
 
-            /* 选中列表本身点「新建控件」：原厂是加到列表的**父级**，
-             * 不是钻进列表（onCreateCompoentToCanvas @0x4212C0 那三条 isClass）。*/
+            /* 选中列表本身点「新建控件」：加到列表的**父级**，
+             * 不是钻进列表（同 hostForNewControl 里那三条 isClass）。*/
             UiNode *listHost = list->parent;
             const int hostWas = listHost ? listHost->children.size() : -1;
             const int listWas = list->children.size();
@@ -3379,7 +3374,7 @@ int MainWindow::runOpsTest(QString *report)
 
         /* --- 存盘 / 重新打开 / 生成资源，形状不能变 ---
          * 用户的要求：打开的 json 工程和生成的 UI 资源都要保持兼容。
-         * 列表加行这条路走完，落盘的还得是原厂那个形状：
+         * 列表加行这条路走完，落盘的还得是兼容的那个形状：
          * NewList --listwidget--> NewLayout，而且生成出来的 .sty 里
          * 这些行都得有非零几何（零尺寸 = 屏上不显示，见 18o）。 */
         {
@@ -3418,7 +3413,7 @@ int MainWindow::runOpsTest(QString *report)
                           lists > 0 && rows > 0 && badKey == 0,
                           QStringLiteral("%1 个列表 %2 行，键不对 %3")
                           .arg(lists).arg(rows).arg(badKey));
-                    check(QStringLiteral("重新打开后：列表的孩子全是 NewLayout（原厂就这一种）"),
+                    check(QStringLiteral("重新打开后：列表的孩子全是 NewLayout（只这一种）"),
                           badCls == 0, QStringLiteral("类不对 %1 个").arg(badCls));
                 }
 
@@ -3491,14 +3486,14 @@ int MainWindow::runOpsTest(QString *report)
                                                   box->children.last().second->cls));
             }
 
-            /* 选中它点「新建控件」：按原厂落到它的父级，不钻进去 */
+            /* 选中它点「新建控件」：落到它的父级，不钻进去 */
             UiNode *host = box->parent;
             const int hostWas = host ? host->children.size() : -1;
             const int inBox = box->children.size();
             onNodeSelected(box);
             m_components->createControl(QStringLiteral("NewFrame"),
                                         QStringLiteral("Text"), QStringLiteral("文字"));
-            check(QStringLiteral("%1：选中它点「新建控件」落到父级（原厂行为）").arg(label),
+            check(QStringLiteral("%1：选中它点「新建控件」落到父级").arg(label),
                   host && host->children.size() == hostWas + 1
                   && box->children.size() == inBox,
                   QStringLiteral("父级 %1->%2，它自己 %3->%4")
@@ -3790,7 +3785,7 @@ int MainWindow::runOpsTest(QString *report)
          * 类型码 5 的资源结构体是
          *     struct ui_grid_info { head; u8 page_mode; s8 highlight_index;
          *                           action*; layout_info *info; }
-         * （User/ui_framework/include/ui/control.h:170），StyBuilder 写的也
+         * StyBuilder 写的也
          * 正是这四样（rec[16]=scroll_mode、rec[17]=highlight_index、
          * @20 action、@24 子指针）。`interval` 那个字段是 ui_browser_info /
          * ui_animation_info 的，不是列表的。
@@ -3883,15 +3878,15 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18u. 三条路建出来的布局，参数集必须一模一样 ---
-     * 用户实测："右键添加行新增的布局参数比原厂少，列表下点新建布局的
+     * 用户实测："右键添加行新增的布局参数比正常的少，列表下点新建布局的
      * 参数又和图层下的一样"。
-     * 先把原厂到底是什么样查清楚：两个工程 167 个列表行 vs 65 个图层下的布局，
+     * 先把既有工程里是什么样查清楚：167 个列表行 vs 65 个图层下的布局，
      * property 名单（id / element_css / action）、element_css 的字段
      * （align / invisible / flags / rect / background_color /
      * background_image / border）和状态数（都是 1）**完全一致** ——
-     * 原厂的行布局和普通布局就是同一套参数，没有"列表专属"的那一份。
+     * 行布局和普通布局就是同一套参数，没有"列表专属"的那一份。
      * 所以本版三条建布局的路（图层下新建 / 列表下新建 / 右键添加行）
-     * 必须给出同一个参数集，而且要和工程里现成的原厂行对得上。 */
+     * 必须给出同一个参数集，而且要和工程里现成的那些行对得上。 */
     {
         auto sig = [](UiNode *n) {
             QStringList names, css;
@@ -3925,12 +3920,12 @@ int MainWindow::runOpsTest(QString *report)
         if (refRow) {
             const QString ref = sig(refRow);
 
-            /* 工程里现成的原厂行 —— 本版建出来的必须和它一样 */
+            /* 工程里现成的行 —— 新建出来的必须和它一样 */
             if (list && !list->children.isEmpty()) {
-                UiNode *factoryRow = list->children.first().second;
-                check(QStringLiteral("原厂的列表行和图层下的布局是同一套参数"),
-                      sig(factoryRow) == ref,
-                      QStringLiteral("原厂行 %1  图层下 %2").arg(sig(factoryRow), ref));
+                UiNode *existingRow = list->children.first().second;
+                check(QStringLiteral("列表行和图层下的布局是同一套参数"),
+                      sig(existingRow) == ref,
+                      QStringLiteral("现成行 %1  图层下 %2").arg(sig(existingRow), ref));
             }
 
             /* 路 A：空列表右键「添加行」（走模板那条，以前是现搭空壳） */
@@ -4000,9 +3995,9 @@ int MainWindow::runOpsTest(QString *report)
         }
     }
 
-    /* --- 18v. 全量对拍：每种控件 x 每条建节点的路 ---
+    /* --- 18v. 全量自检：每种控件 x 每条建节点的路 ---
      * 之前是"用户报一个、修一个"，漏得没完。这一条把不变量一次性立起来，
-     * 全部从原厂那两份工程（797 个节点）和 control.json 统计出来：
+     * 全部从既有的两份工程（797 个节点）和 control.json 统计出来：
      *
      *   【硬性】违反了就是坏数据，生成出来烧进去要出事
      *     · 认得出类型（control.json 有模板）
@@ -4011,17 +4006,17 @@ int MainWindow::runOpsTest(QString *report)
      *     · ename 全工程唯一              —— 撞了就是两个宏定义打架
      *     · rect 有效且宽高都 > 0
      *     · 挂的 json 键 ∈ {layer, layout, widget, listwidget}
-     *     · 父子关系 ∈ 原厂出现过的组合
+     *     · 父子关系 ∈ 既有工程里出现过的组合
      *
-     *   【软性】原厂自己就有 2% 这种，只报数不判失败
-     *     · 属性名单和模板不完全一致（原厂 9 个 ImageList 只有 id+element_css）
-     *     · css 状态数和模板不一致（原厂 8 个 Time 是用户自己加的状态）
+     *   【软性】既有工程里自己就有 2% 这种，只报数不判失败
+     *     · 属性名单和模板不完全一致（有 9 个 ImageList 只有 id+element_css）
+     *     · css 状态数和模板不一致（有 8 个 Time 是用户自己加的状态）
      *
      * 新建出来的节点按**硬性 + 严格模板一致**要求；已有工程只查硬性。 */
     {
         const ControlLibrary *lib = m_mgr->library();
 
-        /* 原厂 797 个节点统计出来的父子组合（父class, 键, 子class） */
+        /* 既有工程 797 个节点统计出来的父子组合（父class, 键, 子class） */
         auto pairAllowed = [](const QString &pc, const QString &key,
                               const QString &cc) {
             if (pc == QLatin1String("ScenesScreen")) {
@@ -4109,9 +4104,9 @@ int MainWindow::runOpsTest(QString *report)
                                                QStringLiteral("widget"),
                                                QStringLiteral("listwidget") };
             if (!kKeys.contains(key)) {
-                bad << QStringLiteral("子键 '%1' 不在原厂那四个里").arg(key);
+                bad << QStringLiteral("子键 '%1' 不在允许的那四个里").arg(key);
             } else if (par && !pairAllowed(par->cls, key, n->cls)) {
-                bad << QStringLiteral("父子组合 %1 --%2--> %3 原厂没有")
+                bad << QStringLiteral("父子组合 %1 --%2--> %3 不是允许的组合")
                        .arg(par->cls, key, n->cls);
             }
             return bad;
@@ -4169,7 +4164,7 @@ int MainWindow::runOpsTest(QString *report)
                   hard == 0,
                   QStringLiteral("%1 个有问题：%2").arg(hard)
                   .arg(firstBad.join(QStringLiteral(" | "))));
-            check(QStringLiteral("%1：与模板的软性偏差（原厂自己也有，只报数）").arg(tag),
+            check(QStringLiteral("%1：与模板的软性偏差（既有工程里也有，只报数）").arg(tag),
                   true,
                   QStringLiteral("属性名单不同 %1 个，css 形状不同 %2 个")
                   .arg(softProp).arg(softState));
@@ -4341,15 +4336,15 @@ int MainWindow::runOpsTest(QString *report)
             const QString jf = QDir(dir).filePath(QStringLiteral("audit.json"));
             QString err;
             const bool saved = m_mgr->model()->save(jf, &err);
-            check(QStringLiteral("对拍工程存得下来"), saved, err);
+            check(QStringLiteral("自检工程存得下来"), saved, err);
             if (saved) {
                 ProjectModel re;
-                check(QStringLiteral("对拍工程重新打开得了"), re.load(jf, &err), err);
+                check(QStringLiteral("自检工程重新打开得了"), re.load(jf, &err), err);
 
                 sty::Builder b;
                 QString e2;
                 const bool ok = b.loadProject(jf, &e2);
-                check(QStringLiteral("对拍工程生成得了资源"), ok, e2);
+                check(QStringLiteral("自检工程生成得了资源"), ok, e2);
                 if (ok) {
                     sty::Options opt;
                     const sty::Output o = b.build(opt);
@@ -4393,8 +4388,8 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18w. 诊断：属性面板对"列表行"和"图层下的布局"各铺了哪些行 ---
-     * 用户对着原厂实测："列表控件下面的布局，原厂没有位置坐标相关参数，
-     * 你的有；而且你还把事件属性去掉了。"
+     * 用户实测："列表控件下面的布局不该有位置坐标相关参数，你的有；
+     * 而且你还把事件属性去掉了。"
      * 数据层面两者是同一套（id/element_css/action，css 字段也一样，
      * 见 §14.1），所以差异只可能在面板怎么铺。先把两边铺出来的行打出来。 */
     if (list && !list->children.isEmpty()) {
@@ -4450,26 +4445,26 @@ int MainWindow::runOpsTest(QString *report)
         }
     }
 
-    /* --- 18x. 属性面板全量对拍 ---
-     * 上一轮的"全量对拍"(18v) 只比到**数据结构**：属性名单、css 字段、状态数。
-     * 用户对着原厂一比就找出两条我没查到的：列表行多显示了「坐标」、
+    /* --- 18x. 属性面板全量自检 ---
+     * 上一轮的"全量自检"(18v) 只比到**数据结构**：属性名单、css 字段、状态数。
+     * 用户一比就找出两条我没查到的：列表行多显示了「坐标」、
      * 自愈补出来的节点少了「事件属性」。教训是**面板铺出来的行也得比**。
      *
      * 面板本质上就是 json 的一个渲染：
      *   CSS 属性页  = element_css.struct[state] 里每个字段一组，标题取 caption
      *   专有属性区  = 除 id / element_css 之外的每条 property 一行，标签取 caption
      * 所以"应该有哪些行"是**可以从 json 算出来**的。凡是算出来有、面板上没有
-     * （漏行），或者面板上有、算出来没有（多行），都是一处需要原厂证据的偏离。
+     * （漏行），或者面板上有、算出来没有（多行），都是一处需要单独说明的偏离。
      *
      * 这一条把每种控件在每种父级下都铺一遍，把两张表逐条比：
      *   · 漏行 —— 一律判失败（用户就是这么丢掉事件属性的）
      *   · 多行 —— 列进白名单才算过，白名单里每条都得写清出处
-     * 同时把完整的面板表打印出来，方便对着原厂一次性核对。 */
+     * 同时把完整的面板表打印出来，方便一次性核对。 */
     {
-        /* 【有意偏离原厂的行，白名单】每条都要有出处，不然就是我自己发明的 */
+        /* 【额外多铺的行，白名单】每条都要写清理由 */
         auto extraAllowed = [](UiNode *n, const QString &row) {
             /* 本版给文字控件加的"预览文字"：只存在工具配置里，不进工程数据。
-             * 原厂没有这一行 —— 这是本版为了画布能看出效果加的。 */
+             * 加这一行是为了画布上能看出排版效果。 */
             if (row == QStringLiteral("预览文字")) {
                 return true;
             }
@@ -4479,7 +4474,7 @@ int MainWindow::runOpsTest(QString *report)
         /* 【有意不铺的行，白名单】 */
         auto missAllowed = [](UiNode *n, const QString &row) {
             /* 列表/表格里的那一项：几何由容器的 sizehw/space 决定，
-             * 原厂不铺这一组（用户对着原厂逐项比出来的，见 §14.13）。 */
+             * 所以不铺这一组（见 §14.13）。 */
             if (row == QStringLiteral("坐标") && n->parent
                 && (n->parent->cls == QLatin1String("NewList")
                     || n->parent->cls == QLatin1String("NewGrid"))) {
@@ -4542,7 +4537,7 @@ int MainWindow::runOpsTest(QString *report)
                     extras << QStringLiteral("专有:") + r;
                 }
             }
-            /* 次序也要对：面板是按 json 的次序铺的，错位了排版就和原厂不一样 */
+            /* 次序也要对：面板是按 json 的次序铺的，错位了排版就乱 */
             QStringList wSeq, gSeq;
             for (const QString &r : wCss) {
                 if (gotCss.contains(r)) {
@@ -4732,8 +4727,8 @@ int MainWindow::runOpsTest(QString *report)
     /* --- 18z. 配置跟着工程走：复制一份工程，预览文字还在 ---
      * ui-config 里存的全是**按工程**的东西（页面尺寸、图片目录、多国语言表、
      * 点阵屏预览配色、每个文字控件的「预览文字」）。它原来锚的是**进程当前
-     * 目录** —— 原厂没这毛病是因为启动脚本永远 `cd project` 再起 exe，
-     * 而从别处起 exe 就会在那儿凭空拉一个和工程无关的空配置。
+     * 目录** —— 靠启动脚本 `cd project` 再起 exe 才碰巧落对地方，
+     * 从别处起 exe 就会在那儿凭空拉一个和工程无关的空配置。
      * 现在锚到工程目录，好处就是这一条：**把 UI 工程整个复制走，
      * 这些设置一起过去**。
      *
@@ -4879,7 +4874,7 @@ void MainWindow::refreshScreenLabel()
 void MainWindow::onNodeSelected(UiNode *node)
 {
     /* 控件列表要知道当前选中的是图层还是布局，否则"新建控件/新建布局"
-     * 那两条原厂限制无从判起。 */
+     * 那两条限制无从判起。 */
     m_components->setCurrentNode(node);
     m_com->showNode(node);
     m_prop->showNode(node);
@@ -4911,11 +4906,10 @@ void MainWindow::onStatusMessage(const QString &msg)
 /**
  * "修改背景" —— 从 <UITools>/backgrounds/ 里挑一张铺到画布底下。
  *
- * 原厂在这儿有一段说明（HTML，逐字照抄）：
+ * 对话框里给一段说明（HTML）：
  *   背景图片目录名是 'backgrounds'，把背景图片放在该目录下就可以显示了，
  *   只支持 JPG 格式。
- * 双击列表里的一项就应用 —— 那正是 onDobuleClickedImage() 这个槽的用途
- * （Double 拼错也是原厂的，保留）。
+ * 双击列表里的一项就应用 —— 那正是 onDobuleClickedImage() 这个槽的用途。
  */
 void MainWindow::onChangeBackgroud()
 {
@@ -5016,7 +5010,7 @@ QString MainWindow::prepareExport()
  * config\ini\project.ini、写 project.bin / ename.h / Resbuilder.xml /
  * debug.txt、调 ResBuilder.exe、再跑收尾脚本 —— 和 step2 那条路一字不差。
  *
- * 结果写在工具栏末尾那句状态文字上（原厂那一排也是在这儿报「编译成功」）；
+ * 结果写在工具栏末尾那句状态文字上（成功就报「编译成功」）；
  * 只有失败才弹框，并把完整输出附在详情里。
  */
 void MainWindow::onExportResource()

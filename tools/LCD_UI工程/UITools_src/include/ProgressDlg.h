@@ -1,4 +1,4 @@
-/* ProgressDlg.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据。
+/* ProgressDlg.h ——
  * 生成资源、批量转换图片这类耗时操作的进度框。
  */
 #ifndef PROGRESSDLG_H

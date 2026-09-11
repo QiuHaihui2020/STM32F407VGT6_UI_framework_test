@@ -1,19 +1,18 @@
 /*
- * ProjectModel.h —— ui-tools 工程文件(*.json)的内存模型
+ * ProjectModel.h —— UI 工程文件(*.json)的内存模型
  *
- * 【定位】ui-tools.exe 是一个**纯布局编辑器**：它只读写 <工程>.json 和
- * autosave.json，不产 .sty、不产 ename.h、不调下游工具（在它的二进制里搜
- * 不到 uitoolbin / QtToolBin / ResBuilder / ename.h / project.bin 任何一个
- * 字符串，而这些全在 QtToolBin.exe 里）。所以"能替换原厂 exe"的门槛就是：
- * 工程文件读写要与它完全一致。
+ * 【定位】UITools 是一个**纯布局编辑器**：它只读写 <工程>.json 和
+ * autosave.json，不产 .sty、不产 ename.h、也不调下游工具 ——
+ * 那些全在 QtToolBin 里。所以工程文件兼容性的门槛就一条：
+ * 工程文件读写要与既有格式完全一致。
  *
- * 【格式】原厂 SmallColorTFT.json 的特征（re/json_fmt.py 实测）：
+ * 【格式】SmallColorTFT.json 的特征（compat/json_fmt.py 实测）：
  *     - 就是 Qt 的 QJsonDocument::toJson(Indented)：4 空格缩进、
  *       对象键按字典序（QJsonObject 天然如此）、空数组写成 "[\n<缩进>]"
  *     - 纯 LF 换行、无 BOM、UTF-8 直出不转义、结尾 "\n}\n"
  *   所以用 Qt 写出来天生同格式，不需要自己拼字符串。
  *
- * 【保真往返】这是能不能顶替原厂工具的硬指标：打开→不改→保存必须与原文件
+ * 【保真往返】这是工程文件兼容性的硬指标：打开→不改→保存必须与原文件
  * 逐字节相同。做法是每个节点都留着原始 QJsonObject(m_raw)，保存时以它为底，
  * 只覆盖被改过的字段；没建模的键、原本就存在的空数组、字段有无，一律照旧。
  *   验证：UITools --json-roundtrip <in.json> <out.json>
@@ -84,7 +83,7 @@ public:
     /* ---- element_css ----------------------------------------------------
      * 工程 json 里控件**没有** rect 属性，几何和样式全在
      *     property[-name=="element_css"].struct[状态][ ... ]
-     * 里。struct 是"每个 CSS 状态一项"的数组 —— 原厂属性面板上那个
+     * 里。struct 是"每个 CSS 状态一项"的数组 —— 属性面板上那个
      * "CSS属性_0" 的下标就是它的索引。状态内的属性有
      *     align / invisible / z_order / rect / background_color /
      *     background_image / border ...
@@ -156,7 +155,7 @@ public:
     bool load(const QString &path, QString *err = nullptr);
     bool save(const QString &path, QString *err = nullptr) const;
 
-    /** 序列化成与原厂完全一致的字节（Qt Indented + LF）。 */
+    /** 序列化成与既有工程文件一致的字节（Qt Indented + LF）。 */
     QByteArray toJsonBytes() const;
 
     /** 保真往返自检：读进来再写出去，与原文件逐字节比较。 */
@@ -186,7 +185,7 @@ public:
     QString  langExcel() const { return m_langExcel; }
     void     setLangExcel(const QString &p) { m_langExcel = p; m_dirty = true; }
     /** 启用的语言位掩码，与 Resbuilder.xml 的 <language> 同一套编码
-     *  （bit i 置位 = 启用第 i+1 号语言）。原厂默认 0x13 = 简中+繁中+英文。 */
+     *  （bit i 置位 = 启用第 i+1 号语言）。默认 0x13 = 简中+繁中+英文。 */
     quint32  languageMask() const { return m_languageMask; }
     void     setLanguageMask(quint32 m) { m_languageMask = m; m_dirty = true; }
     QSize    pageSize() const;
@@ -198,11 +197,11 @@ public:
     bool     dirty() const { return m_dirty; }
     void     setDirty(bool d) { m_dirty = d; }
 
-    /** 原厂还会写一份 autosave.json（这个名字在 ui-tools.exe 里能搜到）。 */
+    /** 同时写一份 autosave.json。 */
     bool saveAutosave(const QString &dir, QString *err = nullptr) const;
 
     /* ---- 节点编号与显示名 -------------------------------------------
-     * 原厂给新建节点起名是 "<caption>_<序号>"，这个序号是**跨页全局递增、
+     * 新建节点起名是 "<caption>_<序号>"，这个序号是**跨页全局递增、
      * 且不计页节点**的。证据在 SmallColorTFT.json 里：页0 有 49 个非页
      * 节点(图层_0 … 文字_48)，页1 的第一个节点就叫 图层_49。
      * 以前这里按页各数各的，第二页新建出来的东西会和第一页重名。 */
@@ -213,8 +212,8 @@ public:
     /**
      * 取一个还没被占用的"唯一ID号"（ename）。
      *
-     * 原厂规则：base 本身没被占就用 base，否则 base_1 / base_2 … 往后找。
-     * 默认 base 是 "BaseForm" —— ui-tools.exe 里 'BaseForm'(0xc94f30) 紧挨着
+     * 规则：base 本身没被占就用 base，否则 base_1 / base_2 … 往后找。
+     * 默认 base 是 "BaseForm" —— 它紧挨着
      * 'Ename is empty'(0xc94f3b)，同一编译单元（ComProperty/CssProperty）里
      * 还有格式串 '%1_%2'；实机工程里新建的图层/布局拿到的正是
      * BaseForm_1 / BaseForm_2。

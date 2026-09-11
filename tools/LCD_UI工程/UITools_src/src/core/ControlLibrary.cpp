@@ -18,7 +18,7 @@ bool ControlLibrary::load(const QString &uiToolsRoot, QString *err)
     }
     const int builtinCount = m_controls.size();
 
-    /* 扩展控件：control/ex/*.json。原厂就是靠往这个目录丢文件来加控件的，
+    /* 扩展控件：control/ex/*.json。往这个目录丢文件就能加控件，
      * 缺目录不算错误。 */
     QDir exDir(QDir(uiToolsRoot).filePath(QStringLiteral("control/ex")));
     if (exDir.exists()) {
@@ -39,7 +39,7 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
     QFile f(jsonPath);
     if (!f.open(QIODevice::ReadOnly)) {
         if (err) {
-            /* 原厂原话（[全局设置]里就有"控件文件:"这一项，指的就是它） */
+            /* [全局设置]里那一项"控件文件:"指的就是它 */
             *err = QStringLiteral("找不到控件文件,请查看[全局设置]里的路径目录是否正确.");
         }
         return false;
@@ -48,14 +48,14 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
     const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
     if (pe.error != QJsonParseError::NoError) {
         if (err) {
-            /* 原厂原话，三个占位分别是 错误、偏移、文件 */
+            /* 三个占位分别是 错误、偏移、文件 */
             *err = QStringLiteral("读取控件文件遇到错误<%1> 偏移<%2>,请查看检查文件<%3> 格式.")
                    .arg(pe.errorString()).arg(pe.offset).arg(jsonPath);
         }
         return false;
     }
 
-    /* 顶层键名原厂拼错成 compoents；两种都认，优先原厂写法 */
+    /* 顶层键名就是 compoents（少了个 n）；两种都认，优先这个写法 */
     QJsonArray arr = doc.object().value(QStringLiteral("compoents")).toArray();
     if (arr.isEmpty()) {
         arr = doc.object().value(QStringLiteral("components")).toArray();
@@ -73,7 +73,7 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
         t.type     = o.value(QStringLiteral("-type")).toString();
         t.name     = o.value(QStringLiteral("-name")).toString();
         t.caption  = o.value(QStringLiteral("caption")).toString();
-        /* 原厂 json 里用的是 Windows 反斜杠，转成 QDir 能吃的形式 */
+        /* json 里用的是 Windows 反斜杠，转成 QDir 能吃的形式 */
         t.iconPath = o.value(QStringLiteral("icon")).toString().replace(QLatin1Char('\\'),
                                                                        QLatin1Char('/'));
         if (!t.iconPath.isEmpty()) {
@@ -94,7 +94,7 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
 
 const ControlTemplate *ControlLibrary::byType(const QString &type) const
 {
-    /* 【必须大小写不敏感】原厂两份文件对不上：control.json 里数字控件是
+    /* 【必须大小写不敏感】两份文件对不上：control.json 里数字控件是
      * `-type: "Number"`，而工程文件和 option.ini 里都是小写 `number`
      * （两个工程 15 个数字控件全是小写）。按大小写敏感查，这 15 个节点
      * 取不到模板 —— 补样式、补 ID 号、属性面板全部落空，而且不报错。

@@ -1,11 +1,11 @@
 // 字符串 -> 1bpp 点阵。
 //
-// 原厂 ResBuilder 是 Windows 程序，字符串图是 GDI 光栅化出来的
+// 字符串图是 GDI 光栅化出来的
 // （Resbuilder.xml 里存的就是一整套 LOGFONT 字段，摆明了直接喂 CreateFontIndirect）。
-// 这里在 Windows 上就调同一套 GDI，所以点阵和原厂**逐字节相同**——
-// 实测 141/141 条（简中/繁中/英文三语）全中，见 re/verify_str.py。
+// 这里在 Windows 上就调同一套 GDI，所以点阵和既有资源**逐字节相同**——
+// 实测 141/141 条（简中/繁中/英文三语）全中，见 compat/verify_str.py。
 //
-// 非 Windows 平台退化为 QPainter 渲染：能用，但字形不保证和原厂一致。
+// 非 Windows 平台退化为 QPainter 渲染：能用，但字形不保证一致。
 #ifndef TEXTRASTER_H
 #define TEXTRASTER_H
 
@@ -41,7 +41,7 @@ struct TextBitmap {
 
 /**
  * @brief 把一行文字渲染成 OSD1 竖向分页点阵
- * @param text 原文；**不要 trim**，尾随空格会真实占宽（原厂 5 条英文就是这样多出 8 px）
+ * @param text 原文；**不要 trim**，尾随空格会真实占宽（有 5 条英文就是这样多出 8 px）
  * @param f    字体
  * @note 宽度 = GetTextExtentPoint32W(text).cx 向上取整到 8；文字画在 (0,0)，
  *       背景清 0、前景置 1。

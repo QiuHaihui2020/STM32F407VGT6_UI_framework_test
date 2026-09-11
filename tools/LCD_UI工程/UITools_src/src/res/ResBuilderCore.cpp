@@ -52,7 +52,7 @@ QByteArray bmpEntry(quint16 dataCrc, quint16 resType, quint16 typeId,
 /**
  * 数字感知的次序比较：把连续数字段当整数比，其余按字符比。
  *
- * 原厂给文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
+ * 文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
  * 不是 QStringList::sort() 的字典序（那会得到 m1 < m22 < m3）。
  * 证据见 docs/FILE_FORMATS.md。
  *
@@ -91,11 +91,11 @@ bool natLess(const QString &a, const QString &b)
 /**
  * @brief 文件名 -> 宏名：只去扩展名 + 转大写，**不做字符净化**
  *
- * 原厂就是这么干的：config\bmp_128x64_lineart\J3_lineart (1).bmp 出来的是
+ * 规则就是这样：config\bmp_128x64_lineart\J3_lineart (1).bmp 出来的是
  *     #define  J3_LINEART (1)            1
  * 括号和空格原样留着 —— 这是个会互相冲突的宏名（28 张图全叫 J3_LINEART），
- * 属于原厂的缺陷。但 result_pic_index.h 固件一处都没引用，只是给人看的索引表，
- * 所以这里照抄原厂，优先保证逐字节对齐。
+ * 这其实是个缺陷。但 result_pic_index.h 固件一处都没引用，只是给人看的索引表，
+ * 所以这里保持既有写法，优先保证逐字节对齐。
  */
 QString symbolOf(const QString &fileName)
 {
@@ -104,7 +104,7 @@ QString symbolOf(const QString &fileName)
 
 QByteArray toAnsi(const QString &s)
 {
-    // 原厂这几个 .h / 路径注释是本地代码页（简中机器上就是 GBK）。
+    // 这几个 .h / 路径注释用本地代码页（简中机器上就是 GBK）。
     // 保持一致，否则 Keil/GCC 读注释里的中文路径会花屏（虽然不影响编译）。
     return s.toLocal8Bit();
 }
@@ -151,7 +151,7 @@ bool ResBuilderCore::collectPictures(BuildResult &r)
             items.append(it);
         }
         /* 【按宏名的自然序分配 id，不是字典序】
-         * 原厂 Resbuilder.xml 里 <PictureList> 的次序每次运行都不一样
+         * Resbuilder.xml 里 <PictureList> 的次序每次运行都不一样
          * （QSet 迭代序，见 docs/FILE_FORMATS.md），但 result_pic_index.h 里
          * 的编号两次运行完全一致 —— 说明 ResBuilder 自己重排过。
          * 排法是数字感知的：J3_LINEART (1) < (2) < ... < (10)，
@@ -202,7 +202,7 @@ bool ResBuilderCore::collectStrings(BuildResult &r)
         }
     }
     /* 【按数字排，不是字典序】见 natLess() 抬头。图片那边仍是字典序 ——
-     * 它和原厂逐个吻合，不要一起改。 */
+     * 它和既有资源逐个吻合，不要一起改。 */
     std::sort(names.begin(), names.end(), natLess);
     for (int i = 0; i < names.size(); ++i) {
         StringItem s;
@@ -243,7 +243,7 @@ bool ResBuilderCore::collectStrings(BuildResult &r)
     }
 
     /* 逐格字体。工程目录里没有 Resbuilder.dat 是正常的（新建的工程还没
-     * 在原厂 ResBuilder 界面里改过字体），那就全用 <Fonts> 的默认值。 */
+     * 在界面里改过字体），那就全用 <Fonts> 的默认值。 */
     const QString datPath = QDir(m_cfg.baseDir).absoluteFilePath(
         QStringLiteral("Resbuilder.dat"));
     if (QFileInfo::exists(datPath) && !m_fontDat.load(datPath)) {
@@ -259,8 +259,8 @@ bool ResBuilderCore::renderStrings(BuildResult &r)
     m_strBits.clear();
     for (int li = 0; li < m_langs.size(); ++li) {
         const int lang = m_langs.at(li);
-        // 字体：原厂 Resbuilder.xml 的 <Fonts> 里 font00..05 是 -32，
-        // 但产出的 result.str 全是 16 px 宋体 —— 也就是说原厂**没有**按语言下标
+        // 字体：Resbuilder.xml 的 <Fonts> 里 font00..05 是 -32，
+        // 但既有 result.str 全是 16 px 宋体 —— 也就是说**没有**按语言下标
         // 去用那张表（详见 docs/FILE_FORMATS.md 10.5）。这里以宋体 -16 为默认，
         // 只有当 <Fonts> 明确给出**同样高度**的项时才采用它，避免莫名其妙换字体。
         LogFontSpec langFont;
@@ -310,12 +310,12 @@ QVector<quint32> ResBuilderCore::pagePalette(int pageIndex) const
         out.append(c.toUInt(&ok, 16));
         usedSet.insert(c.toUpper());
     }
-    /* 【透明色一定要占一格】原厂在 ColorList 之后、默认表之前，必定补上
+    /* 【透明色一定要占一格】ColorList 之后、默认表之前，必定要补上
      * bmp_transparent_color（本工程 0x00FFFFFF），前面已经有了就不重复。
      *
      * 这条以前没发现：页 0~2 的 ColorList 里本来就带 FFFFFF，补不补结果一样。
      * 用户新建了一个页面（ColorList 只有 000000/D9EE94/8DEEDB）之后才暴露 ——
-     * 原厂第 4 项是 FFFFFF，本版直接接默认表，往后整整错开 4 字节，
+     * 第 4 项该是 FFFFFF，直接接默认表的话往后整整错开 4 字节，
      * result.bin 一下多出 449 处对不上。四页现在都能逐字节复现。 */
     {
         const quint32 trans = m_cfg.bmpTransparentColor & 0x00FFFFFFu;
@@ -405,7 +405,7 @@ QByteArray ResBuilderCore::buildRes() const
         for (const PictureItem &it : items) {
             const quint16 typeId = quint16((CMP_NONE << 13) | (FMT_OSD1 << 10)
                                            | (it.id & 0x3FF));
-            // data_crc：原厂在 .res 里恒写 0（固件读单色图时不校验），照抄
+            // data_crc：.res 里恒写 0（固件读单色图时不校验）
             out += bmpEntry(0, RES_PICTURE, typeId, quint16(it.width),
                             quint16(it.height),
                             quint32(legacyLength(it.width, it.height)), off);
@@ -441,12 +441,12 @@ QByteArray ResBuilderCore::buildStr() const
     putU16(out, 0x0101);
     putU16(out, m_cfg.panelTypeCode());
     /* 【这里是页数，不是语言数】固件 RES_HEAD_T 这个位置叫 totalPage
-     * （User/ui_framework/liba/res/resfile.c），.res 和 .str 共用同一个头。
+     * .res 和 .str 共用同一个头。
      * 语言数在后面 RES_ENTRY_T 的 langsum 字节里，那个才是 open_string_pic
      * 拿去除 wCount 的。
      *
      * 以前这里写的是语言数，一直没暴露 —— 这套工程正好 3 页 3 语言，两种
-     * 写法数值相同。用户新建了第 4 个页面之后才露出来：原厂写 4，本版写 3。 */
+     * 写法数值相同。用户新建了第 4 个页面之后才露出来：该写 4，写成了 3。 */
     putU16(out, quint16(m_cfg.pages.size()));
     putU16(out, 0);
     putU32(out, 0);                             // resver 回填
@@ -466,7 +466,7 @@ QByteArray ResBuilderCore::buildStr() const
             const Raster &ras = m_strBits.at(li).at(k);
             // typeId 里的 id 是**跨语言的流水号** 1..wCount，不是每种语言各自从 1 开始。
             // 固件 open_string_pic 用 (wCount/langsum)*(lang-1)+id 算表下标，
-            // 压根不读这个字段，它只是个计数器——但要和原厂一致就得这么写。
+            // 压根不读这个字段，它只是个计数器——但要和既有资源一致就得这么写。
             ++seq;
             const quint16 typeId = quint16((CMP_NONE << 13) | (FMT_OSD1 << 10)
                                            | (seq & 0x3FF));
@@ -538,7 +538,7 @@ QByteArray ResBuilderCore::makeStrIndexH() const
     s += QStringLiteral("//generated by ResBuilder in %1\r\n").arg(m_timestamp);
     s += QLatin1String("#ifndef _RESULT_STR_INDEX_H_  \r\n#define _RESULT_STR_INDEX_H_  \r\n\r\n");
     s += QLatin1String("////StrResID Define Table////\r\n");
-    // 原厂是**按页**输出的：每页把自己用到的 cell 排序后各打一遍，
+    // **按页**输出：每页把自己用到的 cell 排序后各打一遍，
     // 所以跨页共用的 cell 会重复 #define（值相同，编译器不报错）。
     // id 则是全局的（全部 cell 去重排序后 1..N），见 result.xml 里的 <Cell id>。
     QMap<QString, int> idOf;
@@ -602,7 +602,7 @@ QByteArray ResBuilderCore::makeXml() const
         }
         s += QLatin1String("            </ColorList>\r\n");
 
-        /* 【空列表要写成自闭合】原厂空的时候写 <CellList/>，不是一对空标签。
+        /* 【空列表要写成自闭合】空的时候写 <CellList/>，不是一对空标签。
          * 以前三页都非空，看不出来；用户新建一个空页面之后 result.xml 就多出
          * 一行对不上。图片列表同理（同一个写出器，一样的写法）。 */
         if (m_pics.at(p).isEmpty()) {

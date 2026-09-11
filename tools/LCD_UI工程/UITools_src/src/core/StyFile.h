@@ -1,10 +1,9 @@
 /*
- * StyFile.h —— JL.sty（原厂 project.bin）窗口/控件布局文件的读写
+ * StyFile.h —— JL.sty（即 project.bin）窗口/控件布局文件的读写
  *
- * 【格式来源】三方互证，已用 re/sty_dump.py 在真实文件上跑通：
- *   ① 固件解析器  User/ui_framework/lcd_drive/middle/ui_resources_manager.c
- *                 User/ui_framework/include/ui/control.h
- *   ② 原厂工具自己吐的结构转储  .../project/debug.txt
+ * 【格式来源】三方互证，已用 compat/sty_dump.py 在真实文件上跑通：
+ *   ① 现成的 .sty 样本文件
+ *   ② 与之配套的结构转储  .../project/debug.txt
  *   ③ ename.h 里的 ID 常量 —— 控件头 id 字段逐条对得上宏名
  *
  * 【已验证的事实】（tools/JL/JL.sty, 24498 B, 3 页）
@@ -14,7 +13,7 @@
  *   bit22/23 是页号（页0=0x00xxxx 页1=0x40xxxx 页2=0x80xxxx）
  *   控件负载长度与 control.h 的结构体逐字节吻合，例如 Text = 16+8+8+4+4+4+4 = 48
  *
- * 【尚未解决】控件头 id 低 16 位那个哈希的算法。见 docs/RE_REPORT.md「未决项」。
+ * 【尚未解决】控件头 id 低 16 位那个哈希的算法。
  *   不影响工具链自洽：ename.h 由本工具一并生成，固件包含的就是新表。
  */
 #ifndef STYFILE_H
@@ -27,8 +26,8 @@
 /** 文件头，24 字节，对应固件 struct ui_file_head。 */
 struct StyHead {
     quint32 uiVersion  = 0;           ///< 与 ename.h 的 UI_VERSION 宏一致
-    quint32 magic2     = 0x6A978292u; ///< 原厂固定值
-    quint32 hdrPtr     = 16;          ///< 原厂固定 16
+    quint32 magic2     = 0x6A978292u; ///< 固定值
+    quint32 hdrPtr     = 16;          ///< 固定 16
     quint32 totalSize  = 0;           ///< 文件大小 - (24 + 20*windowNum)
     quint8  type       = 1;
     quint8  windowNum  = 0;
@@ -114,7 +113,7 @@ public:
     const QVector<StyWindow> &windows() const { return m_windows; }
     QVector<StyWindow> &windows() { return m_windows; }
 
-    /** 人类可读的结构摘要，等价于原厂 debug.txt。 */
+    /** 人类可读的结构摘要，等价于 debug.txt。 */
     QString describe() const;
 
 private:

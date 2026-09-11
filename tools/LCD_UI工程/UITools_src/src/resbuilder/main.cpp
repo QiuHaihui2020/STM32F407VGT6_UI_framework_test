@@ -1,9 +1,9 @@
-// ResBuilder（重建版）—— 原厂 ResBuilder.exe 的替代品。
+// ResBuilder —— 资源描述文件 + 位图 + 多国语言表 -> 资源二进制与索引头文件。
 //
 //   ResBuilder                       在当前目录找 Resbuilder.xml
 //   ResBuilder <Resbuilder.xml>      指定输入
 //   ResBuilder <xml> -o <目录>       指定输出目录（默认与 xml 同目录）
-//   ResBuilder <xml> --verify <目录> 生成后与该目录里的原厂产物逐字节对比
+//   ResBuilder <xml> --verify <目录> 生成后与该目录里现成的产物逐字节对比
 //
 // 输出：result.bin / result.str / result.h / res_ver.h /
 //       result_pic_index.h / result_str_index.h / result.csv / result.xml
@@ -32,7 +32,7 @@ int verifyAgainst(const QString &refDir, const QStringList &written)
         const QString refPath = QDir(refDir).absoluteFilePath(name);
         QFile a(p), b(refPath);
         if (!b.exists()) {
-            out() << QStringLiteral("  [缺]  %1（原厂目录里没有）\n").arg(name);
+            out() << QStringLiteral("  [缺]  %1（参考目录里没有）\n").arg(name);
             ++missing;
             continue;
         }
@@ -53,7 +53,7 @@ int verifyAgainst(const QString &refDir, const QStringList &written)
             if (firstDiff < 0) {
                 firstDiff = qMin(da.size(), db.size());
             }
-            out() << QStringLiteral("  [异]  %1  本版 %2 字节 / 原厂 %3 字节，"
+            out() << QStringLiteral("  [异]  %1  本次 %2 字节 / 参考 %3 字节，"
                                     "首个不同 @0x%4\n")
                      .arg(name).arg(da.size()).arg(db.size())
                      .arg(firstDiff, 0, 16);
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
         } else if (a == QLatin1String("--verify") && i + 1 < args.size()) {
             refDir = args.at(++i);
         } else if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
-            out() << QStringLiteral("用法: ResBuilder [Resbuilder.xml] [-o 输出目录] [--verify 原厂目录]\n");
+            out() << QStringLiteral("用法: ResBuilder [Resbuilder.xml] [-o 输出目录] [--verify 参考目录]\n");
             out().flush();
             return 0;
         } else if (!a.startsWith(QLatin1Char('-'))) {
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
     out().flush();
 
     if (!refDir.isEmpty()) {
-        out() << QStringLiteral("\n与原厂产物对比（%1）：\n")
+        out() << QStringLiteral("\n与参考产物对比（%1）：\n")
                  .arg(QDir::toNativeSeparators(refDir));
         return verifyAgainst(refDir, r.written);
     }

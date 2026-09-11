@@ -1,8 +1,8 @@
 #
-# UITools（重建版）—— 从 ui-tools.exe 逆向重建的 Qt 工程
+# UITools —— 点阵屏 UI 工具链的 Qt 工程
 #
-# 原始程序是 Qt 5.9.3 / i386 / mingw-w64 静态链接。这里不锁死 5.9：
-# Qt5 5.9 以上、Qt6 都能编。想复刻原始体积/依赖，用 32 位 mingw + 静态 Qt 5.9.3。
+# 不锁死某个 Qt 版本：Qt5 5.9 以上、Qt6 都能编。
+# 想要单文件无外部依赖的形态，用 32 位 mingw + 静态 Qt。
 #
 # 构建（MinGW）:
 #     cmake -S . -B build -G "Ninja" -DCMAKE_PREFIX_PATH=<Qt根>/5.15.2/mingw81_64
@@ -46,8 +46,7 @@ set(UITOOLS_UI
     src/ui/ProjectDialog.cpp
 )
 
-# ---- 由 re/gen_classes.py 依据逆向元数据生成的类骨架 --------------------
-# 这些类在原程序里确实存在，接口逐字一致，槽体待补。
+# ---- 对话框与小部件 --------------------------------------------------------
 file(GLOB UITOOLS_GEN CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/gen/*.cpp")
 
 # ---- 头文件必须显式列进来 ----------------------------------------------
@@ -112,7 +111,7 @@ if(MSVC)
 endif()
 
 # =======================================================================
-#  ResBuilder（重建版）—— 替代原厂 ResBuilder.exe
+#  ResBuilder —— 资源描述 + 位图 + xls -> 资源二进制与索引头文件
 #  只依赖 Qt Core（Windows 上还用 gdi32 做文字光栅化，见 src/res/TextRaster.cpp）
 # =======================================================================
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
@@ -139,10 +138,10 @@ if(MSVC)
 endif()
 
 # =======================================================================
-#  QtToolBin（重建版）—— 替代原厂 QtToolBin.exe
+#  QtToolBin —— 工程 json -> 布局数据与资源描述
 #  工程 json -> project.bin(.sty) / ename.h / Resbuilder.xml / debug.txt
 # =======================================================================
-# 原厂 QtToolBin 是弹窗工具，所以这里要 Widgets；
+# QtToolBin 是弹窗工具，所以这里要 Widgets；
 # 不带参数弹界面，带生成类选项走命令行（见 src/qttoolbin/main.cpp 抬头）。
 add_executable(QtToolBin WIN32
     src/qttoolbin/main.cpp

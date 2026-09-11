@@ -1,11 +1,11 @@
 /*
  * Canvas.h —— 画布（页面）与画布管理器
  *
- * 【接口来源】ui-tools.exe 的 moc 元数据。★ 标记的成员签名与原二进制逐字一致。
- *   ScenesScreen  : QFrame    ★ slot onChangedBackgroundColor()
- *   CanvasManager : QObject   ★ Q_PROPERTY(QSize mPageSize) + 13 个槽
+ * 【两个类】
+ *   ScenesScreen  : QFrame    slot onChangedBackgroundColor()
+ *   CanvasManager : QObject   Q_PROPERTY(QSize mPageSize) + 13 个槽
  *
- * CanvasManager 在原程序里是 QObject 而不是 QWidget —— 它是"文档 + 动作"的
+ * CanvasManager 是 QObject 而不是 QWidget —— 它是"文档 + 动作"的
  * 中枢：新建/打开/保存工程、增删页面、全局设置、缩放、截图，主窗口的菜单和
  * 工具栏直接连到它的槽上。本次重写保持这个职责划分。
  */
@@ -201,7 +201,7 @@ public:
     explicit CanvasManager(QObject *parent = nullptr);
     ~CanvasManager() override;
 
-    /* ★ 原二进制里的属性 */
+    /* ★ 对外暴露的属性 */
     QSize mPageSize() const { return m_pageSize; }
     void  setMPageSize(const QSize &v);
 
@@ -219,7 +219,7 @@ public:
     int           currentPage() const { return m_current; }
     void          setCurrentPage(int i);
 
-    /** 有未保存改动就按原厂那句话问一次。true = 可以继续。 */
+    /** 有未保存改动就问一次。true = 可以继续。 */
     bool confirmDiscardChanges();
 
     /**
@@ -235,8 +235,8 @@ public:
     void markDirty() { setDirty(true); }
 
     /* ---- 画布缩放 ----------------------------------------------------
-     * 【原厂没有这个】原厂画布只有 1:1，128x64 在 927px 宽的画布上就是左上角
-     * 一个指甲盖。点阵屏工程尤其难受，所以加了缩放。缩放**只影响显示**：
+     * 【为什么要缩放】画布 1:1 的话，128x64 在 927px 宽的画布上就是左上角
+     * 一个指甲盖，点阵屏工程尤其难编。缩放**只影响显示**：
      * UiNode::rect 始终存 1:1 的像素坐标，缩放着编辑再保存不会把倍率乘进去
      * （见 ScenesScreen::buildRecursive 里的换算）。 */
     int  zoom() const { return m_zoom; }
@@ -249,7 +249,7 @@ public:
      * 没有唯一 ID 号的。
      *
      * 【为什么会缺】旧版「添加行」在列表还空着时现搭了个只有
-     * -class/-type/-name 的壳（见 docs/FACTORY_UI.md §14.12）。这种节点没有
+     * -class/-type/-name 的壳（见 docs/UI_BEHAVIOR.md §14.12）。这种节点没有
      * 几何也没有样式，生成资源时它和它整棵子树的 css 全是零尺寸，
      * 烧进设备什么都不显示，而且从编辑器到生成器没有一处报错。
      *
@@ -329,7 +329,7 @@ signals:
                         const QPoint &pos);
 
 public slots:
-    /* ★ 以下 10 个是 public，3 个是 private —— 与二进制里的 access 一致 */
+    /* ★ 以下 10 个是 public，3 个是 private —— access 别随手改 */
     void onSaveProject();
     void onSaveAsProject();
     void onOpenProject();

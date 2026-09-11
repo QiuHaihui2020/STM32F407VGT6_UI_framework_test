@@ -7,9 +7,9 @@ rem —— 和原厂同一份配置。
 rem
 rem 不想弹窗、想一条命令跑完的话，用命令行模式：
 rem   cd project
-rem   ..\..\..\UITools_rebuilt\QtToolBin.exe --run-resbuilder ..\..\..\UITools_rebuilt\ResBuilder.exe
+rem   ..\..\..\UIToolkit\QtToolBin.exe --run-resbuilder ..\..\..\UIToolkit\ResBuilder.exe
 cd /d "%~dp0project"
-set TOOLS=..\..\..\UITools_rebuilt
+set TOOLS=..\..\..\UIToolkit
 
 if not exist "%TOOLS%\QtToolBin.exe" (
     echo [step2] 找不到 %TOOLS%\QtToolBin.exe

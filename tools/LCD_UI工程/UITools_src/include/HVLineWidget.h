@@ -1,4 +1,4 @@
-/* HVLineWidget.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据。
+/* HVLineWidget.h ——
  * 拖动控件时显示的十字辅助线（对齐参考），同样是透明的覆盖层。
  */
 #ifndef HVLINEWIDGET_H

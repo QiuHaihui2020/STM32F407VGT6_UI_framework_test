@@ -68,14 +68,14 @@ bool acceptsLayout(const UiNode *n)
 
 bool acceptsWidget(const UiNode *n)
 {
-    /* 只有布局。列表的孩子在原厂工程里清一色是 NewLayout（165 个），
-     * 塞个裸控件进去，生成出来是原厂从没产出过的形状。 */
+    /* 只有布局。列表的孩子清一色是 NewLayout（既有工程里 165 个），
+     * 塞个裸控件进去，生成出来就是个固件读不对的形状。 */
     return isLayout(n);
 }
 
 bool acceptsChild(const UiNode *n)
 {
-    /* 粘贴仍然只认布局 —— 原厂那三条提示语写死了"请选择一个<布局>对像"。 */
+    /* 粘贴仍然只认布局 —— 那三条提示语写死了"请选择一个<布局>对像"。 */
     return isLayout(n);
 }
 
@@ -97,7 +97,7 @@ UiNode *hostForNewLayout(UiNode *sel, bool *needTip)
     }
     if (!sel) {
         if (needTip) {
-            *needTip = true;                 // 只有这一种情况原厂会弹提示
+            *needTip = true;                 // 只有这一种情况弹提示
         }
         return nullptr;
     }
@@ -105,18 +105,18 @@ UiNode *hostForNewLayout(UiNode *sel, bool *needTip)
         return sel;
     }
     if (isList(sel) || isGrid(sel)) {
-        /* ★ 这一条和原厂不一样：列表原厂给的是 sel->parent（布局落到列表
-         * **旁边**），想加行得去列表的右键菜单「添加行」；表格原厂连判都不判，
+        /* ★ 这一条是个取舍：另一种做法是给 sel->parent（布局落到列表
+         * **旁边**），想加行得去列表的右键菜单「添加行」，表格则连判都不判、
          * 静默什么也不做，根本没有加项的入口。选中容器点「新建布局」却建到
          * 别处去（或者干脆没反应），实在不像话，本版两种都改成建进去 ——
          * 列表的行、表格的项本来就是布局，键还是 listwidget，
-         * 产物形状和原厂那 165 行一致。 */
+         * 产物形状和既有工程那 165 行一致。 */
         return sel;
     }
     if (isFrame(sel)) {
         return sel->parent;
     }
-    return nullptr;                          // 原厂在这儿是静默返回
+    return nullptr;                          // 这儿是静默返回
 }
 
 QRect cellRectFor(const UiNode *container, int index)
@@ -159,7 +159,7 @@ QString childKeyFor(const UiNode *parent)
     }
     if (parent && parent->cls == QLatin1String("NewGrid")) {
         /* 表格的项也走 listwidget，不是 "GridWidget" —— 那个名字在
-         * ui-tools.exe 里是个死字符串，没有任何代码读它（见 EditorOps.h）。 */
+         * 是个没人读的名字（见 EditorOps.h）。 */
         return QStringLiteral("listwidget");
     }
     return QStringLiteral("layout");

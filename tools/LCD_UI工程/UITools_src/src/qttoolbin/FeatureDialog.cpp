@@ -21,10 +21,10 @@ namespace toolbin {
 
 namespace {
 
-/* 表格列。原厂两列都叫「语言」：前一列是中文名，后一列是 xml 里的 LANG 属性。 */
+/* 表格列。头两列都叫「语言」：前一列是中文名，后一列是 xml 里的 LANG 属性。 */
 enum Col { ColName, ColKey, ColFace, ColPoint, ColItalic, ColBold, ColUnderline, ColCount };
 
-/** 表格里 true/false 就照原厂显示成小写字面量（只读，不是编辑器）。 */
+/** 表格里 true/false 显示成小写字面量（只读，不是编辑器）。 */
 QString boolText(bool on)
 {
     return on ? QStringLiteral("true") : QStringLiteral("false");
@@ -64,7 +64,7 @@ FeatureDialog::FeatureDialog(const ResbuilderOptions &opt, QWidget *parent)
         QStringLiteral("下划线") });
     m_tab->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tab->setSelectionMode(QAbstractItemView::MultiSelection);   // 选中 = 启用
-    /* 【单元格一律不可直接编辑】原厂就是这样：字体/字号/斜体/加粗/下划线
+    /* 【单元格一律不可直接编辑】字体/字号/斜体/加粗/下划线
      * 五项都不在表格里改，**双击整行**弹一个标准的 Select Font
      * （Qt 的 QFontDialog，见 temp/select font.jpg）统一设。
      * 语言名和 LANG 是那 22 种语言的固定表，也不给改。 */
@@ -87,8 +87,8 @@ FeatureDialog::FeatureDialog(const ResbuilderOptions &opt, QWidget *parent)
      * ResBuilder 是拿这个下标去取 xls 的第 1+i 列的。上移/下移/增加/删除
      * 会把这个下标关系整体挪动 —— xls 的列顺序没跟着改的话，出来的就是
      * 张冠李戴的译文。
-     * 【这条是推出来的，不是在原厂工具上试出来的】依据是原厂 Resbuilder.xml
-     * 的结构和 ResConfig::activeLanguages() 的取列方式，没跑原厂工具验证过。 */
+     * 【这条是推出来的】依据是 Resbuilder.xml 的结构和
+     * ResConfig::activeLanguages() 的取列方式，还没有实机验证过。 */
     const QString orderTip = QStringLiteral(
         "第 i 行 = Resbuilder.xml 里第 i 条语言 = font{i} = 掩码第 i 位，\n"
         "ResBuilder 按这个下标去取多国语言表的第 1+i 列。\n"
@@ -123,7 +123,7 @@ FeatureDialog::FeatureDialog(const ResbuilderOptions &opt, QWidget *parent)
     m_rotate = new QCheckBox(QStringLiteral("旋转"), this);
     m_rotate->setChecked(opt.rotateFlag);
     m_rotate->setToolTip(QStringLiteral(
-        "原厂有这一项。实际的旋转角度在主界面那个「旋转」下拉框里，\n"
+        "这里保留这一项。实际的旋转角度在主界面那个「旋转」下拉框里，\n"
         "这个勾选框还管什么没有确认，产出不依赖它。"));
     m_excel = new QLineEdit(opt.excelPath, this);
     auto *pickExcel = new QPushButton(QStringLiteral("…"), this);
@@ -182,10 +182,9 @@ FeatureDialog::FeatureDialog(const ResbuilderOptions &opt, QWidget *parent)
     m_strZip = new QComboBox(this);
     m_strZip->addItems(zips);
     m_strZip->setCurrentText(opt.stringCompress);
-    /* rle / quicklz 这两种压缩的解码侧还没逆向出来（见 docs/RE_REPORT.md），
-     * 选了本版 ResBuilder 也压不出来，先摆在这儿并说明。 */
+    /* rle / quicklz 这两种压缩还没实现，选了也压不出来，先摆在这儿并说明。 */
     const QString zipTip = QStringLiteral(
-        "本版只实现了 none。rle / quicklz 的算法还没逆向出来，\n"
+        "只实现了 none。rle / quicklz 还没做，\n"
         "选了也不会真压缩 —— 别指望产物变小。");
     m_imgZip->setToolTip(zipTip);
     m_strZip->setToolTip(zipTip);
@@ -252,7 +251,7 @@ void FeatureDialog::fillTable(const ResbuilderOptions &opt)
     for (int i = 0; i < opt.langs.size(); ++i) {
         m_tab->insertRow(i);
         setRow(i, opt.langs.at(i));
-        /* 掩码里置了位的行 = 选中，和原厂界面上那几行蓝底对应 */
+        /* 掩码里置了位的行 = 选中，界面上显示成蓝底 */
         if (opt.languageMask & (1u << i)) {
             m_tab->selectRow(i);
         }
@@ -271,7 +270,7 @@ void FeatureDialog::setRow(int row, const LangRow &r)
                              boolText(r.underline) };
     for (int c = 0; c < cells.size() && c < ColCount; ++c) {
         auto *it = new QTableWidgetItem(cells.at(c));
-        it->setToolTip(QStringLiteral("双击这一行改字体（和原厂一样弹 Select Font）"));
+        it->setToolTip(QStringLiteral("双击这一行改字体（弹标准 Select Font）"));
         m_tab->setItem(row, c, it);
     }
     m_tab->item(row, 0)->setData(Qt::UserRole, QVariant::fromValue(packRow(r)));
@@ -311,7 +310,7 @@ LangRow FeatureDialog::unpackRow(const QStringList &v)
     return r;
 }
 
-/* 双击整行 -> 标准 Select Font 弹窗（原厂就是这个，见 temp/select font.jpg）。
+/* 双击整行 -> 标准 Select Font 弹窗。
  * 它一次性管 Font / Font style(常规·粗体·斜体) / Size / Effects(下划线·删除线)。 */
 void FeatureDialog::onEditFont(int row, int)
 {
@@ -360,7 +359,7 @@ bool FeatureDialog::cellsReadOnlyForTest() const
         return false;
     }
     /* 再确认一遍没有残留的内联编辑器 —— 以前字体/字号/斜体那几列塞的是
-     * QComboBox，那样就等于"能直接改"，和原厂不一样。 */
+     * QComboBox，那样就等于"能直接改"了。 */
     for (int r = 0; r < m_tab->rowCount(); ++r) {
         for (int c = 0; c < m_tab->columnCount(); ++c) {
             if (m_tab->cellWidget(r, c)) {
@@ -415,7 +414,7 @@ void FeatureDialog::onMoveDown()
     m_tab->setCurrentCell(r + 1, ColName);
 }
 
-/* 「增加」要先问名字：原厂弹一个小窗填「语言名称」和「语言英文名」。
+/* 「增加」要先问名字：弹一个小窗填「语言名称」和「语言英文名」。
  * 英文名就是 Resbuilder.xml 里 language_name 的 LANG 属性，ResBuilder 拿它
  * 生成 result.h 的宏，所以只能是 ASCII 标识符，这里顺手挡一道。 */
 void FeatureDialog::onAddLang()

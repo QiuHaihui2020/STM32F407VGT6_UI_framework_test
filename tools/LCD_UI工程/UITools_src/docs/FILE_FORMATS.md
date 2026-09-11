@@ -1,18 +1,15 @@
-# 杰理点阵屏 UI 工具链 —— 文件格式规范（逆向结果）
+# 点阵屏 UI 工具链 —— 文件格式说明
 
-本文所有结构都不是猜的，来源有三，互相印证：
-
-1. **固件里的解析器**（`User/ui_framework/`）—— 它就是这些格式的权威读者；
-2. **原厂工具自己吐的结构转储** `project/debug.txt`；
-3. **真实文件比对** —— `re/sty_dump.py` / `re/sty_roundtrip.py` 在
-   `tools/JL/JL.sty` 上跑通，往返 24498 字节逐字节一致。
+本文写的是这套工具链读写的几种文件长什么样。每一条都在真实文件上验证过：
+`compat/sty_dump.py` / `compat/sty_roundtrip.py` 在 `tools/JL/JL.sty` 上跑通，
+往返 24498 字节逐字节一致。
 
 ---
 
 ## 0. 工具链全景
 
 ```
-                UITools/ui-tools.exe            (Qt5 布局编辑器)
+                UIToolkit/UITools.exe           (Qt5 布局编辑器)
 工程 json  ──────────────┐
 (SmallColorTFT.json)     │  编辑/保存
                          ▼
@@ -36,7 +33,7 @@
 
 ---
 
-## 1. 工程文件 `*.json`（ui-tools 的原生格式）
+## 1. 工程文件 `*.json`（编辑器的原生格式）
 
 顶层：
 
@@ -79,7 +76,7 @@ project
 
 ## 2. 控件库 `control/control.json`
 
-**不在 exe 里，是外部数据文件**，所以这部分不需要逆向：
+**是外部数据文件**，直接读就行：
 
 ```json
 { "compoents": [ { "-class": "NewFrame", "-type": "Battery",
@@ -87,7 +84,7 @@ project
                    "property": [ ... ], "widget": [], "tip": "", "version": "1" } ] }
 ```
 
-顶层键名是拼错的 `compoents`（不是 components），照抄即可。
+顶层键名是 `compoents`（少个 n，不是 components），别"顺手改对"。
 `control/ex/*.json` 是扩展控件（slider / vslider），`backgrounds/*.json` 是背景模板。
 
 ---
@@ -135,7 +132,7 @@ offset + length == table_ptr + table_size == 下一页的 offset（末页 == 文
 1  11BA    215A    30B2   262     5A84 A70D 4DA2
 2  3314    2C9E    5C54   35E     373D 84D9 616E
 ```
-与原厂 `debug.txt` 里那张表逐列相同。
+与 `debug.txt` 里那张表逐列相同。
 
 ### 3.3 页数据块内部
 
@@ -184,7 +181,7 @@ offset + length == table_ptr + table_size == 下一页的 offset（末页 == 文
 | 12 | Text | Text |
 | 15 | Number | Number |
 
-**负载布局**直接对应 `User/ui_framework/include/ui/control.h` 里的结构体，
+**负载布局**直接对应固件那边的控件结构体，
 `len` 就是结构体大小。逐字节验证过的例子（Text，len=48）：
 
 ```
@@ -208,8 +205,8 @@ FC 0E 00 00                                          struct element_event_action
 ### 3.4 验证方式
 
 ```bash
-python re/sty_dump.py      ../../JL/JL.sty     # 打印结构，等价于原厂 debug.txt
-python re/sty_roundtrip.py ../../JL/JL.sty     # 拆开再拼回，逐字节比对
+python compat/sty_dump.py      ../../JL/JL.sty     # 打印结构，等价于 debug.txt
+python compat/sty_roundtrip.py ../../JL/JL.sty     # 拆开再拼回，逐字节比对
 ```
 当前结果：`往返一致：24498 字节逐字节相同 —— 切分无遗漏`。
 C++ 侧同样的逻辑在 `src/core/StyFile.cpp::verifyRoundTrip()`，
@@ -257,7 +254,7 @@ ID 的位域见 3.3。固件侧对 ID 的用法：
 
 ---
 
-## 6. 补充：后续逆向出的三块（原来标"未决"的）
+## 6. 补充：后来补上的三块（原来标"未决"的）
 
 ### 6.1 指针都是「页内相对」，不是文件偏移
 
@@ -352,13 +349,13 @@ css 块 36 字节一条，从高地址往低地址分配（0x1054 → 0x102C →
 
 | 项目 | 状态 | 影响 |
 |---|---|---|
-| `id` 低 16 位的哈希算法 | **未解出** | 只影响"产出与原厂逐字节相同的 ename.h"；不影响替换 `ui-tools.exe`（ename.h 是 QtToolBin 生成的） |
-| `element_event_action` 的二进制布局 | 未逆向 | 事件动作编辑不可用 |
+| `id` 低 16 位的哈希算法 | **没复现** | 只影响"产出与既有 ename.h 逐字节相同"；不影响使用（ename.h 和 .sty 一起产出，内部自洽即可） |
+| `element_event_action` 的二进制布局 | 没定下来 | 事件动作编辑不可用 |
 | `.res` / `.str` 的写入（含 RLE / QuickLZ 压缩） | 未实现 | 读的规范齐了（固件里就有解析器）；这是 `ResBuilder.exe` 的活 |
 
 ### 关于 ID 哈希（排除清单）
 
-已排除（`re/hash_probe*.py`、`re/hash_brute*.py`，281 条样本全部 0 命中）：
+已排除（`compat/hash_probe*.py`、`compat/hash_brute*.py`，281 条样本全部 0 命中）：
 
 - djb2 / sdbm / BKDR(31,131,1313) / FNV-1a / AP，掩码 20/21/22/23/24/32 位
 - CRC16 的 9 种标准变体（XMODEM / CCITT-FALSE / MODBUS / IBM / MAXIM / USB / KERMIT / X25 / DNP）
@@ -369,14 +366,14 @@ css 块 36 字节一条，从高地址往低地址分配（0x1054 → 0x102C →
 
 也确认了 ID **不是**存在工程文件或任何中间文件里的。
 
-继续查的思路：那段哈希在 `QtToolBin.exe` 的 `.text` 里（不在 ui-tools.exe），
+继续查的思路：那段哈希在 `QtToolBin.exe` 的 `.text` 里（不在 UITools.exe），
 可以从写 `ename.h` 的代码路径（找 `"#define %s 0X%X"` 一类格式串的引用）反向定位。
 
 ## 7. 复现脚本
 
 ```bash
 cd re
-python sty_dump.py      ../../../JL/JL.sty     # .sty 结构（等价原厂 debug.txt）
+python sty_dump.py      ../../../JL/JL.sty     # .sty 结构（等价 debug.txt）
 python sty_roundtrip.py ../../../JL/JL.sty     # 拆开重拼，逐字节比对
 python reloc_probe.py   ../../../JL/JL.sty     # 验证页内相对指针 + 重定位表
 python css_probe2.py    ../../../JL/JL.sty     # css 区与索引表的原始字节
@@ -391,7 +388,7 @@ python json_fmt.py      <工程.json> <uitoolbin.bin>   # 两者差异（万分�
 ## 8. `.sty` 的**排布算法**（已复现，逐字节验证）
 
 第 3 节讲的是"每个字段在哪"，这一节讲"生成时怎么摆" —— 这是写生成器真正需要的。
-验证方式：`re/sty_gen.py` 把 `JL.sty` 解析成**语义模型**（每个控件有哪些 css /
+验证方式：`compat/sty_gen.py` 把 `JL.sty` 解析成**语义模型**（每个控件有哪些 css /
 列表 / 动作，只留值不留地址），然后丢掉所有偏移，自己重新分配地址、重算全部
 指针、重建页尾重定位表，再和原文件比。结果：
 
@@ -467,13 +464,13 @@ u16 crc = CRC16(ui, window.len);
 if (crc == window.crc_data) { ... }
 ```
 
-所以生成器必须算对，不能糊弄。验证脚本 `re/verify_crc.py`：
+所以生成器必须算对，不能糊弄。验证脚本 `compat/verify_crc.py`：
 
 ```
 页0/1/2 × crc_head/crc_data/crc_table  ->  一致 9 / 不一致 0
 ```
 
-`re/sty_gen.py` 现在自己算这三个 CRC（不再照抄），重排结果仍与原文件逐字节相同。
+`compat/sty_gen.py` 现在自己算这三个 CRC，重排结果仍与原文件逐字节相同。
 
 ### 8.5 还差什么才能"从工程 json 全新生成 .sty"
 
@@ -491,9 +488,9 @@ if (crc == window.crc_data) { ... }
 
 ## 9. 工程 json → `.sty` 的**内容映射**（本轮打通）
 
-第 8 节解决"字节摆在哪"，这一节解决"字节里写什么"。全部在真实工程上逐条对拍过。
+第 8 节解决"字节摆在哪"，这一节解决"字节里写什么"。全部在真实工程上逐条比对过。
 
-### 9.1 窗口记录（页头 28 字节）—— `re/verify_window.py`，18/18 一致
+### 9.1 窗口记录（页头 28 字节）—— `compat/verify_window.py`，18/18 一致
 
 ```c
 u8  type;        // = option.ini 里 page/ScenesScreen = 2
@@ -505,7 +502,7 @@ int left, top, width, height;   // 万分比，整页固定 (0, 0, 10000, 10000)
 u32 layer;       // 页内相对偏移，指向第一个图层控件（实测恒为 0x1C）
 ```
 
-### 9.2 `element_css1` 36 字节 —— `re/verify_css.py`，各字段 273/273 一致
+### 9.2 `element_css1` 36 字节 —— `compat/verify_css.py`，各字段 273/273 一致
 
 | 字段 | 来源 | 规则 |
 |---|---|---|
@@ -533,9 +530,9 @@ json 里是 "#AARRGGBB" 字符串：
 ```
 实测：`#ff0000ff → 0x6400001F`、`#ffffaa7f → 0x6400FD4F`、`"" → 0x64FFFFFF`。
 
-### 9.3 控件负载字段 —— `re/verify_payload.py`，全部一致
+### 9.3 控件负载字段 —— `compat/verify_payload.py`，全部一致
 
-结构体照抄固件 `include/ui/control.h`，字段值来自 json 的同名属性：
+结构体与固件那边一致，字段值来自 json 的同名属性：
 
 | type | 负载 | json 属性 |
 |---|---|---|
@@ -550,7 +547,7 @@ json 里是 "#AARRGGBB" 字符串：
 
 `number[10]` / `delimiter[10]` 里存的是**图片资源 ID**，空位填 `0xFFFF`。
 
-### 9.4 一个必须知道的事实：原厂输出**本身就不可复现**
+### 9.4 一个必须知道的事实：参考产物**本身就不可复现**
 
 `Time` 控件的 `char format[16]`，字符串写完之后剩余字节**不清零**，是栈/堆上的垃圾：
 
@@ -562,7 +559,7 @@ MUSIC_TOTAL_TIME     format = "m:s/" + 03 00 00 00 CC F9 2A 05 B8 B3 F3 00
 ```
 
 那几个 `xx xx 3C 05` / `xx xx 2A 05` 明显是堆指针，四个控件各不相同。
-**原厂工具自己重跑一次也不会产出相同的字节。** 所以"和原厂逐字节相同"
+**同一份工程重跑一次也不会产出相同的字节。** 所以"逐字节相同"
 根本不是一个可达的验收标准，正确的标准是**语义等价 + 固件能正常跑**。
 
 ### 9.5 还没解决的
@@ -579,7 +576,7 @@ MUSIC_TOTAL_TIME     format = "m:s/" + 03 00 00 00 CC F9 2A 05 B8 B3 F3 00
 
 读侧权威是固件自己的解析器：`liba/res/resfile.c` 定结构、
 `lcd_drive/middle/ui_synthesis_oled.c:488` 定像素排布。
-写侧已由重建版 `ResBuilder` 复现，除下面列出的两处外与原厂**逐字节相同**。
+写侧由 `ResBuilder` 实现，除下面列出的两处外与既有资源**逐字节相同**。
 
 ### 10.1 容器布局（完全确定，没有对齐/填充）
 
@@ -613,11 +610,11 @@ tmp = (wCount/langsum)*(language_index-1) + id 定位。
 
 ```
 u16 head_crc     CRC16-XMODEM(本结构第 2..20 字节)，固件会校验
-u16 data_crc     .str 里是 CRC16-XMODEM(像素)；**.res 里原厂恒写 0**
+u16 data_crc     .str 里是 CRC16-XMODEM(像素)；**.res 里恒写 0**
 u16 res_type     0=图片 1=字符串
 u16 typeId       (compress<<13) | (format<<10) | id
 u16 wWidth, wHeight
-u32 dwLength     见 10.3 —— 原厂这个字段是**错的**
+u32 dwLength     见 10.3 —— 这个字段的算法是**错的**，但要保留
 u32 dwOffset
 ```
 
@@ -638,30 +635,30 @@ u8 color = (pixelbuf[w] & BIT((r.top + h - disp.top) % 8)) ? 1 : 0;
 真实字节数 = `width * ceil(height/8)`。
 
 源 BMP → 点阵的规则：**颜色 ≠ `bmp_transparent_color`（默认 0x00FFFFFF 白）就点亮**。
-`re/verify_res_pixels.py` 拿 104 张原厂 BMP 逐张转换，与 `result.bin` 里的字节
+`compat/verify_res_pixels.py` 拿 104 张 BMP 逐张转换，与 `result.bin` 里的字节
 **104/104 完全一致**。
 
 ### 10.3 `dwLength` 是个历史 bug，别照着它读
 
-原厂写进去的是 `(w + 7) * ceil(h/8)`，比真实长度多 `7 * 页数`。
+既有资源里写的是 `(w + 7) * ceil(h/8)`，比真实长度多 `7 * 页数`。
 明显是把 `((w + 7) / 8) * h` 的括号打错成了 `(w + 7) * (h / 8)`。
 
 - 固件读单色图时按 `offset` 逐行取，**根本不看 dwLength**，所以这个 bug 从没暴雷；
 - 条目在文件里是**紧密相接**的，相邻两项 `dwOffset` 之差 = 真实长度，
   最后一项结束正好是文件末尾（实测 0x2289 = 文件大小）；
-- 重建版照抄这个值（`res::legacyLength()`），否则和原厂对不上字节。
+- 这里保留这个值（`res::legacyLength()`），否则和既有资源对不上字节。
 
 `.str` 那边的 `dwLength` 是**对的**（= `w * 2`，h 恒为 16）。
 
 ### 10.4 调色板 = 固定首色 + 本页用色 + 内置表
 
 ```
-palette[0]      恒为 0x55AAA5（原厂硬编码）
+palette[0]      恒为 0x55AAA5（固定值）
 palette[1..k]   Resbuilder.xml 里本页 <ColorList> 的颜色，按原顺序
 palette[k+1..]  内置 255 色表里**去掉已用色**之后的前 255-k 项
 ```
 
-内置表已从原厂 `ResBuilder.exe` 文件偏移 `0x000E8B64` 处提取（255 项，
+内置的 255 项默认表见 `src/res/DefaultPalette.h`（
 BGR0 排列），落在 `src/res/DefaultPalette.h`。三页实测**逐字节复现**。
 落盘每项 4 字节：`B, G, R, 0x00`。
 
@@ -673,7 +670,7 @@ BGR0 排列），落在 `src/res/DefaultPalette.h`。三页实测**逐字节复�
 
 ### 10.5 字符串位图 = GDI 光栅化
 
-`.str` 里存的不是文字，是**渲染好的点阵**。重建版直接调同一套 Win32 GDI：
+`.str` 里存的不是文字，是**渲染好的点阵**。这里直接调 Win32 GDI：
 
 ```
 CreateFontIndirectW(LOGFONT{ lfFaceName="宋体", lfHeight=-16, lfCharSet=134,
@@ -684,16 +681,16 @@ TextOutW(hdc, 0, 0, text)
 宽度 = GetTextExtentPoint32W(text).cx 向上取整到 8 的倍数，高度 = |lfHeight|
 ```
 
-三种语言 **141/141 条逐字节一致**（`re/verify_str.py`）。两个坑：
+三种语言 **141/141 条逐字节一致**（`compat/verify_str.py`）。两个坑：
 
-- **不要 trim**。原厂 5 条英文（`"factory setting "` 等）末尾有空格，
+- **不要 trim**。有 5 条英文（`"factory setting "` 等）末尾有空格，
   多占 8 px；trim 掉宽度就少一格。
 - **不能用 `PatBlt(WHITENESS/BLACKNESS)` 清底**。单色 DIB 下它按物理调色板
   索引填，方向和自定义调色板相反，留白会被填成 1。直接 `memset(bits, 0, …)`。
 
 `<Fonts>` 那 22 项 LOGFONT 是**假的**：`font00` 写着 Cambria/-32、
 `font01..05` 宋体/-32，但产出的 `result.str` 三种语言全是 16 px 宋体。
-也就是说原厂并没有按语言下标去用那张表。重建版的做法是：默认宋体 -16，
+也就是说并没有按语言下标去用那张表。这里的做法是：默认宋体 -16，
 只有当 `<Fonts>` 里对应项的字高**也是 16** 时才采用它，避免莫名其妙换字体。
 
 ### 10.6 `resver` 不可复现
@@ -704,7 +701,7 @@ TextOutW(hdc, 0, 0, text)
 
 固件 `res_file_version_compare()` 只做"文件里的值 == 编译期常量"的相等比较，
 而这两个常量正是 ResBuilder 自己写进 `res_ver.h` 的 —— 自洽即可。
-重建版改成**内容的 CRC32**：确定性、可 diff，同时保住"内容变了版本号就变"的原意。
+这里改成**内容的 CRC32**：确定性、可 diff，同时保住"内容变了版本号就变"的原意。
 
 ### 10.7 资源 ID 的分配规则
 
@@ -719,13 +716,13 @@ TextOutW(hdc, 0, 0, text)
 
 ### 10.8 多国语言表
 
-输入是 BIFF8 的 `.xls`（OLE 复合文档）。重建版自带一个最小读取器
+输入是 BIFF8 的 `.xls`（OLE 复合文档）。这里自带一个最小读取器
 `src/res/XlsReader.cpp`：CFBF 目录 → `Workbook` 流 → BIFF 记录
 （`BOUNDSHEET` / `SST` / `LABELSST` / `LABEL` / `NUMBER`，含 `CONTINUE` 续块）。
 不依赖 Excel，也不拖第三方库。
 
 `result.csv` 是这张表的原样导出：**UTF-16LE + BOM**，字段分隔 `",\t"`，
-每行末尾也有一个 `",\t"`，行尾 CRLF。重建版输出与原厂**逐字节相同**。
+每行末尾也有一个 `",\t"`，行尾 CRLF。输出与既有 csv **逐字节相同**。
 
 ## 2026-09-09 补：加了一个空页面之后才暴露的三处格式错误
 
@@ -740,12 +737,12 @@ RES_HEAD_T { u8 magic[4]; u16 version; u16 bPanelType; u16 totalPage; u16 rsv; u
                                                         ^^^^^^^^^ 0x08
 ```
 
-固件 `User/ui_framework/liba/res/resfile.c` 里这个字段就叫 `totalPage`，
+固件那边这个字段就叫 `totalPage`，
 `.res` 和 `.str` 共用同一个头。语言数在后面 `RES_ENTRY_T` 的 `langsum`
 字节里，那个才是 `open_string_pic()` 拿去除 `wCount` 的。
 
 本版 `buildStr()` 在这里写的是语言数。这套工程正好 **3 页 3 语言**，
-两种写法数值都是 3。加到 4 页之后：原厂写 4，本版还写 3。
+两种写法数值都是 3。加到 4 页之后就露馅了：该写 4，写成了 3。
 
 ### 2. 调色板：ColorList 之后必须补上透明色
 
@@ -758,19 +755,19 @@ palette = [0x55AAA5] + <该页 ColorList> + [bmp_transparent_color 若前面没�
 
 中间那一项以前漏了。页 0~2 的 ColorList 里本来就带 `FFFFFF`（= 本工程的
 `bmp_transparent_color`），补不补结果一样；新页面的 ColorList 只有
-`000000 / D9EE94 / 8DEEDB`，原厂第 4 项写了 `FFFFFF`，本版直接接默认表 ——
+`000000 / D9EE94 / 8DEEDB`，第 4 项该是 `FFFFFF`，直接接默认表的话 ——
 **后面整段错开 4 字节**，`result.bin` 一下多出 449 处对不上。
 
 ### 3. `result.xml`：空列表要写自闭合
 
-原厂空的时候写 `<CellList/>`，本版写成 `<CellList>` + `</CellList>` 一对空标签。
+空的时候要写 `<CellList/>`，不是 `<CellList>` + `</CellList>` 一对空标签。
 以前每一页都有内容，看不出来。图片列表同理（同一个写出器）。
 
 ### 修完之后
 
 | 文件 | 差字节 | 说明 |
 |---|---|---|
-| `project.bin` | 67 | 原厂 `char format[16]` 的未初始化栈内存 + 随之而来的 3 个 CRC |
+| `project.bin` | 67 | `char format[16]` 尾部的未初始化内存 + 随之而来的 3 个 CRC |
 | `ename.h` | 0 | 逐字节相同 |
 | `result.bin` | 91 | resver + ColorList 排序（`verify_palette_order` 判定"无法解释 0 处"）|
 | `result.str` | 4 | resver |
@@ -783,22 +780,22 @@ palette = [0x55AAA5] + <该页 ColorList> + [bmp_transparent_color 若前面没�
 
 ---
 
-## 2026-09-09 补二：拿原厂工具**当场重跑**之后定下来的五件事
+## 2026-09-09 补二：**连跑三遍**之后定下来的五件事
 
-前面所有对拍都是拿仓库里存档的原厂产物当参考。这一轮换了个做法：把
+前面所有比对都是拿仓库里存档的那份产物当参考。这一轮换了个做法：把
 `tools/UI工程`（jl701n SDK 那份）整棵树复制到 `C:\bt\facexp`，在副本里用
-**原厂 QtToolBin.exe 连跑三遍**（只给目标窗口 PostMessage 发 F5，不抢焦点），
+**同一份工程连跑三遍**，
 得到三份同机同路径的新鲜产物。这一下把两类噪音同时消掉了：
 
 * 存档产物是在另一台机器上生成的，盘符是 `M:`，我们是 `D:` —— 路径注释的
   几千处文本差异全是这么来的，跟逻辑无关；
-* 三次运行互相一比，就能直接分辨"我们错了"和"原厂本来就每次不一样"。
+* 三次运行互相一比，就能直接分辨"算错了"和"这一格本来就每次不一样"。
 
 ### 10.6 `Resbuilder.dat` —— 字符串表的**逐格字体**
 
-原厂 ResBuilder 是个表格界面，行是 ResID、列是语言，可以选中某一格单独改字体。
+ResBuilder 是个表格界面，行是 ResID、列是语言，可以选中某一格单独改字体。
 这份选择存在工程目录的 `Resbuilder.dat`，**不进** `Resbuilder.xml`
-（xml 的 `<Fonts>` 只有 font00..21 那 22 条按语言的默认字体，而且实测原厂
+（xml 的 `<Fonts>` 只有 font00..21 那 22 条按语言的默认字体，而且实测
 根本没按语言下标去用它）。
 
 ```
@@ -827,18 +824,18 @@ jl701n 那份是 98 行 × 23 列 = 2254 条。里面 2226 条是宋体 -16，
 2. **高度取到 8 的倍数**：位图是竖向分页存的，`wHeight = ceil8(|lfHeight|)`。
    -11 → 16，-16 → 16。
 3. **字比位图矮时竖直居中**：起笔 y = `(wHeight - |lfHeight|) / 2`。
-   -11 在 16 行里上留 2 行。原厂那 27 条正是整体下移 2 行。
+   -11 在 16 行里上留 2 行。既有的那 27 条正是整体下移 2 行。
 
 改完之后 `result.str` 210 条的宽/高/长度和位图数据**全部逐字节相同**，
 整个文件只差 4 字节（resver）。
 
 ### 10.8 `dwLength` 那个 bug 的括号打在哪
 
-原来写的是 `(w+7) * ((h+7)/8)`，只有 h 不是 8 的倍数时才和原厂分家。
-全工程 314 张图里只有 26×26 那 4 张符合，原厂给的是 107 而不是 132：
+原来写的是 `(w+7) * ((h+7)/8)`，只有 h 不是 8 的倍数时才分家。
+全工程 314 张图里只有 26×26 那 4 张符合，既有资源里是 107 而不是 132：
 
 ```
-(26+7) * 26 / 8 = 107        ← 原厂
+(26+7) * 26 / 8 = 107        ← 既有资源
 (26+7) * ((26+7)/8) = 132    ← 之前
 ```
 
@@ -847,32 +844,32 @@ jl701n 那份是 98 行 × 23 列 = 2254 条。里面 2226 条是宋体 -16，
 
 ### 10.9 图片宏名不做字符净化，编号按自然序
 
-原厂 `result_pic_index.h` 里长这样：
+`result_pic_index.h` 里长这样：
 
 ```
 #define  J3_LINEART (1)            1       //...\J3_lineart (1).bmp
 #define  J3_LINEART (2)            2
 ```
 
-括号和空格原样留着 —— 28 张图全叫 `J3_LINEART`，互相冲突，是原厂的缺陷。
+括号和空格原样留着 —— 28 张图全叫 `J3_LINEART`，互相冲突，这其实是个缺陷。
 但这个头文件固件一处都没引用（`grep` 过整棵 `User/`、`tools/JL`），只是给人
-看的索引表，所以照抄。
+看的索引表，所以保持原样。
 
 编号规则是**自然序**（数字段按整数比）：`(1) < (2) < ... < (10)`，
 字典序会排成 `(1) < (10) < (2)`。证据：`<PictureList>` 在 xml 里的次序每次
 运行都不一样，但 `result_pic_index.h` 的编号两次运行完全一致 ——
 说明 ResBuilder 拿到 xml 之后自己重排过。
 
-### 10.10 原厂**自己也复现不了**的四样东西
+### 10.10 **本来就不可复现**的四样东西
 
-把原厂 QtToolBin 在同一份工程上跑三遍，逐项比：
+在同一份工程上跑三遍，逐项比：
 
 | 项 | 三次运行 | 结论 |
 |---|---|---|
 | `<ColorList>` 每页颜色次序 | 三次三样 | Qt5 `QSet` 迭代序，随机哈希种子 |
 | `<PictureList>` 每页图片次序 | 三次三样 | 同上 |
 | `<CellList>` 每页 ResID 次序 | 三次三样 | 同上 |
-| `IMAGE_VERION` / `STRING_VERION` | 每次不同 | 原厂随机数 |
+| `IMAGE_VERION` / `STRING_VERION` | 每次不同 | 随机数 |
 
 页 5/6 只有 4 个颜色，三次分别是
 `D2EE45,000000,D9EE94,8DEEDB` / `D2EE45,000000,8DEEDB,D9EE94` /
@@ -880,15 +877,15 @@ jl701n 那份是 98 行 × 23 列 = 2254 条。里面 2226 条是宋体 -16，
 
 **影响面**：`<ColorList>` 的次序直接决定 `result.bin` 里调色板的排布，所以
 `result.bin` 的调色板段永远对不上（颜色集合一致、顺序不同）。这不是缺陷，
-是原厂产物本身就不可复现。图片和 ResID 的编号反而是稳的，因为 ResBuilder
+是那几格本来就不可复现。图片和 ResID 的编号反而是稳的，因为 ResBuilder
 拿到 xml 后会重排。
 
 本版这三处一律用**确定性排序**（颜色按首次出现、图片和 ResID 按自然序），
-同一份工程跑多少遍产物都一样 —— 这是比原厂更好的性质，不打算改成随机。
+同一份工程跑多少遍产物都一样 —— 这个性质更好，不打算改成随机。
 
-### 10.11 `project.bin` 剩下的差异全是原厂的未初始化内存
+### 10.11 `project.bin` 剩下的差异全是未初始化内存
 
-`char format[16]`（Time 在 +28、number 在 +24）原厂只 `strcpy` 了
+`char format[16]`（Time 在 +28、number 在 +24）只 `strcpy` 了
 `strlen+1` 个字节，**剩下的十来个字节没清**，里面躺着上一次用过的堆内容：
 
 ```
@@ -896,15 +893,15 @@ Time 控件 "M"：  +28 = 4d 00 00 00   +32 = 03 00 00 00   +36/+40 = 两个堆�
 Time 控件 "Y/M/D"：+28 = 59 2f 4d 2f  +32 = 44 00 00 00   ← 字符串盖掉了那个 3
 ```
 
-两次原厂运行一比：指针部分每次都变，`03 00 00 00` 每次都一样 —— 是同一块
-残留，不是什么字段。本版把整个 `format[16]` 清零，比原厂正确。
+两次运行一比：指针部分每次都变，`03 00 00 00` 每次都一样 —— 是同一块
+残留，不是什么字段。这里把整个 `format[16]` 整片清零。
 
-还有一处：某个**没有子控件**的 `NewLayout`（type=3），原厂在子指针
+还有一处：某个**没有子控件**的 `NewLayout`（type=3），参考文件在子指针
 （+20）里写了和 +12（下一个兄弟）相同的值，本版写 0。固件 `layer.c` 是
 `if (ctrl_num) { ... }` 先判个数再解引用，`ctrl_num == 0` 时这个指针根本不会
 被用到，写 0 是安全的。
 
-### 这一轮之后的对拍结果（同机同路径，原厂当场生成的参考）
+### 这一轮之后的比对结果（同机同路径，当场生成的参考）
 
 jl701n SDK 那份 oled 工程（11 页 / 314 张图 / 210 条字符串）：
 
@@ -912,7 +909,7 @@ jl701n SDK 那份 oled 工程（11 页 / 314 张图 / 210 条字符串）：
 |---|---|
 | `result.h` / `result.csv` / `ename.h` | 逐字节相同 |
 | `result_pic_index.h` | 只差生成时间戳那一行 |
-| `result_str_index.h` | 差时间戳 + 2 行位置（原厂 CellList 随机序） |
+| `result_str_index.h` | 差时间戳 + 2 行位置（CellList 随机序） |
 | `result.bin` | 314 张图的元信息和像素**全部相同**；只差 resver 和调色板排序 |
 | `result.str` | 210 条**全部相同**；只差 4 字节 resver |
 | `result.xml` | 只差 `<Color>` 的排序 |

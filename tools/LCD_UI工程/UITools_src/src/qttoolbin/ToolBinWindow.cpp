@@ -38,14 +38,14 @@ QString iniPathOf(const QString &projectDir)
     return QDir(projectDir).absoluteFilePath(QStringLiteral("config/ini/project.ini"));
 }
 
-/* 「功能设置」跟着**工程**走：原厂就是存在工程目录的 Resbuilder.xml 里
- * （见 ResbuilderOptions.h 抬头那段证据）。两个工程各有各的设置。 */
+/* 「功能设置」跟着**工程**走：存在工程目录的 Resbuilder.xml 里
+ * （见 ResbuilderOptions.h 抬头）。两个工程各有各的设置。 */
 QString resXmlPathOf(const QString &projectDir)
 {
     return QDir(projectDir).absoluteFilePath(QStringLiteral("Resbuilder.xml"));
 }
 
-/// 工具目录 = 本 exe 所在目录（重建版三个 exe 放一起）
+/// 工具目录 = 本 exe 所在目录（三个 exe 放一起）
 QString toolDir()
 {
     return QCoreApplication::applicationDirPath();
@@ -167,10 +167,10 @@ void ToolBinWindow::loadIni()
     m_version->setText(ini.value(QStringLiteral("versionid")).toString());
     ini.endGroup();
 
-    // 「功能设置」那一页 —— 从工程目录的 Resbuilder.xml 读，和原厂一致
+    // 「功能设置」那一页 —— 从工程目录的 Resbuilder.xml 读
     m_res.loadFromProject(resXmlPathOf(m_projectDir));
 
-    /* 多国语言表：设置里配了就用它。原厂存的是**相对工程目录**的路径
+    /* 多国语言表：设置里配了就用它。存的是**相对工程目录**的路径
      * （../../../UITools/多国语言_128_64.xls），这里解成绝对路径再用。 */
     if (!m_res.excelPath.isEmpty()) {
         m_excelPath = QFileInfo(m_res.excelPath).isAbsolute()
@@ -261,7 +261,7 @@ void ToolBinWindow::setBusy(bool on)
 void ToolBinWindow::onPickJson()
 {
     const QString f = QFileDialog::getOpenFileName(
-        this, tr("选择工程 json"), m_projectDir, tr("ui-tools 工程 (*.json)"));
+        this, tr("选择工程 json"), m_projectDir, tr("UI 工程 (*.json)"));
     if (f.isEmpty()) {
         return;
     }
@@ -276,7 +276,7 @@ void ToolBinWindow::onPickJson()
 
 void ToolBinWindow::onFeatureSettings()
 {
-    /* 原厂这一页叫「配置界面」，版式见 temp/功能设置.jpg。
+    /* 这一页也叫「配置界面」。
      * 以前这儿只有三项占位（多国语言表 / 语言掩码 / 面板类型），
      * 字体、透明色、资源文件名、压缩方式这些只能去改代码。 */
     toolbin::FeatureDialog d(m_res, this);
@@ -294,7 +294,7 @@ void ToolBinWindow::onFeatureSettings()
     m_language = m_res.languageMask;
     m_panelType = m_res.panelType;
     /* 【不另存文件】这一页的落盘就是下一次生成时重写的 Resbuilder.xml ——
-     * 原厂也是这个路子。所以改完要点「生成资源文件」才算存下来。 */
+     * 所以改完要点「生成资源文件」才算存下来。 */
     log(tr("配置已更新，点「生成资源文件」后写入 %1")
         .arg(QDir::toNativeSeparators(resXmlPathOf(m_projectDir))));
 }
@@ -374,7 +374,7 @@ void ToolBinWindow::onGenerate()
     setBusy(true);
     m_log->clear();
     m_progress->setValue(0);
-    saveIni();                      // 界面上的值写回 project.ini，和原厂一样
+    saveIni();                      // 界面上的值写回 project.ini
     log(tr("配置已写回 config\\ini\\project.ini"));
 
     // ---- 1. 工程 json -> project.bin / ename.h / Resbuilder.xml / debug.txt ----

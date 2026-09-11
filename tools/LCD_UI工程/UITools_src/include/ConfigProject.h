@@ -1,6 +1,6 @@
-/* ConfigProject.h —— 类名/基类/槽签名来自 ui-tools.exe 的 moc 元数据；
- * 控件名（prjname / openfile / view_lang / filestatus /
- * lang_selectall / lang_dselectall / lang_re）来自 uic 的 QStringLiteral。
+/* ConfigProject.h ——
+ * 控件名：prjname / openfile / view_lang / filestatus /
+ * lang_selectall / lang_dselectall / lang_re
  *
  * 用途：工程级配置 —— 工程名、多国语言 xls 的路径、启用哪些语言。
  * 语言勾选的结果就是 Resbuilder.xml 里那个 <language> 位掩码

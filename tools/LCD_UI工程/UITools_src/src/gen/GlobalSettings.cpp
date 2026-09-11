@@ -18,7 +18,7 @@
 #include <QVBoxLayout>
 
 /*
- * 原厂[全局设置]（版式见 temp/全局设置.jpg）：
+ * [全局设置] 版式：
  *
  *   ┌──────────────────────────────────────────────┐
  *   │ 更新设置要重启软件才能生效.        ← 红底警示，在**最上面** │
@@ -34,8 +34,7 @@
  *   └───────────────┴──────────────────────────────┘
  *                                    [确定]  [取消]
  *
- * 五条的标题、说明文字、文件过滤器全部逐字来自 ui-tools.exe 的字符串
- * （0xc98a31 起那一段，扫描方法见 docs/FACTORY_UI.md 5.10）：
+ * 五条的标题、说明文字、文件过滤器：
  *
  *   多国语言文件:   工程控件要用的语言文,可选office2003版本的xls文件,或者utf8格式,分号(;)间隔的csv文件.
  *                   xls 文件 , CSV UTF-8 文件 (*.xls *.csv )
@@ -44,16 +43,14 @@
  *   工程目录:       工程保存的目录,默认是程序运行目录.
  *   自定义控件目录: 自定义的模版控件目录,默认是widgets目录.
  *
- * 「界面尺寸」是个可展开的组，两个子项 "宽度:" / "高度:"（字面量在
- * 0xc9455e / 0xc94566），合起来存成 Project/Size = "宽*高"。
+ * 「界面尺寸」是个可展开的组，两个子项 "宽度:" / "高度:"，
+ * 合起来存成 Project/Size = "宽*高"。
  *
- * 【行的先后】截图上的次序是 界面尺寸 / 图片资源目录 / 多国语言文件 /
- * 工程目录 / 控件文件 / 自定义控件目录 —— 五条路径按标题的 Unicode 码点
- * 升序（图 56FE < 多 591A < 工 5DE5 < 控 63A7 < 自 81EA），像是从
- * QMap<QString,…> 里遍历出来的。这里直接按截图钉死，不去猜它内部用的容器。
+ * 【行的先后】界面尺寸 / 图片资源目录 / 多国语言文件 / 工程目录 /
+ * 控件文件 / 自定义控件目录 —— 五条路径按标题的 Unicode 码点升序
+ * （图 56FE < 多 591A < 工 5DE5 < 控 63A7 < 自 81EA），直接钉死这个次序。
  *
- * 【值编辑器】原厂那个类叫 FileEdit，有 filePath 属性和 filePathChanged(QString)
- * 信号（moc 元数据 0xcc1060）。名字照抄，方便日后对照。
+ * 【值编辑器】FileEdit：有 filePath 属性和 filePathChanged(QString) 信号。
  */
 
 namespace {
@@ -61,7 +58,7 @@ namespace {
 /** 当前用的是哪个目录下的 ui-config。空 = 还没定过，按当前目录算。 */
 QString g_cfgDir;
 
-/** 设置文件：<工程目录>/Application Data/ui-config，和原厂同一个文件名。
+/** 设置文件：<工程目录>/Application Data/ui-config。
  *
  *  【为什么要缓存】QSettings 存的是相对路径的话，Qt 只在构造的那一刻解析
  *  一次；而工具跑起来之后会因为各种文件对话框改掉进程的当前目录。所以这里
@@ -104,14 +101,14 @@ QSettings &settings()
 }
 
 struct PathRow {
-    const char *key;        ///< Project/ 下的键名，原厂拼写照抄
+    const char *key;        ///< Project/ 下的键名，拼写别动
     const char *caption;
     const char *tip;
     const char *filter;     ///< 空 = 选目录，非空 = 选文件
     const char *def;        ///< 说明文字里写的那个默认值
 };
 
-/* 次序 = 原厂截图上的次序 */
+/* 界面上的行次序 */
 const PathRow kRows[] = {
     { "Project/ImageDir", "图片资源目录:",
       "工程中要用到的图片资源目录,默认是 images", "", "images" },
@@ -130,8 +127,8 @@ const PathRow kRows[] = {
 /**
  * 一行的值编辑器：一个看不见边框的输入框 + 右端一个 [...] 按钮。
  *
- * 原厂长这样 —— 值就贴在行的底色上，没有输入框的凹陷边框，只有最右边
- * 那个小方按钮。所以这里把 QLineEdit 设成无边框、背景透明。
+ * 值就贴在行的底色上，没有输入框的凹陷边框，只有最右边那个小方按钮。
+ * 所以这里把 QLineEdit 设成无边框、背景透明。
  */
 class FileEdit : public QWidget
 {
@@ -160,7 +157,7 @@ public:
             if (p.isEmpty()) {
                 return;
             }
-            /* 原厂存的是相对当前目录的路径（ui-config 里就是
+            /* 存的是相对当前目录的路径（ui-config 里就是
              * "../../../UITools/control/control.json" 这种），跟着工程走。
              * 能算出相对路径就存相对的，跨盘符才退回绝对路径。 */
             const QDir base(QDir::currentPath());
@@ -234,15 +231,15 @@ GlobalSettings::GlobalSettings(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("全局设置"));
-    /* 原厂截图实测客户区 655x458 */
+    /* 客户区 655x458 */
     resize(655, 458);
-    /* 淡黄底 —— 原厂这个对话框整体就是这个色，表格才是白的 */
+    /* 淡黄底 —— 这个对话框整体是这个色，表格才是白的 */
     setStyleSheet(QStringLiteral("QDialog { background: #FFFFCC; }"));
 
     /* ---- 红底警示，在最上面 ---- */
     auto *warn = new QLabel(QStringLiteral("更新设置要重启软件才能生效."), this);
     warn->setObjectName(QStringLiteral("label_4"));
-    /* 样式表逐字来自 uic；原厂没有改前景色，所以是黑字红底 */
+    /* 不改前景色，所以是黑字红底 */
     warn->setStyleSheet(QStringLiteral("background-color: rgb(223, 28, 28);"));
     QFont wf = warn->font();
     wf.setBold(true);
@@ -283,7 +280,7 @@ GlobalSettings::GlobalSettings(QWidget *parent)
     m_width  = addSize("宽度:", wh.value(0).toInt() > 0 ? wh.value(0).toInt() : 128);
     m_height = addSize("高度:", wh.value(1).toInt() > 0 ? wh.value(1).toInt() : 64);
 
-    /* 五条路径。说明文字挂 tooltip 上 —— 原厂也是鼠标悬停才出来的 */
+    /* 五条路径。说明文字挂 tooltip 上，鼠标悬停才出来 */
     for (const PathRow &r : kRows) {
         auto *item = new QTreeWidgetItem(m_tree);
         item->setText(0, QString::fromUtf8(r.caption));
@@ -296,7 +293,7 @@ GlobalSettings::GlobalSettings(QWidget *parent)
         m_tree->setItemWidget(item, 1, ed);
     }
 
-    /* ---- 点阵屏预览配色（原厂没有这一组）--------------------------------
+    /* ---- 点阵屏预览配色 --------------------------------------------------
      * 屏是单色的，但不同的点阵屏"亮/灭"呈现的颜色差很多：OLED 黑底白字、
      * STN 黄绿底黑字、蓝屏 LCD 蓝底白字……预览要接近真机就得能配。
      *
@@ -328,9 +325,9 @@ GlobalSettings::GlobalSettings(QWidget *parent)
         "点亮和熄灭的像素上是同一个颜色，别配得和这两个太接近."));
     pvGrp->setExpanded(true);
 
-    /* 【列宽按内容来，别写死】原厂那 100px 是照截图量的，它自己的
-     * 「图片资源目录:」就被截成「图片资源目…」了。本版又多了带缩进的子项，
-     * 写死的话「点亮颜色:」只剩三个字。让 Qt 按最长那条算，再留 8px。 */
+    /* 【列宽按内容来，别写死】写死 100px 的话「图片资源目录:」会被截成
+     * 「图片资源目…」，带缩进的子项「点亮颜色:」更是只剩三个字。
+     * 让 Qt 按最长那条算，再留 8px。 */
     m_tree->resizeColumnToContents(0);
     m_tree->setColumnWidth(0, qMax(100, m_tree->columnWidth(0) + 8));
 

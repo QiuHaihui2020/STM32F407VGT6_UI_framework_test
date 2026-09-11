@@ -2,7 +2,7 @@
   uitools.qrc —— 从 ui-tools.exe 的 qrc 段里原样扔出来的 77 个图标。
   前缀刻意保持 /icon，使资源路径与原程序完全一致（如 :/icon/icons/go-up.png），
   这些路径在二进制的 QStringLiteral 里能直接找到。
-  提取脚本: re/qrc3.py
+  提取脚本: compat/qrc3.py
 -->
 <RCC>
     <qresource prefix="/icon">

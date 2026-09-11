@@ -56,7 +56,7 @@ TreeDock::TreeDock(QWidget *parent)
     : QDockWidget(parent)
 {
     setObjectName(QStringLiteral("TreeDock"));
-    /* 原厂这几个 dock 都没有标题文字，只留一个浮动按钮的细条 */
+    /* 这几个 dock 都不要标题文字，只留一个浮动按钮的细条 */
     setTitleBarWidget(nullptr);
     setWindowTitle(QString());
     setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
@@ -68,8 +68,8 @@ TreeDock::TreeDock(QWidget *parent)
 
     m_tree = new QTreeWidget(host);
     m_tree->setColumnCount(3);
-    /* 原厂二进制里这三列名是一条串 "结点,属性,ID号" 逗号分隔，
-     * 这里照它拆，免得三处各写各的以后对不上。 */
+    /* 三列名写成一条串 "结点,属性,ID号" 再拆，
+     * 免得三处各写各的以后对不上。 */
     m_tree->setHeaderLabels(QStringLiteral("结点,属性,ID号").split(QLatin1Char(',')));
     m_tree->setRootIsDecorated(true);
     m_tree->setUniformRowHeights(true);
@@ -108,7 +108,7 @@ void TreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
     it->setText(1, n->cls);
     it->setText(2, enameOf(n));
     it->setData(0, Qt::UserRole, packNode(n));
-    /* 只有容器（有子节点的）才有那只眼睛，和原厂一致 */
+    /* 只有容器（有子节点的）才有那只眼睛 */
     if (!n->children.isEmpty()) {
         it->setIcon(0, QIcon(QStringLiteral(":/icon/icons/eye_open@2x.png")));
     }
@@ -144,7 +144,7 @@ void TreeDock::reload()
     }
     ScenesScreen *s = m_mgr->currentScreen();
     if (s && s->page()) {
-        /* 原厂树的根就是当前页的图层，页节点本身不显示 */
+        /* 树的根就是当前页的图层，页节点本身不显示 */
         for (const auto &c : s->page()->children) {
             addNode(c.second, nullptr);
         }
@@ -179,7 +179,7 @@ void TreeDock::onItemPressed(QTreeWidgetItem *item, int col)
     if (!n) {
         return;
     }
-    /* 点第 0 列的眼睛图标 = 显示/隐藏，和原厂一样 */
+    /* 点第 0 列的眼睛图标 = 显示/隐藏 */
     if (col == 0 && !n->children.isEmpty()) {
         const QRect r = m_tree->visualItemRect(item);
         const int iconLeft = r.left() + 2;
@@ -202,10 +202,10 @@ void TreeDock::onCustomContextMenu(QPoint point)
     if (!n) {
         return;
     }
-    /* 【树和画布用同一个菜单】原厂两边的动作是同一套（删除当前-xxx /
+    /* 【树和画布用同一个菜单】两边的动作是同一套（删除当前-xxx /
      * 保存成控件 / 显示·隐藏 / 复制 / 粘贴 / 移层 / 查找对像），所以这里
      * 不再自己搭一个只有三项的简版，直接把右键位置交给对应的画布控件。
-     * 以前树上只能删，画布上能干的事树上干不了，用户从原厂换过来就会觉得
+     * 以前树上只能删，画布上能干的事树上干不了，用起来就是
      * "树上的右键少了一半"。 */
     if (!m_mgr) {
         return;
@@ -260,8 +260,7 @@ void TreeDock::onSwapShowHideSubObject()
 /* ===================== PageView ===================== */
 
 /**
- * 页面渲染：把该页**运行时的样子**原尺寸画出来（128x64），不是缩略图 ——
- * 原厂右栏就是这么做的。
+ * 页面渲染：把该页**运行时的样子**原尺寸画出来（128x64），不是缩略图。
  *
  * 【以前这里是另一套画法】按层级深浅填绿/蓝/紫的色块，既没有内容，也不是
  * 单色屏该有的样子 —— 画布那边早就改成"黑底白点 + 真内容"了，右栏还停在
@@ -316,7 +315,7 @@ protected:
             }
             p.restore();
         }
-        /* 8 个角点，模仿原厂的选中手柄外观。
+        /* 8 个角点，作为选中手柄。
          * 【不能再用黑色】页底已经是黑的了，黑手柄等于没画。
          * 【也不能压在页面上】以前手柄是骑在边界上的（各盖进去 2px），现在
          * 页面里画的是真内容，盖掉的就是真像素了 —— 挪到 4px 留白里去，
@@ -968,7 +967,7 @@ void CompoentControls::reload()
     g->setHorizontalSpacing(2);
     g->setVerticalSpacing(1);
 
-    /* 原厂：图层、布局两个通栏大按钮在最上面 */
+    /* 图层、布局两个通栏大按钮在最上面 */
     auto *layer = new DragButton(m_grid);
     layer->setText(tr("图层"));
     layer->setPayload(QStringLiteral("NewLayer"), QStringLiteral("NewLayer"));
@@ -1008,7 +1007,7 @@ void CompoentControls::reload()
         ++row;
     }
 
-    /* 原厂把 control/ex/ 里的扩展控件单独放进"自定义控件"子组 */
+    /* control/ex/ 里的扩展控件单独放进"自定义控件"子组 */
     m_custom = new QGroupBox(tr("自定义控件"), m_grid);
     auto *cg = new QGridLayout(m_custom);
     cg->setContentsMargins(6, 6, 6, 6);
@@ -1036,7 +1035,7 @@ void CompoentControls::reload()
 /**
  * 新建时的默认名字序号。
  *
- * 【是跨页全局的，不是每页各数各的】原厂 SmallColorTFT.json 里页0 有 49 个
+ * 【是跨页全局的，不是每页各数各的】SmallColorTFT.json 里页0 有 49 个
  * 非页节点（图层_0 … 文字_48），页1 的第一个节点就叫 图层_49 —— 计数器跨页
  * 连着走，而且不算页节点自己。我一开始按页数，第二页新建出来的东西会和第一页
  * 重名。真正的实现在 ProjectModel::nextNodeSeq()。
@@ -1055,7 +1054,7 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
      * 里那一整套 struct/enum/min/max 是属性面板和下游 QtToolBin 共同依赖的。
      * 之前这里是现搭一个只有 id + rect 两条属性的节点，结果新建出来的控件
      * 在属性面板上只有 ID 一项，生成 .sty 时也没有坐标。
-     * 对照过原厂工程文件：节点的键集合 = control.json 模板的键集合
+     * 对照过既有工程文件：节点的键集合 = control.json 模板的键集合
      * （连那个空的 "widget": [] 都留着），只多出装孩子用的 layout/listwidget。
      * 所以直接把模板 json 塞进 fromJsonObject 就是最保真的做法。 */
     const ControlTemplate *t = m_mgr->library()->byType(type);
@@ -1099,9 +1098,9 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
      * 放进列表的行（比如水平列表一格才 30x25）更是整个溢出，容器一裁，
      * 里头的图连边都露不出来 —— 用户看到的就是"放了张图，预览里什么都没有"。
      *
-     * 夹到父容器尺寸，和属性面板那条原厂限制是同一条：宽/高的取值范围就是
-     * 0..父容器宽/高（ui-tools.exe 的 setMaximum，见 docs/FACTORY_UI.md §10）。
-     * 也就是说 75x75 这种值原厂的属性面板自己都不让你填进去。 */
+     * 夹到父容器尺寸，和属性面板那条限制是同一条：宽/高的取值范围就是
+     * 0..父容器宽/高（见 docs/UI_BEHAVIOR.md §10）。
+     * 也就是说 75x75 这种值属性面板上根本填不进去。 */
     if (parent->rect.isValid() && parent->rect.width() > 0
         && parent->rect.height() > 0) {
         const int w = qMin(n->rect.width(), parent->rect.width());
@@ -1109,11 +1108,11 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
         n->rect.setWidth(qMax(1, w));
         n->rect.setHeight(qMax(1, h));
         /* 【只夹尺寸，不动位置】位置是用户松手的地方，挪走等于不听话；
-         * 原厂拖放这条路也不钳坐标（ops-test 第 14 条盯着这件事）。 */
+         * 拖放这条路不钳坐标（ops-test 第 14 条盯着这件事）。 */
     }
     n->setRectOf(0, n->rect);
 
-    /* 【新建就得带一个唯一的 ID 号】原厂建出来的控件"唯一ID号"这一栏不是空的。
+    /* 【新建就得带一个唯一的 ID 号】建出来的控件"唯一ID号"这一栏不能是空的。
      * 空着的话属性面板会提示 Ename is empty，生成资源时这个控件也拿不到
      * ename.h 里的宏 —— 业务代码根本引用不到它。
      * 取名规则见 ProjectModel::uniqueEname()。模板自带 ename 的（自定义控件）
@@ -1134,7 +1133,7 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
         s->rebuild();
     }
     emit nodeCreated(n);       // 先让树/页面栏认得这个新节点
-    /* 【新建出来就选中它】原厂也是这个行为，而且这里还兼着一件正事：
+    /* 【新建出来就选中它】这里还兼着一件正事：
      * 画布的"选中即隔离"要有个目标才成立。什么都没选的时候往一个布局里
      * 拖控件，这一页的布局会全部画出来叠成一团，刚拖进去的那个反而看不见。
      * 放在 nodeCreated 之后：那条信号会重载控件树，得等树上有了这一项，
@@ -1154,10 +1153,10 @@ void CompoentControls::createControl(const QString &cls, const QString &type,
     }
     /* 两条路进到这里：
      *   拖 —— parent 由落点决定，画布那边已经判过能不能落，这里不再拦；
-     *   点 —— parent 为空，用当前选中的节点，按原厂限制判一道。
-     * ★ 原厂限制：点击建控件时必须先选中一个**布局**。之前这里是"自己往下
-     * 找第一个布局"，看着方便，但和原厂不是一回事：用户按原厂习惯先点布局
-     * 再点控件，在我这儿会莫名其妙建到别的布局里去。 */
+     *   点 —— parent 为空，用当前选中的节点，按限制判一道。
+     * ★ 限制：点击建控件时必须先选中一个**布局**。之前这里是"自己往下
+     * 找第一个布局"，看着方便，其实是错的：先点布局再点控件，
+     * 会莫名其妙建到别的布局里去。 */
     UiNode *host = parent;
     if (!host) {
         host = EditorOps::hostForNewControl(m_current);
@@ -1187,7 +1186,7 @@ void CompoentControls::createControl(const QString &cls, const QString &type,
 
 void CompoentControls::onCreateCompoentToCanvas()
 {
-    Q_UNUSED(this)   // 入口保留（原厂 moc 里有这个槽），实际走 createControl()
+    Q_UNUSED(this)   // 入口保留，实际走 createControl()
 }
 
 void CompoentControls::onCreateCustomWidget()
@@ -1230,9 +1229,9 @@ void CompoentControls::onCreateNewLayout()
     if (!m_mgr) {
         return;
     }
-    /* ★ 规则见 EditorOps::hostForNewLayout（从 ui-tools.exe 0x421500 反出来的）。
-     * 以前这里写死"只能挂图层下"，比原厂严：原厂选中布局是**套一层布局**，
-     * 选中控件/列表是加到它的父级。 */
+    /* ★ 规则见 EditorOps::hostForNewLayout。
+     * 以前这里写死"只能挂图层下"，太严：选中布局该**套一层布局**，
+     * 选中控件/列表该加到它的父级。 */
     bool needTip = false;
     UiNode *host = EditorOps::hostForNewLayout(m_current, &needTip);
     if (!host) {
@@ -1256,7 +1255,7 @@ void CompoentControls::onCreateNewLayer()
     if (!sc || !sc->page()) {
         return;
     }
-    /* 图层直接挂在页上，原厂没有额外限制 */
+    /* 图层直接挂在页上，没有额外限制 */
     appendChild(sc->page(), QStringLiteral("NewLayer"), QStringLiteral("NewLayer"),
                 QStringLiteral("图层"),
                 QStringLiteral("图层_%1").arg(m_mgr->model()->nextNodeSeq()));
@@ -1287,8 +1286,8 @@ PropertyTab::PropertyTab(QWidget *parent)
     rowLay->addWidget(m_stateCb, 1);
     lay->addWidget(m_stateRow, 0);
 
-    /* 【增删 CSS 状态的四个动作】原厂挂在页签右键上（手册 2.10："右键点击
-     * 菜单项的 CSS 属性_0，选择复制添加"）。本版页签换了含义，这套菜单挪到
+    /* 【增删 CSS 状态的四个动作】手册 2.10 说的是"右键点击菜单项的
+     * CSS 属性_0，选择复制添加"。这里页签是另一个含义，所以这套菜单挪到
      * 状态那一行的右键上。
      *
      * 【整行都要能右键，而且下拉框不能置灰】第一版只挂了下拉框，还顺手写了
@@ -1333,7 +1332,7 @@ PropertyTab::PropertyTab(QWidget *parent)
 PropertyTab::~PropertyTab() = default;
 
 /* 页签数 = element_css.struct 的长度：一个 CSS 状态一页，
- * 名字就是原厂那个 "CSS属性_N"。 */
+ * 名字就是 "CSS属性_N"。 */
 bool PropertyTab::stateMenuReachableForTest() const
 {
     if (!m_stateCb || !m_stateRow) {
@@ -1412,7 +1411,7 @@ void PropertyTab::showNode(UiNode *n)
     m_node = n;
     const int want = stateCount();
 
-    /* 下拉框的条目名照原厂的页签名来：CSS属性_0 / CSS属性_1 … */
+    /* 下拉框的条目名：CSS属性_0 / CSS属性_1 … */
     {
         QSignalBlocker b(m_stateCb);
         m_stateCb->clear();
@@ -1441,10 +1440,9 @@ void PropertyTab::showNode(UiNode *n)
 
 
 /* ---- element_css.struct 的增删改 --------------------------------------
- * 原厂属性区页签上方有一排小按钮：清除 / 复制添加 / 复制插入 / 删除活动项。
- * 一个页签 = 一个 CSS 状态 = struct 数组里的一项，这四个按钮就是对这个数组
- * 做操作。之前重建版只把页签画出来了，数组是只读的 —— 想加一个状态只能去
- * 手改 json。 */
+ * 属性区上方有一排小动作：清除 / 复制添加 / 复制插入 / 删除活动项。
+ * 一个状态 = struct 数组里的一项，这四个动作就是对这个数组做操作。
+ * 之前只把状态画出来了，数组是只读的 —— 想加一个状态只能去手改 json。 */
 void PropertyTab::onStateContextMenu(QPoint pos)
 {
     if (!m_node) {

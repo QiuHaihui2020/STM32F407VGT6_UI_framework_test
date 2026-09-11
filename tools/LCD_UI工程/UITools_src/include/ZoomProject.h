@@ -1,6 +1,5 @@
-/* ZoomProject.h —— 类名/基类来自 ui-tools.exe 的 moc 元数据；
- * 控件名（lab_oldw / lab_oldh / spinBoxW / spinBoxH / groupBox / buttonBox）
- * 来自 uic 留在二进制里的 QStringLiteral。
+/* ZoomProject.h ——
+ * 控件名：lab_oldw / lab_oldh / spinBoxW / spinBoxH / groupBox / buttonBox
  *
  * 注意：这个"工程缩放"**不是画布缩放**，是把整个工程换一个屏幕尺寸，
  * 所有控件坐标按比例缩放（128x64 的工程改成 240x240 之类）。

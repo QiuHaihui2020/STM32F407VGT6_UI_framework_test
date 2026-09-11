@@ -244,7 +244,7 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
             m_selected = nullptr;
         }
     });
-    /* 在画布上直接点控件，也要让树/属性面板跟着走（原厂就是这个行为）。
+    /* 在画布上直接点控件，也要让树/属性面板跟着走。
      * BaseForm::mousePressEvent 只调 setSelected(true)，既不通知外面、
      * 也不取消别的控件的选中框，所以这里拦一道press。事件过滤器跑在
      * 控件自己的处理之前，不影响它的拖动逻辑。 */
@@ -285,7 +285,7 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
  * 谁显示、谁淡出。
  *
  * 【这是"全部布局叠在一起"的解药】一个图层下经常挂着好几个**全屏尺寸**的
- * 布局（原厂 SmallColorTFT 页0 就有 5 个 (0,0,128,64) 的），它们是互斥的
+ * 布局（SmallColorTFT 页0 就有 5 个 (0,0,128,64) 的），它们是互斥的
  * 界面状态（主界面/音量/EQ/菜单…），运行时只显示一个。全画出来的话最上面
  * 那个把下面全盖死，什么都编不了。
  *
@@ -497,8 +497,8 @@ static bool dropTargetFor(UiNode *hit, const QString &cls, UiNode **target)
     }
     if (cls == QLatin1String("NewLayout")) {
         /* 布局能落在：图层（手册："点击布局并拖动到图层上"）、布局（套娃，
-         * 原厂工程里 3 例）、**列表和表格**。
-         * 列表那一条最要紧：列表的行/项就是一个个布局，原厂两个工程里
+         * 既有工程里 3 例）、**列表和表格**。
+         * 列表那一条最要紧：列表的行/项就是一个个布局，既有的两个工程里
          * 一共 165 个布局挂在列表的 listwidget 键下。以前这里不认列表，
          * 于是垂直列表永远建不出行来，看上去就是"列表下面放不了东西"。 */
         for (UiNode *n = hit; n; n = n->parent) {
@@ -511,7 +511,7 @@ static bool dropTargetFor(UiNode *hit, const QString &cls, UiNode **target)
     }
     /* 普通控件只落在布局里。落在列表上时会一路上溯到列表的父布局 ——
      * 列表的孩子必须是"行"（NewLayout），塞个裸控件进去，生成出来是
-     * 原厂从没产出过的形状，固件按行遍历也拿不到它。 */
+     * 一个从没出现过的形状，固件按行遍历也拿不到它。 */
     for (UiNode *n = hit; n; n = n->parent) {
         if (EditorOps::acceptsWidget(n)) {
             *target = n;
@@ -760,7 +760,7 @@ void CanvasManager::attachHost(QWidget *host)
 {
     m_host = host;
     if (m_host && !m_host->layout()) {
-        /* QStackedLayout 不支持对齐，会把页面拉到中间；原厂画布是贴左上角的，
+        /* QStackedLayout 不支持对齐，会把页面拉到中间；画布要贴左上角，
          * 所以套一层 QGridLayout 专门做左上对齐。 */
         auto *outer = new QGridLayout(m_host);
         outer->setContentsMargins(8, 8, 8, 8);
@@ -986,10 +986,10 @@ int CanvasManager::healBrokenNodes()
             /* 【模板里有而节点没有的，全补，按模板的顺序】
              * 以前这里只补 element_css 和 id —— 于是坏节点修完是
              * "有坐标、没有事件属性"，属性面板上一眼就看出来缺东西
-             * （用户对着原厂比出来的就是这个）。缺哪条补哪条，别挑食。
+             * （用户一比就看出来了）。缺哪条补哪条，别挑食。
              *
              * 顺序照模板：属性面板是按 props 的次序铺的，补到末尾的话
-             * 事件属性会跑到滚动方式前面去，和原厂排版对不上。 */
+             * 事件属性会跑到滚动方式前面去，排版就乱了。 */
             const bool needCss = (n->findProp(QStringLiteral("element_css")) == nullptr);
             QVector<UiProperty> merged;
             bool added = false;
@@ -1110,15 +1110,14 @@ bool CanvasManager::saveProjectAs(const QString &path, QString *err)
     bindSettingsToProject(path);
     setDirty(false);
     writeProjectIni(path);
-    /* 原厂还会在工程目录里留一份 autosave.json（这个名字在 ui-tools.exe
-     * 里能搜到）。保存时同步写一份，工具崩了还能捞回来。 */
+    /* 工程目录里同时留一份 autosave.json，工具崩了还能捞回来。 */
     m_model.saveAutosave(QFileInfo(path).absolutePath());
     emit statusMessage(QStringLiteral(" 工程已保存(%1)").arg(path));
     return true;
 }
 
 /* 把工程文件名写回 config/ini/project.ini。
- * 这是原厂那套"双击 step2 就出资源"能成立的前提 —— QtToolBin 不带参数时
+ * 这是"双击 step2 就出资源"那条路能成立的前提 —— QtToolBin 不带参数时
  * 就是从这里读 projectfilename 的。新建工程后不写，下游就断链。
  * 只动这一个键，别的（projectid / projectrotate / projectbatscript）原样留着。 */
 void CanvasManager::writeProjectIni(const QString &jsonPath)
@@ -1152,10 +1151,10 @@ void CanvasManager::writeProjectIni(const QString &jsonPath)
 /**
  * 有未保存改动时先拦一道。
  *
- * ★ 这是原厂的限制，之前重建版完全没有：改了一半点"打开"，改动直接没了。
- * 原厂两条串："关闭工程提示" + "当前编辑的工程有新的修改没有保存,选请择
- * <保存>进行保存."（"选请择"是原厂自己的笔误，这里照抄，免得用户觉得是
- * 两个不同的工具）。按钮是 保存 / 取消 —— 正文点名了 <保存>。
+ * ★ 之前完全没有这道拦截：改了一半点"打开"，改动直接没了。
+ * 两条串："关闭工程提示" + "当前编辑的工程有新的修改没有保存,选请择
+ * <保存>进行保存."（"选请择"这个写法沿用用户熟悉的说法，不改）。
+ * 按钮是 保存 / 取消 —— 正文点名了 <保存>。
  * @return true 表示可以继续（已保存或用户放弃保存）。
  */
 void CanvasManager::setDirty(bool d)
@@ -1194,7 +1193,7 @@ void CanvasManager::onOpenProject()
     }
     const QString f = QFileDialog::getOpenFileName(
         nullptr, QStringLiteral("打开工程文件"), QString(),
-        QStringLiteral("ui-tools 工程 (*.json)"));
+        QStringLiteral("UI 工程 (*.json)"));
     if (f.isEmpty()) {
         return;
     }
@@ -1226,7 +1225,7 @@ void CanvasManager::onSaveAsProject()
     EditorOps::commitPendingEdit();
     const QString f = QFileDialog::getSaveFileName(
         nullptr, QStringLiteral("保存工程文件"), m_model.name() + QStringLiteral(".json"),
-        QStringLiteral("ui-tools 工程 (*.json)"));
+        QStringLiteral("UI 工程 (*.json)"));
     if (f.isEmpty()) {
         return;
     }
@@ -1238,7 +1237,7 @@ void CanvasManager::onSaveAsProject()
 
 void CanvasManager::onCreateNewProject()
 {
-    /* 原厂先问"是否关闭当前工程,新建工程?"，再问没保存的改动 */
+    /* 先问"是否关闭当前工程,新建工程?"，再问没保存的改动 */
     if (!m_model.pages().isEmpty()) {
         QMessageBox box;
         box.setIcon(QMessageBox::Question);
@@ -1253,8 +1252,7 @@ void CanvasManager::onCreateNewProject()
     if (!confirmDiscardChanges()) {
         return;
     }
-    /* 原程序在这里弹 ProjectDialog（类名与它的自动连接槽 on_pushButton_clicked
-     * 一起从二进制元数据里逆向出来），照此调用。 */
+    /* 这里弹 ProjectDialog（自动连接槽是 on_pushButton_clicked）。 */
     ProjectDialog dlg;
     if (dlg.exec() != QDialog::Accepted) {
         return;
@@ -1312,14 +1310,14 @@ void CanvasManager::applyGlobalSettings()
      * 以前这儿还有两行：
      *     m_showGrid = GlobalSettings::value("canvas/grid", 1).toInt() != 0;
      *     setZoom(GlobalSettings::value("canvas/defaultZoom", 100).toInt());
-     * 这两个键是早先那版**自己编的**全局设置留下的残骸。界面照原厂重做之后
-     * （五条路径 + 界面尺寸），对话框里根本没有网格和缩放这两项，也就没人写
+     * 这两个键是早先那版全局设置留下的残骸。对话框重做之后
+     * （五条路径 + 界面尺寸），里头根本没有网格和缩放这两项，也就没人写
      * 这两个键 —— 每次读到的都是默认值。结果是：放大到 400% 编到一半，进一次
      * [全局设置]再出来，缩放被拉回 100%、网格开关也被复位。用户什么都没改，
      * 状态却被冲掉了。删掉。
      *
-     * 剩下的点阵屏预览配色是本版新加的、对话框里确实有的项，立刻生效 ——
-     * 它只影响画面怎么画，和原厂那句"更新设置要重启软件才能生效"管的
+     * 剩下的点阵屏预览配色是对话框里确实有的项，立刻生效 ——
+     * 它只影响画面怎么画，和"更新设置要重启软件才能生效"管的
      * 那几条路径不是一回事，配颜色本来就得一边改一边看。 */
     Preview::reloadMonoColors();
     for (ScenesScreen *sc : m_screens) {
@@ -1349,7 +1347,7 @@ void CanvasManager::onSshoot()
 
 void CanvasManager::onZoomProject()
 {
-    /* 原厂这个"工程缩放"是**换屏幕尺寸**（128x64 -> 240x240 之类），
+    /* 这个"工程缩放"是**换屏幕尺寸**（128x64 -> 240x240 之类），
      * 所有控件坐标按比例换算；画布那个百分比缩放是 ScenesScreen::setZoom()，
      * 两码事。对话框里的 lab_oldw / lab_oldh / spinBoxW / spinBoxH 就是干这个的。 */
     const QSize oldSize = m_pageSize;
@@ -1398,7 +1396,7 @@ void CanvasManager::onZoomProject()
 
 void CanvasManager::onAboutBtn()
 {
-    /* 版式照抄原厂那三行（图标 + 名称 / 开发者 / 维护者），署名写自己。 */
+    /* 三行：图标 + 名称 / 开发者 / 维护者。 */
     QMessageBox::about(nullptr, QStringLiteral("关于"),
                        QStringLiteral("<b><img src=':/icon/icons/smallpt.png'></b>"
                           "<p>名称: UITools </p>"
@@ -1427,9 +1425,9 @@ void CanvasManager::onCreateNewScenesScreen()
      * 存盘写出去的是 props。以前这儿只设了 rect 不建 property，于是新建的页
      * 存进 json 时连 "property" 这个键都没有 —— 重新打开后页面没有尺寸，
      * StyBuilder 拿不到父矩形，该页所有控件的 css 左/上/宽/高全留 0，
-     * 烧进设备就是**整屏不显示**（实测 ui_128_64_JL02_rebuilt 的页 3）。
+     * 烧进设备就是**整屏不显示**（实测 ui_128_64_JL02 的页 3）。
      *
-     * 形状照原厂来：页节点的这一条是个**裸对象**，只有 "rect" 键，
+     * 形状：页节点的这一条是个**裸对象**，只有 "rect" 键，
      * 连 -name 都没有（见 ProjectModel 读取那一侧的注释）。 */
     {
         QJsonObject r;
@@ -1440,7 +1438,7 @@ void CanvasManager::onCreateNewScenesScreen()
         QJsonObject po;
         po.insert(QStringLiteral("rect"), r);
         UiProperty rp;
-        rp.raw = po;                      // -name 留空，就是原厂那种裸 rect
+        rp.raw = po;                      // -name 留空，就是那种裸 rect
         page->props.append(rp);
     }
     page->markDirty();
@@ -1457,7 +1455,7 @@ void CanvasManager::onDelCurrentScenesScreen()
         EditorOps::tip(nullptr, tr("至少要保留一页。"));
         return;
     }
-    /* 原厂用的是同一个"删除提示"框（按钮叫 <删除>），文案里的 %1 换成"页面" */
+    /* 用同一个"删除提示"框（按钮叫 <删除>），文案里的 %1 换成"页面" */
     if (!EditorOps::confirmDelete(nullptr, QStringLiteral("页面"))) {
         return;
     }

@@ -1,8 +1,7 @@
 /*
  * Property.h —— 属性面板一族
  *
- * 【为什么是这些类】把原厂 ui-tools.exe 跑起来对着截图看，第二列下半部分的
- * 属性区结构是：
+ * 【面板结构】第二列下半部分的属性区是这么排的：
  *     ID号   [BACKLIGHT_VALUE_LIST]
  *     ┌ CSS属性_0 ┐                       <- PropertyTab (QTabWidget)
  *     │ 对齐方式  [ALIGN_CENTER   ▼]
@@ -15,11 +14,9 @@
  *     └
  *     滚动方式   [SCROLL         ▼]        <- 控件专有属性，来自 control.json
  *     默认高亮行号 [0]
- * 这与逆向出的类名一一吻合：BaseProperty / ComProperty / CssProperty /
+ * 对应的类：BaseProperty / ComProperty / CssProperty /
  * Position / Border / Backgroud / FileEdit（signal filePathChanged）/
- * DragButton / BaseScrollArea 全部各就各位。
- *
- * ★ 标记的是原始二进制里确实存在的成员，签名逐字一致。
+ * DragButton / BaseScrollArea。
  */
 #ifndef PROPERTY_H
 #define PROPERTY_H
@@ -48,7 +45,7 @@ class QVBoxLayout;
 class UiNode;
 struct UiProperty;
 
-/** 统一外观的滚动区。原厂第二列上下两块、右侧页面栏都是它。 */
+/** 统一外观的滚动区。第二列上下两块、右侧页面栏都是它。 */
 class BaseScrollArea : public QScrollArea
 {
     Q_OBJECT
@@ -144,10 +141,9 @@ public:
     QRect rect() const;
 
     /**
-     * @brief 按原厂规则给四个框定取值范围
+     * @brief 给四个框定取值范围
      *
-     * 规则是从原厂 ui-tools.exe 反汇编出来的（属性面板刷新那个函数，
-     * VA 0x00424AC0），不是猜的，也不是从工程数据反推的：
+     * 规则：
      *
      * @code
      *   宽.setMaximum(父宽);  高.setMaximum(父高);        // 无条件，先做
@@ -159,11 +155,11 @@ public:
      *   }
      * @endcode
      *
-     * 宽/高的**最小值原厂一次都没设**，QSpinBox 默认就是 0，所以宽高可以填 0。
-     * 详见 docs/FACTORY_UI.md 第 10 节。
+     * 宽/高的**最小值不设**，QSpinBox 默认就是 0，所以宽高可以填 0。
+     * 详见 docs/UI_BEHAVIOR.md 第 10 节。
      *
      * @param parentSize 父容器的宽高；给空 QSize 表示父级未知，四个框回到宽松默认
-     * @param ownSize    自身当前的宽高（原厂取的是节点里的值，不是框里的值）
+     * @param ownSize    自身当前的宽高（取节点里的值，不是框里的值）
      * @param container  自身是不是 NewLayout / NewLayer
      */
     void  setBounds(const QSize &parentSize, const QSize &ownSize, bool container);
@@ -261,8 +257,7 @@ protected:
  * 边框跟着背景走：它和背景一样是**外观装饰**，而且它一组就占 5 行 ——
  * 留在第一页的话第一页还是 17 行，等于没拆。
  *
- * ★ 原厂是上下堆叠、只有 CSS状态 一层页签，这是**本版有意偏离**，
- *   见 docs/FACTORY_UI.md §17。
+ * ★ 拆页签的取舍见 docs/UI_BEHAVIOR.md §17。
  */
 enum PropSection {
     SecBasic = 0,       ///< 基础设置
@@ -355,7 +350,7 @@ private:
     /// 属性写回：把改动塞进 UiProperty::raw，再置脏
     typedef std::function<void(const std::function<void(QJsonObject &)> &)> CommitFn;
 
-    /* 【返回的是"按钮 + 条目下拉框"一整块，不只是按钮】原厂面板每个列表类
+    /* 【返回的是"按钮 + 条目下拉框"一整块，不只是按钮】面板上每个列表类
      * 属性下面都跟着一个下拉框，把列表里的条目列出来（图片显示"缩略图 +
      * 文件名"，文字显示"内容#ResID"，如"蓝牙#m1"）—— 只有一个按钮的话，
      * 面板上根本看不出这个控件配了什么、画布上那张图是列表里的哪一条。 */

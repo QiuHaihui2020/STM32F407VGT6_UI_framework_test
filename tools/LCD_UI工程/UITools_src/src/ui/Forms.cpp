@@ -291,7 +291,7 @@ void BaseForm::syncRectFromNode()
 }
 
 /** 从 element_css.struct[0] 里取背景色。json 里存的是 "#RRGGBB" 之类的字符串，
- *  空串表示不填充（原厂画布上那些没设色的控件就是透出父级的底）。 */
+ *  空串表示不填充（没设色的控件透出父级的底）。 */
 static QColor cssBackground(UiNode *n)
 {
     if (!n) {
@@ -478,10 +478,9 @@ void BaseForm::mouseMoveEvent(QMouseEvent *e)
     const QPoint d = e->globalPos() - m_pressGlobal;
     /* 【不要钳制坐标】我一度在这儿把 x/y 夹到 [0, 父级尺寸]，理由是"负坐标
      * 写进 .sty 会被当成无符号读，控件飞屏外"。查了固件才知道这个理由是错的：
-     *     User/ui_framework/include/ui/ui_core.h: struct element_css { int left; int top; ... }
-     * 是**有符号** int，而且原厂自己的 SmallColor_oled.json 里就有 (0,-11)
-     * 这样的控件 —— 让内容从父容器上边缘露出去是他们在用的手法。
-     * 加了钳制等于凭空多出一条原厂没有的限制，还会把用户已有的负坐标改掉。 */
+     * left/top 是**有符号**的，而且 SmallColor_oled.json 里就有 (0,-11)
+     * 这样的控件 —— 让内容从父容器上边缘露出去是常用手法。
+     * 加了钳制等于凭空多出一条限制，还会把用户已有的负坐标改掉。 */
     move(m_startGeo.topLeft() + d);
 }
 
@@ -507,7 +506,7 @@ QVector<BaseForm *> BaseForm::subForms() const
 void BaseForm::contextMenuEvent(QContextMenuEvent *e)
 {
     /* 右键先把自己选中，再弹菜单 —— 不然菜单里的"删除当前-xxx"说的是
-     * 上一个选中的东西，点下去删错。原厂也是这个顺序。 */
+     * 上一个选中的东西，点下去删错。 */
     setSelected(true);
     showContextMenu(e->globalPos());
     e->accept();
@@ -526,7 +525,7 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
     appendTypeActions(menu);            // 列表 / 表格的专有项
     menu.addSeparator();
 
-    /* 这两项的文字随当前状态在"显示/隐藏"之间翻 —— 原厂的四条串
+    /* 这两项的文字随当前状态在"显示/隐藏"之间翻 —— 四条串
      * （显示同类容器 / 显示 / 隐藏同类容器 / 隐藏）就是两个开关的两种文字。 */
     const QVector<BaseForm *> subs = subForms();
     const bool subShown = !subs.isEmpty() && subs.first()->isVisible();
@@ -582,7 +581,7 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
     }
 }
 
-/** 粘贴。谁能收、收不了说什么，全按原厂那几条提示语来。 */
+/** 粘贴。谁能收、收不了说什么，见 EditorOps 里那几条提示语。 */
 void BaseForm::doPaste()
 {
     if (EditorOps::clipEmpty()) {
@@ -605,7 +604,7 @@ void BaseForm::doPaste()
 /**
  * "保存成控件"：把当前节点存成一份控件模板，落到 <UITools>/control/ex/。
  *
- * 存的格式就是 control.json 的格式（顶层 "compoents" 数组，键名照抄原厂
+ * 存的格式就是 control.json 的格式（顶层 "compoents" 数组，键名沿用
  * 那个拼写错误），ControlLibrary 启动时扫这个目录，下次就出现在
  * "自定义控件" 那一组里。
  */
@@ -662,9 +661,9 @@ void BaseForm::onXYWHChangedValue(int v)
     } else if (which == QLatin1String("spinY")) {
         g.moveTop(v);
     } else if (which == QLatin1String("spinW") || which == QLatin1String("spinH")) {
-        /* ★ 原厂限制：宽高不许是 0。这里不能像以前那样偷偷 qMax(1,v) 兜过去
+        /* ★ 限制：宽高不许是 0。这里不能像以前那样偷偷 qMax(1,v) 兜过去
          * —— 用户敲了 0，界面上还显示 0，存进去却是 1，下次打开数字自己变了。
-         * 原厂是直接拦下来告诉你，我照做。 */
+         * 直接拦下来告诉用户，别自作主张。 */
         if (v == 0) {
             EditorOps::tip(this, QStringLiteral("宽高不能设置为零."));
             return;
@@ -803,10 +802,10 @@ void BaseForm::onBackgroundImageDialog()
 
 void BaseForm::onActionDialog()
 {
-    /* 原工具在这里弹 ActionList 对话框编辑 element_event_action。
-     * 事件动作的二进制布局尚未逆向完（见 docs/RE_REPORT.md 未决项）。 */
+    /* 这里该弹 ActionList 对话框编辑 element_event_action。
+     * 这一段的二进制布局还没定下来，先不做。 */
     QMessageBox::information(this, tr("事件动作"),
-                             tr("事件动作编辑尚未实现，见 docs/RE_REPORT.md 未决项。"));
+                             tr("事件动作编辑尚未实现。"));
 }
 
 void BaseForm::onDeleteMe()
@@ -815,7 +814,7 @@ void BaseForm::onDeleteMe()
         deleteLater();
         return;
     }
-    /* ★ 原厂删除一定先问一次，而且按钮就叫 <删除>（正文里那句"请选择<删除>
+    /* ★ 删除一定先问一次，而且按钮就叫 <删除>（正文里那句"请选择<删除>
      * 删除"说的就是它）。删除不可撤消 —— 这个工具没有 undo。 */
     const QString what = EditorOps::isLayer(m_node)  ? QStringLiteral("图层")
                        : EditorOps::isLayout(m_node) ? QStringLiteral("布局")
@@ -902,7 +901,7 @@ void NewList::onAddManyLine()
     int n = 1;
     if (!EditorOps::silent()) {
         bool ok = false;
-        /* 原厂输入框的上限提示是"9999 内的整数"，这里跟着走 */
+        /* 输入框的上限提示是"9999 内的整数" */
         n = QInputDialog::getInt(this,
                                  vert ? QStringLiteral("添加行") : QStringLiteral("添加列"),
                                  QStringLiteral("9999 内的整数"), 1, 1, 9999, 1, &ok);
@@ -913,7 +912,7 @@ void NewList::onAddManyLine()
     /* 【行是克隆出来的，不是现搭的】列表的每一行在工程文件里是一个完整的
      * NewLayout 子树（listwidget -> NewLayout -> 若干 NewFrame），它带着
      * element_css、事件、图片引用。之前这里现搭了一个空的 NewFrame 塞进
-     * listwidget：既不符合原厂结构（listwidget 下只能是 NewLayout），
+     * listwidget：既不符合结构约定（listwidget 下只能是 NewLayout），
      * 生成资源时也拿不到任何内容。有第一行就照着克隆，没有就退回建空布局。 */
     const UiNode *tpl = nullptr;
     for (const auto &c : m_node->children) {
@@ -930,15 +929,15 @@ void NewList::onAddManyLine()
             /* 【列表还空着时，照 control.json 的模板建，不要现搭空壳】
              * 以前这里搭的是个只有 -class/-type/-name 的壳：一条属性都没有，
              * 属性面板上空空如也，生成资源时既没几何也没样式 ——
-             * 用户报的"右键添加行新增的布局参数比原厂少"就是这条路。
-             * 原厂建出来的行和普通布局是**同一套参数**（两个工程 167 个行
+             * 用户报的"右键添加行新增的布局参数比正常的少"就是这条路。
+             * 行和普通布局是**同一套参数**（既有工程 167 个行
              * vs 65 个图层下的布局，property 名单、element_css 字段和状态数
-             * 全部一致，见 docs/FACTORY_UI.md §14.12），所以这里必须走和
+             * 全部一致，见 docs/UI_BEHAVIOR.md §14.12），所以这里必须走和
              * 控件栏那条路同一份模板。 */
             row = EditorOps::makeFromTemplate(m_node, QStringLiteral("NewLayout"),
                                               QStringLiteral("布局"));
         }
-        /* 【名字要和正常新建的一样】原厂是"中文名_全局序号"（布局_37）。
+        /* 【名字要和正常新建的一样】规则是"中文名_全局序号"（布局_37）。
          * 以前克隆出来的沿用被克隆那一行的名字、退化路径更是直接叫
          * "NewLayout" —— 同一个工程里冒出英文名，树上一眼就看出来是两条路。 */
         if (row->caption.isEmpty()) {
@@ -965,7 +964,7 @@ void NewList::onSetFixedHeight()
         return;
     }
     /* 【改的是 sizehw，不是控件自己的高度】列表整体多高由它的 rect 决定，
-     * 每一行/每一列多大是 json 里那个独立的 "sizehw" 字段（原厂工程文件里
+     * 每一行/每一列多大是 json 里那个独立的 "sizehw" 字段（既有工程文件里
      * VerticalList 是 sizehw=16 / space=0）。以前这里去 resize 控件本身，
      * 改的是整个列表的高度，等于把"设置行高"做成了"改列表大小"。 */
     const bool vert = listIsVertical(m_node);
@@ -1144,7 +1143,7 @@ void NewList::appendTypeActions(QMenu &menu)
         }
     });
 
-    /* 滚动方向就是 orientation 字段，原厂菜单上是"垂直滚动/水平滚动"两项 */
+    /* 滚动方向就是 orientation 字段，菜单上是"垂直滚动/水平滚动"两项 */
     QAction *aVert = menu.addAction(QStringLiteral("垂直滚动"));
     QAction *aHorz = menu.addAction(QStringLiteral("水平滚动"));
     aVert->setCheckable(true);
@@ -1160,11 +1159,11 @@ NewGrid::~NewGrid() = default;
 QColor NewGrid::frameColor() const { return QColor(0xb5, 0x1f, 0x5f); }
 void NewGrid::onDeleteMe() { BaseForm::onDeleteMe(); }
 
-/* 【说清楚不确定的地方】NewGrid 在原厂那份 SmallColorTFT.json 里一个实例
+/* 【说清楚不确定的地方】NewGrid 在 SmallColorTFT.json 里一个实例
  * 都没有（277 个节点：NewFrame 175 / NewLayout 85 / NewList 14 / NewLayer 3），
  * control.json 的模板里也只有 id / element_css / scroll / highlight_index /
  * action，没有存行列数的字段。行列数究竟落在哪个键上我没有样本可对，这里
- * 先用 rows / cols。等拿到带 NewGrid 的原厂工程，要按样本改键名。 */
+ * 先用 rows / cols。等拿到带 NewGrid 的样本工程，要按样本改键名。 */
 void NewGrid::onAddOneRow()
 {
     if (!m_node) {

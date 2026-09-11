@@ -1,6 +1,6 @@
-// Resbuilder.dat —— 原厂 ResBuilder 界面里那张字符串表的**逐格字体**。
+// Resbuilder.dat —— 字符串表的**逐格字体**。
 //
-// 原厂的 ResBuilder 是个表格界面：行是 ResID、列是语言，用户可以选中某一格
+// ResBuilder 是个表格界面：行是 ResID、列是语言，用户可以选中某一格
 // 单独改字体。这份选择存在工程目录的 Resbuilder.dat 里，**不**写进
 // Resbuilder.xml —— xml 的 <Fonts> 只有 font00..21 那 22 条按语言的默认字体。
 //

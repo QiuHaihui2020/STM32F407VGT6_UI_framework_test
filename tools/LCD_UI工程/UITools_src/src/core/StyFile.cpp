@@ -100,7 +100,7 @@ bool StyFile::load(const QString &path, QString *err)
 
     if (m_head.magic2 != 0x6A978292u) {
         if (err) {
-            *err = QStringLiteral("magic2=0x%1，不像原厂 .sty").arg(m_head.magic2, 8, 16, QLatin1Char('0'));
+            *err = QStringLiteral("magic2=0x%1，不像 .sty 文件").arg(m_head.magic2, 8, 16, QLatin1Char('0'));
         }
         return false;
     }

@@ -5,7 +5,7 @@ rem 指针落点与重定位表、资源号范围、.res/.str 完整性、固件需要的宏。
 rem 需要 python3。
 setlocal
 cd /d "%~dp0project"
-set TOOLS=..\..\..\UITools_rebuilt
+set TOOLS=..\..\..\UIToolkit
 set FWHDR=..\..\..\..\..\User\ui_framework\include\common
 
 if not exist project.bin (

@@ -1,13 +1,13 @@
 @echo off
 rem ===========================================================================
-rem  Package the three rebuilt tools into a self-contained folder.
+rem  Package the three tools into a self-contained folder.
 rem
 rem  Usage:  dist.bat [output dir] [Qt root]
 rem          default output: C:\bt\dist
 rem          default Qt    : C:\Qt\5.15.2\msvc2019_64
 rem
 rem  Run build.bat first. The result runs with NO environment setup at all -
-rem  no PATH, no QT_PLUGIN_PATH - so it can be dropped next to the factory
+rem  no PATH, no QT_PLUGIN_PATH - so it can be dropped anywhere next to the
 rem  tools and used directly. ~21 MB.
 rem
 rem  If your Qt install has windeployqt.exe, that is the canonical way:

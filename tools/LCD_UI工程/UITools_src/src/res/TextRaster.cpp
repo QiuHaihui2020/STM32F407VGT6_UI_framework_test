@@ -67,7 +67,7 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
      * 宽度则是 GetTextExtentPoint32 的原始 cx，不补齐。
      *
      * 以前两条都取整到 8，在 -16 的宋体上看不出来 —— 汉字进 16、ASCII 进 8,
-     * 任何串的 cx 本来就是 8 的倍数。直到发现原厂 result.str 里有 11/18/30 宽
+     * 任何串的 cx 本来就是 8 的倍数。直到发现既有 result.str 里有 11/18/30 宽
      * 的条目（那几格字体是 -11），才暴露宽度其实不补齐。见 ResFontDat.h。 */
     out.height = (qAbs(f.height) + 7) / 8 * 8;
     if (out.height <= 0) {
@@ -124,8 +124,8 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
     SetBkColor(hdc, RGB(255, 255, 255));
     SetTextColor(hdc, RGB(0, 0, 0));
     /* 【字比位图矮时要竖直居中】位图高度取到 8 的倍数，字号不是 8 的倍数时
-     * 就多出几行空白。原厂把字放在正中间：-11 的宋体画在 16 行里，上面留
-     * (16-11)/2 = 2 行 —— 和原厂 result.str 里那 27 条逐位对上。
+     * 就多出几行空白。字要放在正中间：-11 的宋体画在 16 行里，上面留
+     * (16-11)/2 = 2 行 —— 和既有 result.str 里那 27 条逐位对上。
      * -16 时 (16-16)/2 = 0，和以前的行为一致。 */
     const int topPad = (out.height - qAbs(f.height)) / 2;
     TextOutW(hdc, 0, topPad, reinterpret_cast<const wchar_t *>(text.utf16()), text.size());
@@ -153,7 +153,7 @@ TextBitmap rasterize(const QString &text, const LogFontSpec &f)
     return out;
 }
 
-#else   // 非 Windows：用 Qt 渲染，字形不保证与原厂一致
+#else   // 非 Windows：用 Qt 渲染，字形不保证一致
 
 namespace {
 QFont toQFont(const LogFontSpec &f)

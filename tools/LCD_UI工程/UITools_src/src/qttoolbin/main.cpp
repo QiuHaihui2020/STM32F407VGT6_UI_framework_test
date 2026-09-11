@@ -1,6 +1,6 @@
-// QtToolBin（重建版）—— 原厂 QtToolBin.exe 的替代品。
+// QtToolBin —— 工程 json -> 资源描述与布局数据。
 //
-// 不带参数时**弹界面**（和原厂一样：双击弹窗，在界面上点「生成资源文件(F5)」）。
+// 不带参数时**弹界面**：双击弹窗，在界面上点「生成资源文件(F5)」。
 // 带下面任一生成类选项则走命令行，不弹窗 —— 自动化/验收脚本用的就是这条路。
 //   QtToolBin [工程.json] [选项]
 //     --pj-id N          工程 ID（进控件 id 的 bit29..31），默认 0
@@ -8,21 +8,21 @@
 //     --option-ini <路径> 默认在 <工程目录>/../../../UITools/config/ini/option.ini 找
 //     --excel <路径>     写进 Resbuilder.xml 的 excel_path
 //     --language 0xNN    语言掩码，默认 0x13
-//     --ename <ename.h>  复用已有 ename.h 里的 id（用于和原厂产物逐字节对拍）
+//     --ename <ename.h>  复用已有 ename.h 里的 id（用于和既有资源逐字节比对）
 //     -o <目录>          输出目录，默认与工程 json 同目录
-//     --verify <目录>    生成后与该目录里的原厂产物对比
+//     --verify <目录>    生成后与该目录里现成的一套产物做对比
 //     --run-resbuilder <ResBuilder.exe>  生成 Resbuilder.xml 后接着跑资源生成
 //     --script <bat>     最后调用的脚本（默认 copy_file.bat，--no-script 关掉）
 //     --gui / --cli      强制界面 / 强制命令行
 //
-// 不给 json 时，按原厂的规矩从**当前目录**的 config\ini\project.ini 里读：
+// 不给 json 时，从**当前目录**的 config\ini\project.ini 里读：
 //     projectfilename   要生成的工程 json
 //     projectid         工程 ID  -> --pj-id
 //     projectrotate     旋转     -> --rotate
 //     projectbatscript  收尾脚本 -> --script
-//     projectresbuilder true = 不重新生成资源（原厂界面上那个勾选框）
+//     projectresbuilder true = 不重新生成资源（界面上那个勾选框）
 // 命令行显式给的选项优先于 project.ini。所以启动脚本可以是干净的一行：
-//     cd project && ..\..\..\UITools_rebuilt\QtToolBin.exe --run-resbuilder <...>
+//     cd project && ..\..\..\UIToolkit\QtToolBin.exe --run-resbuilder <...>
 //
 // 产出：project.bin / ename.h / Resbuilder.xml / debug.txt
 #include <QApplication>
@@ -91,7 +91,7 @@ int compareOne(const QString &mine, const QString &ref)
             ++ndiff;
         }
     }
-    out() << QStringLiteral("  [异]  %1  本版 %2 / 原厂 %3 字节，首个不同 @0x%4，共 %5 字节不同\n")
+    out() << QStringLiteral("  [异]  %1  本次 %2 / 参考 %3 字节，首个不同 @0x%4，共 %5 字节不同\n")
              .arg(QFileInfo(mine).fileName()).arg(da.size()).arg(db.size())
              .arg(i, 0, 16).arg(ndiff);
     return 1;
@@ -101,9 +101,9 @@ int compareOne(const QString &mine, const QString &ref)
 
 int main(int argc, char *argv[])
 {
-    /* 原厂 QtToolBin 是弹窗工具，双击 step2 出界面、点「生成资源文件(F5)」才干活。
-     * 重建版默认也这样；但只要给了任何一个生成类选项，就当成命令行调用不弹窗
-     * —— re/verify_toolchain.py 和 step2 之外的自动化都走那条路。
+    /* 默认是弹窗工具：双击 step2 出界面、点「生成资源文件(F5)」才干活。
+     * 但只要给了任何一个生成类选项，就当成命令行调用不弹窗
+     * —— compat/verify_toolchain.py 和 step2 之外的自动化都走那条路。
      *
      * QApplication 必须在解析参数之前构造（它要吃掉 -style 之类的 Qt 参数），
      * 所以这里先扫一遍 argv 决定要不要图形界面。控制台模式用 QCoreApplication，
@@ -151,8 +151,8 @@ int main(int argc, char *argv[])
 
     /* --verify-resxml <工程目录>
      *
-     * 「功能设置」那一页能不能顶替原厂，标准只有一条：**读得进原厂那份配置，
-     * 再写出去还是同一份**。不然用户拿本版点一次生成，原厂配好的字体表、
+     * 「功能设置」那一页的标准只有一条：**读得进现成那份配置，
+     * 再写出去还是同一份**。不然用户点一次生成，原来配好的字体表、
      * 透明色、语言掩码就被悄悄改掉了。
      *
      * 做法：从 <工程目录>/Resbuilder.xml 读设置 -> 拿它生成一份新的 ->
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
                 return 2;
             }
 
-            // 工程 json：按原厂规矩从 project.ini 取
+            // 工程 json：从 project.ini 取
             QSettings pini(QDir(vdir).absoluteFilePath(
                                QStringLiteral("config/ini/project.ini")),
                            QSettings::IniFormat);
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
                 const int j = all.indexOf(b, i);
                 return (i < 0 || j < 0) ? QString() : all.mid(i + a.size(), j - i - a.size());
             };
-            /* 【两边都按 UTF-8 优先解】原厂写的是 UTF-8；本版历史上写过 GBK，
+            /* 【两边都按 UTF-8 优先解】现成那份是 UTF-8；这边历史上写过 GBK，
              * 所以沿用 ResConfig 那套探测。用错编码的话中文字数对不上，
              * 会报出一堆假的"不一致"。 */
             auto decode = [](const QByteArray &raw) {
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
                 if (a == b) {
                     rs << QStringLiteral("  [同] %1 = %2\n").arg(t, a);
                 } else {
-                    rs << QStringLiteral("  [异] %1  原厂=%2  本版=%3\n").arg(t, a, b);
+                    rs << QStringLiteral("  [异] %1  参考=%2  本次=%3\n").arg(t, a, b);
                     ++bad;
                 }
             }
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
                 const int j = all.indexOf(b, i);
                 return (i < 0 || j < 0) ? QString() : all.mid(i, j - i);
             };
-            /* 【属性次序不算差异】原厂的 <fontNN .../> 每个属性的先后**每次生成
+            /* 【属性次序不算差异】<fontNN .../> 每个属性的先后**每次生成
              * 都不一样**（同一台机器、同一个工程，隔一次跑就换一种排法）——
              * 和 ColorList 的排序是同一个成因：Qt 容器 + 进程级随机 hash 种子，
              * 详见 docs/QTTOOLBIN.md「ColorList 排序」。XML 属性本来就是无序的，
@@ -314,7 +314,7 @@ int main(int argc, char *argv[])
                     const QStringList lb = b.split(QLatin1Char('\n'));
                     for (int i = 0; i < qMax(la.size(), lb.size()); ++i) {
                         if (la.value(i) != lb.value(i)) {
-                            rs << QStringLiteral("        原厂: %1\n        本版: %2\n")
+                            rs << QStringLiteral("        参考: %1\n        本次: %2\n")
                                      .arg(la.value(i), lb.value(i));
                             break;
                         }
@@ -346,10 +346,10 @@ int main(int argc, char *argv[])
             /* 顺带把「配置语言」那张表的行为验一遍。QFontDialog 是模态的，
              * 无人值守点不了，所以走 applyFontForTest 这条等价路径。 */
             if (!d.cellsReadOnlyForTest()) {
-                out() << QStringLiteral("x 表格单元格可以直接编辑（原厂是只读的）\n");
+                out() << QStringLiteral("x 表格单元格可以直接编辑（应该是只读的）\n");
                 ok = false;
             } else {
-                out() << QStringLiteral("配置语言表：单元格只读，符合原厂\n");
+                out() << QStringLiteral("配置语言表：单元格只读，符合预期\n");
             }
             if (d.rowCountForTest() > 0) {
                 QFont nf(QStringLiteral("Arial"), 20);
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
         } else if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
             out() << QStringLiteral("用法: QtToolBin <工程.json> [--pj-id N] [--rotate N] [--option-ini 路径]\n"
                 "                [--excel 路径] [--language 0xNN] [--ename ename.h]\n"
-                "                [-o 输出目录] [--verify 原厂目录]\n"
+                "                [-o 输出目录] [--verify 参考目录]\n"
                 "                [--run-resbuilder ResBuilder.exe] [--script bat|--no-script]\n"
                 "                [--verify-resxml 工程目录 [--report 文件]]\n");
             out().flush();
@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
 
     if (wantGui) {
         /* 工程目录：给了 json 就用它所在的目录，否则用当前目录
-         * （step2 里是 cd 到 project 再启动的，和原厂一样）。 */
+         * （step2 里就是 cd 到 project 再启动的）。 */
         const QString projDirGui = jsonPath.isEmpty()
             ? QDir::currentPath()
             : QFileInfo(jsonPath).absolutePath();
@@ -501,8 +501,8 @@ int main(int argc, char *argv[])
         return app.exec();
     }
 
-    /* 不给 json 就按原厂的规矩读 config/ini/project.ini。
-     * 原厂 QtToolBin 的界面上那几项（JSON文件 / 工程ID / 旋转 / 调用脚本 /
+    /* 不给 json 就读 config/ini/project.ini。
+     * 界面上那几项（JSON文件 / 工程ID / 旋转 / 调用脚本 /
      * 不重新生成资源文件）就是存在这个文件里的，双击 bat 直接跑靠的就是它。 */
     bool skipRes = false;
     {
@@ -558,10 +558,10 @@ int main(int argc, char *argv[])
     opt.projectDir = projDir;
     opt.outDir = outDir;            // excel_path 相对它折算
 
-    /* 【「功能设置」跟着工程走】原厂把这一页存在 <工程目录>/Resbuilder.xml 里
-     * （证据见 ResbuilderOptions.h 抬头）。界面那条路在 ToolBinWindow 里读，
+    /* 【「功能设置」跟着工程走】这一页存在 <工程目录>/Resbuilder.xml 里
+     * （见 ResbuilderOptions.h 抬头）。界面那条路在 ToolBinWindow 里读，
      * 命令行这条也得读 —— 不然 step2 双击一次和脚本跑一次出来的字体表、
-     * 透明色不一样，"能顶替原厂"就无从谈起。
+     * 透明色会不一样。
      * 命令行显式给的 --excel / --language 优先，所以先存后恢复。 */
     {
         const QString savedExcel = opt.excelPath;
@@ -579,13 +579,13 @@ int main(int argc, char *argv[])
         }
     }
     /* 工程目录一般是 .../ui_xxx/<界面>/project，工具目录在上三级。
-     * 先找放着本 exe 的那个工具目录（重建版通常叫 UITools_rebuilt），
-     * 找不到再退回原厂的 UITools —— 这样两套工具目录都能用。 */
+     * 先找放着本 exe 的那个工具目录，找不到再退回 UITools ——
+     * 这样两套工具目录都能用。 */
     const QString exeDir = QCoreApplication::applicationDirPath();
     QStringList toolRoots;
     toolRoots << exeDir
               << QDir::cleanPath(QDir(projDir).absoluteFilePath(
-                     QStringLiteral("../../../UITools_rebuilt")))
+                     QStringLiteral("../../../UIToolkit")))
               << QDir::cleanPath(QDir(projDir).absoluteFilePath(
                      QStringLiteral("../../../UITools")));
     if (opt.optionIni.isEmpty()) {
@@ -655,8 +655,8 @@ int main(int argc, char *argv[])
 
     /* 【Resbuilder.dat 要跟着 Resbuilder.xml 走】
      * 它是字符串表的**逐格字体**（见 docs/FILE_FORMATS.md 10.6），
-     * ResBuilder 在 xml 所在目录找它。原厂只会就地生成，两者天然同目录；
-     * 本版支持 -o 输出到别处，不带过去就会丢掉逐格字体 —— 该用宋体 -11 的
+     * ResBuilder 在 xml 所在目录找它。就地生成时两者天然同目录；
+     * 这里支持 -o 输出到别处，不带过去就会丢掉逐格字体 —— 该用宋体 -11 的
      * 那几条会按默认的 -16 渲染，result.str 直接对不上。 */
     {
         const QString srcDat = QDir(QFileInfo(jsonPath).absolutePath())
@@ -677,7 +677,7 @@ int main(int argc, char *argv[])
 
     int rc = 0;
     if (!refDir.isEmpty()) {
-        out() << QStringLiteral("\n与原厂产物对比：\n");
+        out() << QStringLiteral("\n与参考产物对比：\n");
         for (const F &f : files) {
             rc |= compareOne(dir.absoluteFilePath(QLatin1String(f.name)),
                              QDir(refDir).absoluteFilePath(QLatin1String(f.name)));

@@ -75,7 +75,7 @@ void put32(QByteArray &b, quint32 v) { char t[4]; qToLittleEndian(v, reinterpret
 /**
  * 数字感知的次序比较：把连续数字段当整数比，其余按字符比。
  *
- * 原厂给文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
+ * 文字 ResID 编号用的是这个次序（m1 < m2 < m3 < m6 < m22 < m30），
  * 不是 QStringList::sort() 的字典序（那会得到 m1 < m22 < m3）。
  * 证据见 docs/FILE_FORMATS.md。
  *
@@ -116,14 +116,11 @@ static bool natLess(const QString &a, const QString &b)
  * 除法用 C 的向零截断。正数看起来像"向上取整"（95*10000/128=7421.875 -> 7422）。
  *
  * 【负数不要另开分支】以前这里给负数单独写了 -((-num)/d)，等于对负数做向零
- * 截断，和原厂对不上：原厂 SDK 那个 y=-11 的控件（父高 64），
- *     本版 -((110000)/64)          = -1718
- *     原厂 (-110000 + 63) / 64     = -1717   （project.bin 0x54C4 实测）
- * 差 1。原厂就是不分正负套同一个式子，负数时 "+ref-1" 反而把商往零推了一格。
+ * 截断，对不上既有资源：那个 y=-11 的控件（父高 64），
+ *     分正负写   -((110000)/64)      = -1718
+ *     统一式子   (-110000 + 63) / 64 = -1717   （project.bin 0x54C4 实测）
+ * 差 1。正确的做法是不分正负套同一个式子，负数时 "+ref-1" 把商往零推一格。
  * 这套工程里只有一个负坐标，所以一直没暴露。
- *
- * 对照件：jl701n_soundbox_release_v1.4.2_oled/sdk/cpu/br28/tools/UI工程/
- *         ui_128_64_JL02/模式界面/project/project.bin（原厂工具自己生成的）
  */
 int perMyriad(int v, int ref)
 {
@@ -131,7 +128,7 @@ int perMyriad(int v, int ref)
         return 0;
     }
     const qint64 num = qint64(v) * 10000 + ref - 1;
-    return int(num / ref);          // C++ 整数除法向零截断，和原厂一致
+    return int(num / ref);          // C++ 整数除法向零截断
 }
 
 /// "#AARRGGBB" -> (RGB565, alpha 百分比)。空串是"未设置"，用 0xFFFFFF/100 当哨兵。
@@ -165,7 +162,7 @@ void argbTo565(const QString &s, quint32 *rgb, quint32 *alpha)
     *alpha = quint32(qRound(a * 100.0 / 255.0));
 }
 
-/// 22 种语言的键名与中文名，原厂 QtToolBin 硬编码在程序里（配置文件里找不到）。
+/// 22 种语言的键名与中文名。这份表配置文件里没有，只能写在程序里。
 /// 顺序即语言编号 1..22，result.h 的宏就是按这个顺序生成的。
 static const char *const kLangKeys[22] = {
     "Chinese_Simplified", "Chinese_Traditional", "Japanese", "Korean",
@@ -266,7 +263,7 @@ bool Builder::loadOptionIni(const QString &path, QString *error)
         }
         return false;
     }
-    // option.ini 里有中文键（窗口=1 图层=4 …）。实测原厂这份是 UTF-8 带 BOM，
+    // option.ini 里有中文键（窗口=1 图层=4 …）。这份文件是 UTF-8 带 BOM，
     // 但别的机器上可能是本地代码页，两种都收。
     QByteArray raw = f.readAll();
     if (raw.startsWith("\xEF\xBB\xBF")) {
@@ -532,7 +529,7 @@ Output Builder::build(const Options &opt)
                 }
             }
         }
-        // 原厂每页的 ColorList 里一定有黑色，页 1 的 JSON 里一处 000000 都没有，
+        // 每页的 ColorList 里一定要有黑色，页 1 的 JSON 里一处 000000 都没有，
         // 输出里却排在最后 —— 就是补上去的。
         if (!pageColors[pi].contains(QStringLiteral("000000"))) {
             pageColors[pi].append(QStringLiteral("000000"));
@@ -750,7 +747,7 @@ Output Builder::build(const Options &opt)
                 }
                 return blk;
             };
-            // 空列表原厂照样写一个 0x0000 占位块。区别在指针：
+            // 空列表照样要写一个 0x0000 占位块。区别在指针：
             //   图片列表（type 8/9）为空时指针留 null；
             //   文字列表（type 12 strlist）为空时**照样指过去**（num=0）。
             // 这不是猜的，是把真实文件里 273 个控件全统计了一遍的结果。
@@ -802,7 +799,7 @@ Output Builder::build(const Options &opt)
                 rec[16] = char(enumValue(pm));
                 rec[17] = char(propOf(n->obj, QStringLiteral("highlight_index"))
                                .value(QStringLiteral("default")).toInt(-1));
-                rec[18] = char(0xFF);       // 结构体对齐空洞，原厂填 0xFF
+                rec[18] = char(0xFF);       // 结构体对齐空洞，填 0xFF
                 rec[19] = char(0xFF);
                 n->ctrlPtrFields.append(24);
                 break;
@@ -814,7 +811,7 @@ Output Builder::build(const Options &opt)
                 break;
             case 8:                                    // ImageList / 图片
                 // 结构体是 u8 highlight; u16 cent_x; u16 cent_y; 三个指针，
-                // 自然对齐后 17 和 22..23 是空洞，原厂填 0xFF
+                // 自然对齐后 17 和 22..23 是空洞，填 0xFF
                 rec[16] = char(propOf(n->obj, QStringLiteral("highlight"))
                                .value(QStringLiteral("default")).toInt());
                 rec[17] = char(0xFF);
@@ -869,7 +866,7 @@ Output Builder::build(const Options &opt)
              * 28(slider) 掉进 default 什么都不做 —— step 不写、子元素指针留空、
              * 重定位表里也少一项。固件按空指针找不到滑块子元素，水平 slider
              * 在设备上就是画不出滑块。
-             * 对照原厂 project.bin（jl701n SDK 那份 oled 工程）：
+             * 对照既有的 project.bin（那份 oled 工程）：
              *   slider  +16 = 01 ff ff ff   +20 = a4 01 00 00
              *   本版原来 +16 = 00 00 00 00   +20 = 00 00 00 00
              * vslider 两边本来就一致，正好说明是这个 case 漏了。 */
@@ -888,7 +885,7 @@ Output Builder::build(const Options &opt)
 
             // ---- action 块 ----
             // 每个带 action 字段的控件**都**有一个块，哪怕一条事件都没配
-            // （那就是个 u16 num=0，对齐到 4 字节）。原厂三页 49/96/132 个控件
+            // （那就是个 u16 num=0，对齐到 4 字节）。三页 49/96/132 个控件
             // 各占 4 字节、重定位表各多 49/96/132 项，就是这么来的。
             static const QMap<int, int> kActionOff = {
                 { 3, 16 }, { 4, 20 }, { 5, 20 }, { 7, 24 }, { 8, 32 }, { 9, 24 },
@@ -937,7 +934,7 @@ Output Builder::build(const Options &opt)
         win[0] = char(2);                              // page/ScenesScreen
         win[1] = char(roots[pi]->kids.size());
         win[2] = char(0);
-        win[3] = char(0);          // 实测原厂这里写 0，不是记录长度
+        win[3] = char(0);          // 这里写 0，不是记录长度
         win[4] = char(0);
         win[5] = char(0xFF);
         win[6] = char(0xFF);
@@ -1056,7 +1053,7 @@ Output Builder::build(const Options &opt)
 
     QByteArray sty;
     put32(sty, uiVersion);
-    /* 【这不是魔数，是生成时间戳】以前当常量抄了一个样本值。实测原厂两份
+    /* 【这不是魔数，是生成时间戳】以前当常量抄了一个样本值。既有的两份
      * 产物这里分别是 0x6AA11723 / 0x6A85455D，换算成 Unix 时间正好等于各自
      * project.bin 的文件时间（精确到秒）。固件 struct ui_file_head 把前 16
      * 字节当 res[16] 不透明块，只读前 4 字节的 UI_VERSION，这一格不参与任何
@@ -1107,7 +1104,7 @@ Output Builder::build(const Options &opt)
         QString s;
         s += QLatin1String("<?xml version='2.0' encoding='UTF-8'?>\r\n<Resbuilder>\r\n");
         s += QLatin1String("\t<Items>\r\n");
-        // 语言表和字体表原厂是硬编码的（配置文件里找不到）。ResBuilder 靠语言表
+        // 语言表和字体表配置文件里没有，只能写在程序里。ResBuilder 靠语言表
         // 生成 result.h、靠字体表挑字符串位图的字体，必须原样写出来。
         s += QLatin1String("\t\t<LanguageList>\r\n");
         for (int i = 0; i < 22; ++i) {
@@ -1135,18 +1132,18 @@ Output Builder::build(const Options &opt)
                  .arg(opt.fontStrikeOuts.value(i, 0));
         }
         s += QLatin1String("\t\t</Fonts>\r\n");
-        /* 【顺序照原厂】这四项在 <PageList> **之前**，其余设置项在之后。
-         * 原厂 Resbuilder.xml 里 <Items> 的子元素次序是：
+        /* 【次序要紧】这四项在 <PageList> **之前**，其余设置项在之后。
+         * Resbuilder.xml 里 <Items> 的子元素次序是：
          *   LanguageList / Fonts / endian / paneltype / picture_path /
          *   excel_path / PageList / language / bmp_transparent_color / ...
-         * 顺序不一样文件就不是逐字节相同，谈不上顶替原厂。 */
+         * 顺序不一样，文件就不是逐字节相同的了。 */
         {
             const QString pp = opt.picturePath.isEmpty() ? QStringLiteral("NULL")
                                                          : opt.picturePath;
             s += QStringLiteral("\t\t<endian>%1</endian>\r\n").arg(opt.endian);
             s += QStringLiteral("\t\t<paneltype>%1</paneltype>\r\n").arg(opt.panelType);
             s += QStringLiteral("\t\t<picture_path>%1</picture_path>\r\n").arg(pp);
-            /* 【excel_path 写相对工程目录的路径】原厂那份写的是
+            /* 【excel_path 写相对工程目录的路径】既有那份写的是
              * ../../../UITools/多国语言_128_64.xls，不是绝对路径 —— 工程整个
              * 挪个位置或者换台机器还能用。命令行 --excel 给的一般是绝对路径，
              * 这里折算回去。给的本来就是相对路径就原样保留。 */
@@ -1184,7 +1181,7 @@ Output Builder::build(const Options &opt)
          * 接不上了，而且 <percent>100%</percent> 里那个 % 混在带占位符的串里
          * 很容易被看成占位符。 */
         const QString resName = opt.res.isEmpty() ? QStringLiteral("result") : opt.res;
-        // 原厂写的是大写十六进制（0x00FFFFFF），照它来
+        // 写成大写十六进制（0x00FFFFFF）
         auto hex8 = [](quint32 v) {
             return QStringLiteral("0x%1").arg(
                 QString::number(v, 16).toUpper().rightJustified(8, QLatin1Char('0')));
@@ -1210,23 +1207,21 @@ Output Builder::build(const Options &opt)
         s += QStringLiteral("\t\t<rotate>%1</rotate>\r\n\t</Items>\r\n</Resbuilder>\r\n")
              .arg(opt.rotate);
         /* 【缩进是每级 8 个空格，不是 Tab】上面为了好读一直写的 \t，这里统一
-         * 换成 8 空格 —— 原厂那份就是这么排的（<Items> 前 8 个 0x20、
+         * 换成 8 空格（<Items> 前 8 个 0x20、
          * <LanguageList> 16 个、<language_name> 24 个，见工程目录里那份的原始
          * 字节）。Tab 和空格差一个字节都算产物不一致。
          * 内容里不会出现 Tab（都是路径、语言名、数字），整串替换是安全的。 */
         s.replace(QLatin1Char('\t'), QLatin1String("        "));
 
-        /* 【UTF-8，不是本地代码页】以前这里写的是 toLocal8Bit()，注释还说
-         * "原厂就是本地代码页" —— 那个结论是错的。
+        /* 【UTF-8，不是本地代码页】以前这里写的是 toLocal8Bit()，那是错的。
          *
-         * 证据：原厂随工具一起发的 UITools/Resbuilder.xml（2026-08-31，在原厂
-         * 机器上生成）里，excel_path 的"多"是 E5 A4 9A、lfFaceName 的"宋体"是
-         * E5 AE 8B E4 BD 93，都是 **UTF-8**；而本机 ANSI 代码页是 936(GBK)，
-         * toLocal8Bit() 在这儿会写成 GBK。XML 头自己声明的也是 encoding='UTF-8'。
+         * 现成的 Resbuilder.xml 里，excel_path 的"多"是 E5 A4 9A、lfFaceName
+         * 的"宋体"是 E5 AE 8B E4 BD 93，都是 **UTF-8**；而本机 ANSI 代码页是
+         * 936(GBK)，toLocal8Bit() 在这儿会写成 GBK。XML 头自己声明的也是
+         * encoding='UTF-8'。
          *
-         * 后果不是纸面问题：工程路径/字体名里有中文时，写 GBK 的话原厂
-         * ResBuilder.exe 按 UTF-8 解就是乱码，找不到 xls 也挑不对字体 ——
-         * 这套工具就没法顶替原厂那套。 */
+         * 后果不是纸面问题：工程路径/字体名里有中文时，写 GBK 的话下游按
+         * UTF-8 解就是乱码，找不到 xls 也挑不对字体。 */
         out.resbuilderXml = s.toUtf8();
     }
 

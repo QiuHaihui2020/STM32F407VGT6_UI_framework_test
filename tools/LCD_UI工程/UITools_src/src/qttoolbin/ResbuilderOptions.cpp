@@ -9,7 +9,7 @@ namespace toolbin {
 namespace {
 
 /* 语言表和 StyBuilder 里那份是同一套（Resbuilder.xml 的 LanguageList 就按它写），
- * 那边是 static const，跨编译单元拿不到，这里照抄一份。两处要一起改。 */
+ * 那边是 static const，跨编译单元拿不到，这里复制一份。两处要一起改。 */
 const char *const kLangKeys[22] = {
     "Chinese_Simplified", "Chinese_Traditional", "Japanese", "Korean",
     "English", "French", "German", "Italian",
@@ -55,7 +55,7 @@ ResbuilderOptions ResbuilderOptions::defaults()
         LangRow r;
         r.key = QString::fromUtf8(kLangKeys[i]);
         r.name = QString::fromUtf8(kLangNames[i]);
-        /* 原厂 Resbuilder.xml：font00 是 Cambria、01..05 宋体，六个都是
+        /* 默认字体表：font00 是 Cambria、01..05 宋体，六个都是
          * lfHeight=-32（24pt）；font06..21 宋体 lfHeight=-16（12pt）。 */
         r.face = (i == 0) ? QStringLiteral("Cambria") : QString::fromUtf8(kSongTi);
         r.point = (i <= 5) ? 24 : 12;
@@ -83,7 +83,7 @@ bool ResbuilderOptions::loadFromProject(const QString &xmlPath)
     res = c.res;
     bmpTransparentColor = c.bmpTransparentColor;
     pngBackgroundColor = c.pngBackgroundColor;
-    excelPath = c.excelPath;          // 原厂存的是相对工程目录的路径，原样带着
+    excelPath = c.excelPath;          // 存的是相对工程目录的路径，原样带着
     panelType = c.panelType;
     endian = c.endian;
     paletteType = c.paletteType;
