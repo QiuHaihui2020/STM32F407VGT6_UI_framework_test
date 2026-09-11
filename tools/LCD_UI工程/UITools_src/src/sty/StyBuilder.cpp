@@ -581,6 +581,7 @@ Output Builder::build(const Options &opt)
         return h;
     };
 
+    int noEname = 0;                    // 没有 ID 号的节点，页内递增序号
     for (int pi = 0; pi < order.size(); ++pi) {
         for (Node *n : order[pi]) {
             const QString macro = n->ename.toUpper();
@@ -597,10 +598,13 @@ Output Builder::build(const Options &opt)
                     .arg(pi).arg(n->caption.isEmpty() ? QStringLiteral("(无名)")
                                                       : n->caption,
                                  n->typeName));
+                /* 【种子不能用指针】原来这里拿 quintptr(n) 当哈希种子 ——
+                 * 同一个模型连跑两遍，节点地址不一样，.sty 就差字节，
+                 * 18t 那条"生成两遍要稳定"会随机红。改成页号 + 页内序号。 */
                 n->id = qint32((quint32(opt.pjId) << 29) | (quint32(pi) << 22)
                                | (quint32(n->typeCode & 0x3F) << 16)
-                               | allocLow(QStringLiteral("%1_%2").arg(pi).arg(
-                                              quintptr(n), 0, 16)));
+                               | allocLow(QStringLiteral("__noename_%1_%2")
+                                          .arg(pi).arg(noEname++)));
                 continue;
             }
             if (imported.contains(macro)) {

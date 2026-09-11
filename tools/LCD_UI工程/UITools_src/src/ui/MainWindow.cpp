@@ -177,9 +177,12 @@ void MainWindow::buildDocks()
 
     m_com = new ComProperty(propHost);
     m_prop = new PropertyTab(propHost);
+    /* ID号 常驻在页签之上 —— 它是控件的身份，切页签不该看不见 */
     propLay->addWidget(m_com, 0);
     propLay->addWidget(m_prop, 0);
-    propLay->addWidget(m_com->dynamicSection(), 0);
+    /* 控件专有属性区的两半分别装进「基础设置」和「资源」两页 */
+    m_prop->setDynamicSections(m_com->dynamicSection(SecBasic),
+                               m_com->dynamicSection(SecResource));
     propLay->addStretch(1);
 
     propArea->setWidget(propHost);
@@ -1346,7 +1349,7 @@ int MainWindow::runOpsTest(QString *report)
     onNodeSelected(frame);
     {
         const int st0 = frame->cssStateCount();
-        m_prop->setCurrentIndex(0);
+        m_prop->setState(0);
         m_prop->onCopyAppendState();
         check(QStringLiteral("复制添加一个 CSS 状态"),
               frame->cssStateCount() == st0 + 1,
@@ -1900,7 +1903,8 @@ int MainWindow::runOpsTest(QString *report)
          * 见 ComProperty 构造里的说明）。只扫 m_com 的话，动态区那些
          * spin / 下拉框一个都测不到 —— 而"滚轮误改"最容易出事的恰恰是那儿
          * （默认高亮行号、滚动方式、点亮/反显…）。 */
-        const QVector<QWidget *> roots{ m_com, m_com->dynamicSection(), m_prop };
+        QVector<QWidget *> roots{ m_com, m_prop };
+        roots += m_com->dynamicSections();
         int rolled = 0, total = 0;
         auto roll = [](QWidget *w) {
             QWheelEvent we(QPointF(5, 5), w->mapToGlobal(QPoint(5, 5)),
@@ -1971,8 +1975,7 @@ int MainWindow::runOpsTest(QString *report)
             QVector<QComboBox *> cbs;
             /* m_dyn 不是 m_com 的子对象（它排在 CSS属性 页签下面，见
              * ComProperty 构造里的说明），得从 dynamicSection() 里找 */
-            for (QComboBox *cb : m_com->dynamicSection()
-                                 ->findChildren<QComboBox *>()) {
+            for (QComboBox *cb : m_com->dynCombosForTest()) {
                 if (cb->count() == 3
                     && cb->itemText(0) == QStringLiteral("点亮")
                     && cb->itemText(1) == QStringLiteral("反显")) {
@@ -2069,7 +2072,7 @@ int MainWindow::runOpsTest(QString *report)
                 }
             }
             QComboBox *entry = nullptr;
-            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+            for (QComboBox *cb : m_com->dynCombosForTest()) {
                 if (cb->count() == wantN && wantN > 0 && !cb->itemIcon(0).isNull()) {
                     entry = cb;
                     break;
@@ -2104,7 +2107,7 @@ int MainWindow::runOpsTest(QString *report)
                   !ids.isEmpty() && ids.contains(wantId),
                   QStringLiteral("default=%1 列表 %2 条").arg(wantId).arg(ids.size()));
             QComboBox *entry = nullptr;
-            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+            for (QComboBox *cb : m_com->dynCombosForTest()) {
                 /* 文字条目显示成"内容#ResID"，认这个 # 后缀 */
                 if (cb->count() == ids.size() && !ids.isEmpty()
                     && cb->itemText(0).endsWith(QLatin1Char('#') + ids.at(0))) {
@@ -2131,7 +2134,7 @@ int MainWindow::runOpsTest(QString *report)
     if (txtWithStr) {
         onNodeSelected(txtWithStr);
         QComboBox *codeCb = nullptr;
-        for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+        for (QComboBox *cb : m_com->dynCombosForTest()) {
             if (cb->findText(QStringLiteral("strpic")) >= 0
                 && cb->findText(QStringLiteral("text")) >= 0
                 && cb->findText(QStringLiteral("ascii")) >= 0) {
@@ -2311,7 +2314,7 @@ int MainWindow::runOpsTest(QString *report)
              * 不许替用户改成某个近似的预设。 */
             onNodeSelected(tm);
             QComboBox *fmtCb = nullptr;
-            for (QComboBox *cb : m_com->dynamicSection()->findChildren<QComboBox *>()) {
+            for (QComboBox *cb : m_com->dynCombosForTest()) {
                 if (cb->count() > 1
                     && cb->itemText(cb->count() - 1) == QStringLiteral("自定义…")) {
                     fmtCb = cb;
@@ -2368,7 +2371,7 @@ int MainWindow::runOpsTest(QString *report)
                           !m_com->warningTextForTest().isEmpty(),
                           m_com->warningTextForTest().left(28));
                     QLabel *mark = nullptr;
-                    for (QLabel *l : m_com->dynamicSection()->findChildren<QLabel *>()) {
+                    for (QLabel *l : m_com->dynLabelsForTest()) {
                         if (l->text() == QStringLiteral("⚠")) {
                             mark = l;
                             break;
@@ -4626,6 +4629,91 @@ int MainWindow::runOpsTest(QString *report)
               extra == 0, QStringLiteral("多 %1 行").arg(extra));
         check(QStringLiteral("CSS 组的次序和 json 一致"),
               orderBad == 0, QStringLiteral("%1 个控件次序不对").arg(orderBad));
+
+        /* ---- 5) 分页归属：每一行到底落在哪一页 ----
+         * 上面比的是"两页合起来有没有漏/多"，这里再钉死**分在哪一页**，
+         * 免得哪天改动把背景图片挪回基础页了都没人发现。 */
+        {
+            onNodeSelected(layout);
+            m_components->createControl(QStringLiteral("NewFrame"),
+                                        QStringLiteral("Text"),
+                                        QStringLiteral("文字"));
+            UiNode *tx = layout->children.last().second;
+            sc->rebuild();
+            onNodeSelected(tx);
+            const QStringList bCss = m_prop->rowsForTest(SecBasic);
+            const QStringList rCss = m_prop->rowsForTest(SecResource);
+            const QStringList bDyn = m_com->dynRowsForTest(SecBasic);
+            const QStringList rDyn = m_com->dynRowsForTest(SecResource);
+            check(QStringLiteral("18x 分页：文字控件的「基础设置」页"), true,
+                  QStringLiteral("CSS[%1] 专有[%2]  共 %3 行")
+                  .arg(bCss.join(QLatin1Char('/')), bDyn.join(QLatin1Char('/')))
+                  .arg(bCss.size() + bDyn.size()));
+            check(QStringLiteral("18x 分页：文字控件的「资源」页"), true,
+                  QStringLiteral("CSS[%1] 专有[%2]  共 %3 行")
+                  .arg(rCss.join(QLatin1Char('/')), rDyn.join(QLatin1Char('/')))
+                  .arg(rCss.size() + rDyn.size()));
+
+            check(QStringLiteral("坐标在基础页、背景和边框在资源页"),
+                  bCss.contains(QStringLiteral("坐标"))
+                  && rCss.contains(QStringLiteral("背景颜色"))
+                  && rCss.contains(QStringLiteral("背景图片"))
+                  && rCss.contains(QStringLiteral("边框"))
+                  && !bCss.contains(QStringLiteral("边框")),
+                  QStringLiteral("基础[%1] 资源[%2]")
+                  .arg(bCss.join(QLatin1Char('/')), rCss.join(QLatin1Char('/'))));
+            check(QStringLiteral("文字列表在资源页，编码格式和事件属性在基础页"),
+                  rDyn.contains(QStringLiteral("文字列表"))
+                  && bDyn.contains(QStringLiteral("编码格式"))
+                  && bDyn.contains(QStringLiteral("事件属性")),
+                  QStringLiteral("基础[%1] 资源[%2]")
+                  .arg(bDyn.join(QLatin1Char('/')), rDyn.join(QLatin1Char('/'))));
+
+            /* 换一个控件必须回到第一页（用户明确要的） */
+            m_prop->setSectionIndex(SecResource);
+            onNodeSelected(layer);
+            check(QStringLiteral("换控件回到第一页「基础设置」"),
+                  m_prop->sectionIndex() == SecBasic,
+                  QStringLiteral("现在停在第 %1 页").arg(m_prop->sectionIndex()));
+        }
+    }
+
+    /* --- 18y. 「新建 CSS 属性」那套菜单必须够得着 ---
+     * 拆页签时把 CSS 状态从页签换成了下拉框，还顺手写了
+     * `setEnabled(状态数 > 1)` —— 只有一个状态时下拉框是灰的，
+     * 而**禁用的控件收不到右键事件**，于是"复制添加/复制插入/清除/删除活动项"
+     * 整套点不出来。最常见的场景恰恰就是它：新控件只有一个状态，想加第二个。
+     *
+     * 原来的测试只调 m_prop->onCopyAppendState()（直接调槽），绕过了界面，
+     * 所以界面坏了它照样绿。这一条盯的是"够不够得着"。 */
+    {
+        onNodeSelected(frame);
+        const int st0 = frame->cssStateCount();
+        check(QStringLiteral("18y 前提：这个控件只有一个 CSS 状态"),
+              st0 == 1, QStringLiteral("%1 个").arg(st0));
+        check(QStringLiteral("只有一个状态时，状态那一行也能右键（菜单够得着）"),
+              m_prop->stateMenuReachableForTest());
+        check(QStringLiteral("下拉框里条目数 == CSS 状态数"),
+              m_prop->stateCountForTest() == qMax(1, st0),
+              QStringLiteral("下拉 %1 条 / 状态 %2 个")
+              .arg(m_prop->stateCountForTest()).arg(st0));
+
+        /* 走一遍"复制添加"，状态数和下拉条目都要跟着涨 */
+        m_prop->onCopyAppendState();
+        check(QStringLiteral("复制添加之后多了一个 CSS 状态"),
+              frame->cssStateCount() == st0 + 1,
+              QStringLiteral("%1 -> %2").arg(st0).arg(frame->cssStateCount()));
+        check(QStringLiteral("下拉框跟着多一条"),
+              m_prop->stateCountForTest() == st0 + 1,
+              QStringLiteral("%1 条").arg(m_prop->stateCountForTest()));
+        check(QStringLiteral("多状态时菜单照样够得着"),
+              m_prop->stateMenuReachableForTest());
+
+        /* 删回去，别把工程改脏了留给后面的用例 */
+        m_prop->onRemoveState();
+        check(QStringLiteral("删除活动项能删回去"),
+              frame->cssStateCount() == st0,
+              QStringLiteral("%1 个").arg(frame->cssStateCount()));
     }
 
     /* --- 19. 这一通改完，工程还得能存能读 --- */

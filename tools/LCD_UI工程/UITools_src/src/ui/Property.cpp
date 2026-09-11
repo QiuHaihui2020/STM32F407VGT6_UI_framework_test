@@ -861,6 +861,15 @@ void CssProperty::showNode(UiNode *n)
         const QString cap = po.value(QStringLiteral("caption")).toString();
         const QJsonValue def = po.value(QStringLiteral("default"));
 
+        /* 【按 -name 分区，不按 caption】caption 是给人看的，随时可能改；
+         * -name 是 json 的键，下游 StyBuilder 也是按它认字段的。 */
+        const bool isRes = (pname == QLatin1String("background_color")
+                            || pname == QLatin1String("background_image")
+                            || pname == QLatin1String("border"));
+        if ((m_section == SecResource) != isRes) {
+            continue;
+        }
+
         if (ptype == QLatin1String("rect")) {
             /* 【列表/表格里的那一项不给填坐标】它的几何完全由容器的
              * sizehw / space 决定（见 docs/FACTORY_UI.md §14.9）：第几格
@@ -1028,6 +1037,11 @@ ComProperty::ComProperty(QWidget *parent)
     m_dynForm = new QFormLayout(m_dyn);
     m_dynForm->setContentsMargins(6, 2, 6, 2);
     m_dynForm->setVerticalSpacing(3);
+    /* 资源页那半：图片列表 / 文字列表 都铺在这儿 */
+    m_dynRes = new QWidget;
+    m_dynFormRes = new QFormLayout(m_dynRes);
+    m_dynFormRes->setContentsMargins(6, 2, 6, 2);
+    m_dynFormRes->setVerticalSpacing(3);
 
     connect(m_id, &QLineEdit::editingFinished, this, [this]() {
         if (!m_node) {
@@ -1121,6 +1135,14 @@ bool ComProperty::eventFilter(QObject *o, QEvent *e)
 
 void ComProperty::clearDynamic()
 {
+    while (m_dynFormRes->count() > 0) {
+        QLayoutItem *it = m_dynFormRes->takeAt(0);
+        if (QWidget *w = it->widget()) {
+            w->setParent(nullptr);
+            w->deleteLater();
+        }
+        delete it;
+    }
     while (m_dynForm->count() > 0) {
         QLayoutItem *it = m_dynForm->takeAt(0);
         if (QWidget *w = it->widget()) {
@@ -1144,19 +1166,49 @@ QString ComProperty::idTextForTest() const
     return m_id ? m_id->text() : QString();
 }
 
-QStringList ComProperty::dynRowsForTest() const
+QList<QComboBox *> ComProperty::dynCombosForTest() const
+{
+    QList<QComboBox *> v;
+    for (QWidget *w : dynamicSections()) {
+        if (w) {
+            v += w->findChildren<QComboBox *>();
+        }
+    }
+    return v;
+}
+
+QList<QLabel *> ComProperty::dynLabelsForTest() const
+{
+    QList<QLabel *> v;
+    for (QWidget *w : dynamicSections()) {
+        if (w) {
+            v += w->findChildren<QLabel *>();
+        }
+    }
+    return v;
+}
+
+QStringList ComProperty::dynRowsForTest(PropSection sec) const
 {
     QStringList v;
-    if (!m_dynForm) {
+    QFormLayout *f = (sec == SecResource) ? m_dynFormRes : m_dynForm;
+    if (!f) {
         return v;
     }
-    for (int i = 0; i < m_dynForm->rowCount(); ++i) {
-        QLayoutItem *li = m_dynForm->itemAt(i, QFormLayout::LabelRole);
+    for (int i = 0; i < f->rowCount(); ++i) {
+        QLayoutItem *li = f->itemAt(i, QFormLayout::LabelRole);
         if (auto *lb = li ? qobject_cast<QLabel *>(li->widget()) : nullptr) {
             v << lb->text();
         }
     }
     return v;
+}
+
+QStringList ComProperty::dynRowsForTest() const
+{
+    /* 【默认给两页合起来的】面板对拍(18x) 比的是"json 里该有的行有没有
+     * 都铺出来"，拆成两页之后必须两页合起来看，否则每一页都会报"漏行"。 */
+    return dynRowsForTest(SecBasic) + dynRowsForTest(SecResource);
 }
 
 void ComProperty::showNode(UiNode *n)
@@ -1192,6 +1244,22 @@ void ComProperty::showNode(UiNode *n)
         const QString cap = p.caption.isEmpty() ? p.name : p.caption;
         const QJsonValue def = p.raw.value(QStringLiteral("default"));
         const QJsonArray en = p.raw.value(QStringLiteral("enum")).toArray();
+
+        /* 【分区按 -type 判，不按名字列清单】列表类的三种类型就是"资源"：
+         *   piclist  图片列表 / 高亮图片列表 / 电量图片列表 / 数字图片列表 …
+         *   arrlist  同上（另一种写法）
+         *   text-pic 文字列表
+         * 其余（enum / int8 / int16 / color / action / text-str …）都是参数，
+         * 留在基础设置页。这样加新控件类型不用回来改清单。
+         *
+         * 【"预览文字"跟着"编码格式"走，不挪到资源页】它的显示/隐藏由编码格式
+         * 那个下拉框实时控制（syncPresetRow），拆到两页去，用户会看到
+         * "在这一页点了个下拉框，另一页凭空多出/少掉一行"。 */
+        const bool isRes = (p.type == QLatin1String("piclist")
+                            || p.type == QLatin1String("arrlist")
+                            || p.type == QLatin1String("text-pic"));
+        QFormLayout *const dynForm = isRes ? m_dynFormRes : m_dynForm;
+        QWidget *const dynHost = isRes ? m_dynRes : m_dyn;
 
         /* 改一个属性 = 改它的 raw["default"]（列表类改 raw["list"]），
          * 然后置脏。回写时 ProjectModel 直接把 raw 原样吐回去，
@@ -1234,7 +1302,7 @@ void ComProperty::showNode(UiNode *n)
                                  : QStringLiteral("background-color");
             const QString cur = p.raw.value(ckey).toString();
             if (Preview::isMonoLayer(n)) {
-                auto *cb = new QComboBox(m_dyn);
+                auto *cb = new QComboBox(dynHost);
                 cb->setFont(monoFont());
                 cb->addItem(QStringLiteral("点亮"));
                 cb->addItem(QStringLiteral("反显"));
@@ -1253,9 +1321,9 @@ void ComProperty::showNode(UiNode *n)
                             const QString val = QString::fromLatin1(v);
                             commit([&ckey, &val](QJsonObject &o) { o.insert(ckey, val); });
                         });
-                m_dynForm->addRow(cap, cb);
+                dynForm->addRow(cap, cb);
             } else {
-                auto *w = new Backgroud(m_dyn);
+                auto *w = new Backgroud(dynHost);
                 w->setColor(QColor(cur));
                 connect(w, &Backgroud::colorChanged, this,
                         [commit, ckey](const QColor &c) {
@@ -1263,7 +1331,7 @@ void ComProperty::showNode(UiNode *n)
                                                             : QString();
                             commit([&ckey, &val](QJsonObject &o) { o.insert(ckey, val); });
                         });
-                m_dynForm->addRow(cap, w);
+                dynForm->addRow(cap, w);
             }
         } else if (p.name == QLatin1String("format")) {
             /* 【常用几种 + 自定义】格式本身是模板串，字面字符可以随便写，
@@ -1308,11 +1376,11 @@ void ComProperty::showNode(UiNode *n)
                                QStringLiteral("%02d/%02d"),
                                QStringLiteral("%03d.%01d") };
 
-            auto *cb = new QComboBox(m_dyn);
+            auto *cb = new QComboBox(dynHost);
             cb->setFont(monoFont());
             cb->addItems(presets);
             cb->addItem(QStringLiteral("自定义…"));
-            auto *ed = new QLineEdit(curFmt, m_dyn);
+            auto *ed = new QLineEdit(curFmt, dynHost);
             ed->setFont(monoFont());
             ed->setMaxLength(qMax(1, p.raw.value(QStringLiteral("maxlength")).toInt(16)));
             /* 工程里是预设之外的写法就直接落到"自定义"，把原值原样放进
@@ -1337,7 +1405,7 @@ void ComProperty::showNode(UiNode *n)
              * 【面板里只放一个 ⚠，正文走浮动气泡】属性栏两百来像素宽，
              * 整句话塞进去会被挤得显示不全。⚠ 是"这里有问题"的标记，
              * 正文由带尾巴的气泡指着输入框弹出来。 */
-            auto *hint = new QLabel(m_dyn);
+            auto *hint = new QLabel(dynHost);
             hint->setCursor(Qt::WhatsThisCursor);
             auto refreshHint = [this, hint, cb, isTime]() {
                 if (!m_node) {
@@ -1401,14 +1469,14 @@ void ComProperty::showNode(UiNode *n)
             connect(ed, &QLineEdit::editingFinished, this,
                     [apply, ed]() { apply(ed->text()); });
 
-            auto *row = new QWidget(m_dyn);
+            auto *row = new QWidget(dynHost);
             auto *rowLay = new QVBoxLayout(row);
             rowLay->setContentsMargins(0, 0, 0, 0);
             rowLay->setSpacing(2);
             rowLay->addWidget(cb);
             rowLay->addWidget(ed);
-            m_dynForm->addRow(cap, row);
-            m_dynForm->addRow(QString(), hint);
+            dynForm->addRow(cap, row);
+            dynForm->addRow(QString(), hint);
             refreshHint();
         } else if (p.name == QLatin1String("code")) {
             /* 【编码格式是固定三种，不是随便填的】固件 ui_text.c 里是**硬编码
@@ -1427,7 +1495,7 @@ void ComProperty::showNode(UiNode *n)
              * 正好是最容易踩的那种坑。
              * 工程里出现过没见过的值就原样保留并选中，不替用户改工程。 */
             const QString cur = def.toString();
-            auto *cb = new QComboBox(m_dyn);
+            auto *cb = new QComboBox(dynHost);
             cb->setFont(monoFont());
             cb->addItem(QStringLiteral("strpic"));
             cb->addItem(QStringLiteral("text"));
@@ -1445,7 +1513,7 @@ void ComProperty::showNode(UiNode *n)
                 "固件只认这三个，写别的控件在屏上会是空白"));
 
             /* code 和「文字列表」搭不搭得上，实时校验 */
-            auto *codeHint = new QLabel(m_dyn);
+            auto *codeHint = new QLabel(dynHost);
             codeHint->setCursor(Qt::WhatsThisCursor);
             codeHint->installEventFilter(this);
             auto refreshCode = [this, codeHint, cb]() {
@@ -1490,8 +1558,8 @@ void ComProperty::showNode(UiNode *n)
                         });
                         refreshCode();
                     });
-            m_dynForm->addRow(cap, cb);
-            m_dynForm->addRow(QString(), codeHint);
+            dynForm->addRow(cap, cb);
+            dynForm->addRow(QString(), codeHint);
 
             /* 【只用于预览的假文字】text / ascii 的内容是运行时由程序写的，
              * 资源里没有，画布上本来只能是空的 —— 排版时看不到字，很难判断
@@ -1500,7 +1568,7 @@ void ComProperty::showNode(UiNode *n)
              * 【绝对不写进工程】写进去就不是原厂那份 json 了（读写要逐字节
              * 相同是硬指标）。存在工具自己的配置里，按"工程名 + ID号"做键，
              * 工程目录和资源一个字节都不碰。 */
-            auto *preset = new QLineEdit(Preview::presetText(n), m_dyn);
+            auto *preset = new QLineEdit(Preview::presetText(n), dynHost);
             preset->setFont(monoFont());
             preset->setPlaceholderText(QStringLiteral("（仅预览，不写进工程）"));
             preset->setToolTip(QStringLiteral(
@@ -1517,12 +1585,14 @@ void ComProperty::showNode(UiNode *n)
                  * 只让画布和右栏重画。 */
                 emit previewOnlyChanged();
             });
-            m_dynForm->addRow(QStringLiteral("预览文字"), preset);
+            dynForm->addRow(QStringLiteral("预览文字"), preset);
             /* 只有 text / ascii 需要这一栏；strpic 的内容来自资源，不该有 */
-            auto syncPresetRow = [preset, this]() {
+            /* dynForm 要按值捕进来：它是每一轮循环的局部量，
+             * 而这个 lambda 会被 connect 存起来、活得比这一轮长。 */
+            auto syncPresetRow = [preset, dynForm, this]() {
                 const bool need = Preview::needsPresetText(m_node);
                 preset->setVisible(need);
-                if (QWidget *lb = m_dynForm->labelForField(preset)) {
+                if (QWidget *lb = dynForm->labelForField(preset)) {
                     lb->setVisible(need);
                 }
             };
@@ -1531,13 +1601,13 @@ void ComProperty::showNode(UiNode *n)
             syncPresetRow();
             refreshCode();
         } else if (p.type == QLatin1String("piclist") || p.type == QLatin1String("arrlist")) {
-            m_dynForm->addRow(cap, makeListButton(p, cap, commit));
+            dynForm->addRow(cap, makeListButton(p, cap, commit));
         } else if (p.type == QLatin1String("text-pic")) {
-            m_dynForm->addRow(cap, makeTextListButton(p, cap, commit));
+            dynForm->addRow(cap, makeTextListButton(p, cap, commit));
         } else if (p.type == QLatin1String("action")) {
-            m_dynForm->addRow(cap, makeActionButton(p, commit));
+            dynForm->addRow(cap, makeActionButton(p, commit));
         } else if (!en.isEmpty()) {
-            auto *cb = new QComboBox(m_dyn);
+            auto *cb = new QComboBox(dynHost);
             cb->setFont(monoFont());
             for (const QJsonValue &ev : en) {
                 const QJsonObject eo = ev.toObject();
@@ -1555,9 +1625,9 @@ void ComProperty::showNode(UiNode *n)
                             o.insert(QStringLiteral("default"), t);
                         });
                     });
-            m_dynForm->addRow(cap, cb);
+            dynForm->addRow(cap, cb);
         } else if (def.isDouble()) {
-            auto *sp = new QSpinBox(m_dyn);
+            auto *sp = new QSpinBox(dynHost);
             applyIntRange(sp, p.raw);      // 范围和提示语都在里面，见它的抬头
             sp->setFont(monoFont());
             sp->setValue(def.toInt());
@@ -1567,9 +1637,9 @@ void ComProperty::showNode(UiNode *n)
                             o.insert(QStringLiteral("default"), v);
                         });
                     });
-            m_dynForm->addRow(cap, sp);
+            dynForm->addRow(cap, sp);
         } else {
-            auto *e = new QLineEdit(def.toString(), m_dyn);
+            auto *e = new QLineEdit(def.toString(), dynHost);
             e->setFont(monoFont());
             const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
             if (maxLen > 0) {
@@ -1584,7 +1654,7 @@ void ComProperty::showNode(UiNode *n)
                     o.insert(QStringLiteral("default"), t);
                 });
             });
-            m_dynForm->addRow(cap, e);
+            dynForm->addRow(cap, e);
         }
     }
     applyNoWheel(m_dyn);         // 滚轮别改值，见 NoWheelFilter

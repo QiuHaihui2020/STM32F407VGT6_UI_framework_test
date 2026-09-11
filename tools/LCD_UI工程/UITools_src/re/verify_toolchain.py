@@ -75,6 +75,9 @@ BUDGET = {
 }
 
 
+HERE_REFS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'refs')
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -112,6 +115,23 @@ def main():
     print('工程: %s' % pick)
     xls = os.path.abspath(os.path.join(proj, '..', '..', '..', 'UITools',
                                        '多国语言_128_64.xls'))
+
+    # 【被顶掉的 project.bin 先从存档还原】
+    # ename.h / result.* 这些是 tracked 的，被顶掉 `git checkout` 就能回来；
+    # 而 project.bin 在 .gitignore 里（*.bin），一旦被别的运行覆盖就永远回不来。
+    # 所以在 re/refs/ 存了一份**原厂 QtToolBin 当场生成**的，跑之前对一下，
+    # 不一样就还原 —— 2026-09-10 一天之内就被顶掉两次（24692 -> 26108 -> 26400）。
+    # 存档带 .ref 后缀：仓库的 .gitignore 里有 *.bin，不改名就提交不上去
+    archive = os.path.join(HERE_REFS, os.path.basename(pick).replace('.json', '')
+                           + '.project.bin.ref')
+    live = os.path.join(proj, 'project.bin')
+    if os.path.exists(archive):
+        want = open(archive, 'rb').read()
+        cur = open(live, 'rb').read() if os.path.exists(live) else None
+        if cur != want:
+            open(live, 'wb').write(want)
+            print('（project.bin 参考被顶过，已从 re/refs 存档还原：%d -> %d 字节）'
+                  % (len(cur) if cur else 0, len(want)))
 
     # 【跑之前把参考产物拍个快照，跑完原样放回去】
     # ResBuilder 的产物是"就地"落在工程目录里的（-o 只管得住 QtToolBin），

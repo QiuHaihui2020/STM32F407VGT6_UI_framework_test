@@ -13,3 +13,7 @@ build/
 *.dbgconf
 __pycache__/
 dcx2496_uires/
+# UITools 以当前目录为根写 Application Data/ui-config；
+# 从仓库根跑 --ops-test 会在这儿留一个空配置，不是工程数据。
+# 注意只忽略**仓库根**这一个，工程目录里那些是有用的（存预览文字），照常跟踪。
+/Application Data/

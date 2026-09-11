@@ -32,6 +32,10 @@
 #ifndef DOCKS_H
 #define DOCKS_H
 
+#include "Property.h"
+
+#include <QComboBox>
+#include <QVBoxLayout>
 #include <QDockWidget>
 #include <QGroupBox>
 #include <QTabWidget>
@@ -195,7 +199,19 @@ private:
 };
 
 /** "CSS属性_N" 页签容器。原厂一个 CSS 状态一个页签，当前实现只有 _0。 */
-class PropertyTab : public QTabWidget
+/**
+ * 属性区的两个页签：「基础设置」和「资源」。
+ *
+ * 【和原厂的差别】原厂是**上下堆叠**：ID号 / CSS属性_0、_1… 页签 / 控件专有
+ * 属性区，一个「文字」控件铺满 22 行，窄边栏里必须滚。本版把它拆成两页
+ * （最高的「时间」也只有 13 行），并把原来那层"一个 CSS 状态一个页签"
+ * 降级成常驻的下拉框 —— 因为背景/边框挪到资源页之后，两页都受状态影响，
+ * 状态选择器不能再藏在其中一页里。
+ * 这是**有意偏离原厂**，见 docs/FACTORY_UI.md §17。
+ *
+ * 每一页 = CssProperty(该分区) + ComProperty 专有属性区的那一半。
+ */
+class PropertyTab : public QWidget
 {
     Q_OBJECT
 
@@ -204,29 +220,55 @@ public:
     ~PropertyTab() override;
 
     void showNode(UiNode *n);
-    /** 自测用：当前页签的 CSS 属性页铺了哪几组。 */
+    /** 把 ComProperty 专有属性区的两半装进对应页签。 */
+    void setDynamicSections(QWidget *basic, QWidget *resource);
+
+    /** 当前 CSS 状态（原来的 "CSS属性_N" 的 N）。 */
+    int  state() const { return m_state; }
+    void setState(int s);
+    /** 当前在哪一页（0=基础设置，1=资源）。 */
+    int  sectionIndex() const;
+    void setSectionIndex(int i);
+
+    /** 自测：两页合起来铺了哪几组（面板对拍要合起来看，不然每页都报漏行）。 */
     QStringList rowsForTest() const;
+    /** 自测：某一页铺了哪几组。 */
+    QStringList rowsForTest(PropSection s) const;
+    /**
+     * 自测：「新建 CSS 属性」那套右键菜单**够不够得着**。
+     *
+     * 光测 onCopyAppendState() 能不能加状态是不够的 —— 它是直接调槽，
+     * 绕过了界面。真实场景是"右键那一行"，而禁用的控件根本收不到右键事件，
+     * 出过一次：只有一个状态时下拉框被置灰，菜单整个点不出来。
+     */
+    bool stateMenuReachableForTest() const;
+    /** 自测：状态下拉框里有几条。 */
+    int stateCountForTest() const;
 
 signals:
     void nodeEdited(UiNode *n);
 
 public slots:
-    void onTabChanged(int idex);   ///< ★ 形参名 idex 是原二进制里的拼写
-
-    /* 页签的右键菜单项，动的是 element_css.struct 这个数组。
-     * 【是右键菜单，不是按钮】手册 2.10/2.11 的原话："右键点击菜单项的
-     * CSS 属性_0，选择复制添加，添加 CSS 属性_1"；原厂截图里页签下面
-     * 也确实没有按钮行。之前我加了一排按钮，是自己发明的。 */
+    /* CSS 状态的增删。原厂挂在页签的右键菜单上（手册 2.10："右键点击菜单项的
+     * CSS 属性_0，选择复制添加"）；本版页签换了含义，这套菜单跟着挪到
+     * **状态下拉框**的右键上，动作和原厂一字不差。 */
     void onClearState();           ///< 清除
     void onCopyAppendState();      ///< 复制添加（复制当前项，追加到最后）
     void onCopyInsertState();      ///< 复制插入（复制当前项，插到它后面）
     void onRemoveState();          ///< 删除活动项
-    /** 页签栏的右键菜单。 */
-    void onTabContextMenu(QPoint pos);
+    /** 状态下拉框的右键菜单。 */
+    void onStateContextMenu(QPoint pos);
 
 private:
-    QVector<CssProperty *> m_pages;
-    UiNode                *m_node = nullptr;
+    int  stateCount() const;
+
+    QWidget     *m_stateRow = nullptr;   ///< "CSS状态: [▾]" 那一行，右键菜单挂整行
+    QComboBox   *m_stateCb = nullptr;
+    QTabWidget  *m_tabs = nullptr;
+    CssProperty *m_css[SecCount] = { nullptr, nullptr };
+    QVBoxLayout *m_pageLay[SecCount] = { nullptr, nullptr };
+    UiNode      *m_node = nullptr;
+    int          m_state = 0;
 };
 
 #endif // DOCKS_H

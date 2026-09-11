@@ -1265,18 +1265,68 @@ void CompoentControls::onCreateNewLayer()
 /* ===================== PropertyTab ===================== */
 
 PropertyTab::PropertyTab(QWidget *parent)
-    : QTabWidget(parent)
+    : QWidget(parent)
 {
     setObjectName(QStringLiteral("PropertyTab"));
 
-    /* CSS 状态的增删走**页签的右键菜单** —— 手册 2.10 的原话是
-     * "右键点击菜单项的 CSS 属性_0，选择复制添加"。原厂界面上没有按钮行。 */
-    tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(tabBar(), &QWidget::customContextMenuRequested,
-            this, &PropertyTab::onTabContextMenu);
+    auto *lay = new QVBoxLayout(this);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->setSpacing(3);
 
-    connect(this, &QTabWidget::currentChanged, this, &PropertyTab::onTabChanged);
-    /* 没选中任何东西时也要有一页空的 CSS属性_0，否则页签区整个塌掉 */
+    /* ---- 常驻的 CSS 状态选择器 ----
+     * 背景/边框在资源页、坐标在基础页，两页都跟着状态变，
+     * 所以它必须待在两页都看得见的地方。 */
+    m_stateRow = new QWidget(this);
+    auto *rowLay = new QHBoxLayout(m_stateRow);
+    rowLay->setContentsMargins(6, 0, 6, 0);
+    rowLay->setSpacing(4);
+    auto *stateLb = new QLabel(QStringLiteral("CSS状态:"), m_stateRow);
+    rowLay->addWidget(stateLb, 0);
+    m_stateCb = new QComboBox(m_stateRow);
+    m_stateCb->setObjectName(QStringLiteral("CssStateCombo"));
+    rowLay->addWidget(m_stateCb, 1);
+    lay->addWidget(m_stateRow, 0);
+
+    /* 【增删 CSS 状态的四个动作】原厂挂在页签右键上（手册 2.10："右键点击
+     * 菜单项的 CSS 属性_0，选择复制添加"）。本版页签换了含义，这套菜单挪到
+     * 状态那一行的右键上。
+     *
+     * 【整行都要能右键，而且下拉框不能置灰】第一版只挂了下拉框，还顺手写了
+     * `setEnabled(want > 1)` —— 只有一个状态时下拉框是灰的，而**禁用的控件
+     * 收不到右键事件**，于是"新建 CSS 属性"整个点不出来了（正是最常见的
+     * 场景：新控件只有一个状态，想加第二个）。 */
+    for (QWidget *w : { static_cast<QWidget *>(m_stateRow),
+                        static_cast<QWidget *>(stateLb),
+                        static_cast<QWidget *>(m_stateCb) }) {
+        w->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(w, &QWidget::customContextMenuRequested,
+                this, &PropertyTab::onStateContextMenu);
+    }
+    connect(m_stateCb, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int i) {
+                if (i >= 0 && i != m_state) {
+                    setState(i);
+                }
+            });
+
+    /* ---- 两个页签 ---- */
+    m_tabs = new QTabWidget(this);
+    m_tabs->setObjectName(QStringLiteral("PropSectionTab"));
+    static const char *const kTitle[SecCount] = { "基础设置", "资源" };
+    for (int i = 0; i < SecCount; ++i) {
+        auto *page = new QWidget(m_tabs);
+        m_pageLay[i] = new QVBoxLayout(page);
+        m_pageLay[i]->setContentsMargins(0, 0, 0, 0);
+        m_pageLay[i]->setSpacing(3);
+        m_css[i] = new CssProperty(page);
+        m_css[i]->setSection(PropSection(i));
+        connect(m_css[i], &BaseProperty::nodeEdited, this, &PropertyTab::nodeEdited);
+        m_pageLay[i]->addWidget(m_css[i], 0);
+        m_pageLay[i]->addStretch(1);
+        m_tabs->addTab(page, QString::fromUtf8(kTitle[i]));
+    }
+    lay->addWidget(m_tabs, 1);
+
     showNode(nullptr);
 }
 
@@ -1284,59 +1334,122 @@ PropertyTab::~PropertyTab() = default;
 
 /* 页签数 = element_css.struct 的长度：一个 CSS 状态一页，
  * 名字就是原厂那个 "CSS属性_N"。 */
+bool PropertyTab::stateMenuReachableForTest() const
+{
+    if (!m_stateCb || !m_stateRow) {
+        return false;
+    }
+    /* 禁用的控件收不到 contextMenuEvent，等于菜单不存在 */
+    return m_stateCb->isEnabled()
+           && m_stateCb->contextMenuPolicy() == Qt::CustomContextMenu
+           && m_stateRow->contextMenuPolicy() == Qt::CustomContextMenu;
+}
+
+int PropertyTab::stateCountForTest() const
+{
+    return m_stateCb ? m_stateCb->count() : 0;
+}
+
+QStringList PropertyTab::rowsForTest(PropSection sec) const
+{
+    return m_css[sec] ? m_css[sec]->rowsForTest() : QStringList();
+}
+
 QStringList PropertyTab::rowsForTest() const
 {
-    const int i = currentIndex();
-    if (i < 0 || i >= m_pages.size() || !m_pages.at(i)) {
-        return QStringList();
+    /* 两页合起来。而且 基础 在前、资源 在后，正好还原 json 里
+     * align / invisible / flags / rect / 背景两项 / border 的原始次序，
+     * 18x 那条"次序要和 json 一致"照样成立。 */
+    return rowsForTest(SecBasic) + rowsForTest(SecResource);
+}
+
+void PropertyTab::setDynamicSections(QWidget *basic, QWidget *resource)
+{
+    QWidget *const w[SecCount] = { basic, resource };
+    for (int i = 0; i < SecCount; ++i) {
+        if (!w[i] || !m_pageLay[i]) {
+            continue;
+        }
+        /* 插在 CssProperty 之后、弹簧之前 */
+        m_pageLay[i]->insertWidget(1, w[i], 0);
     }
-    return m_pages.at(i)->rowsForTest();
+}
+
+int PropertyTab::stateCount() const
+{
+    return m_node ? qMax(1, m_node->cssStateCount()) : 1;
+}
+
+int PropertyTab::sectionIndex() const
+{
+    return m_tabs ? m_tabs->currentIndex() : 0;
+}
+
+void PropertyTab::setSectionIndex(int i)
+{
+    if (m_tabs && i >= 0 && i < m_tabs->count()) {
+        m_tabs->setCurrentIndex(i);
+    }
+}
+
+void PropertyTab::setState(int st)
+{
+    m_state = qBound(0, st, stateCount() - 1);
+    if (m_stateCb && m_stateCb->currentIndex() != m_state) {
+        QSignalBlocker b(m_stateCb);
+        m_stateCb->setCurrentIndex(m_state);
+    }
+    for (int i = 0; i < SecCount; ++i) {
+        if (m_css[i]) {
+            m_css[i]->setState(m_state);
+            m_css[i]->showNode(m_node);
+        }
+    }
 }
 
 void PropertyTab::showNode(UiNode *n)
 {
     m_node = n;
-    const int want = n ? qMax(1, n->cssStateCount()) : 1;
+    const int want = stateCount();
 
-    while (count() > want) {
-        QWidget *w = widget(count() - 1);
-        removeTab(count() - 1);
-        m_pages.removeAll(qobject_cast<CssProperty *>(w));
-        w->deleteLater();
+    /* 下拉框的条目名照原厂的页签名来：CSS属性_0 / CSS属性_1 … */
+    {
+        QSignalBlocker b(m_stateCb);
+        m_stateCb->clear();
+        for (int i = 0; i < want; ++i) {
+            m_stateCb->addItem(tr("CSS属性_%1").arg(i));
+        }
+        /* 只要选中了控件就可用 —— 灰掉的话右键菜单也没了，见构造里的说明。
+         * 只有一个状态时下拉框里就一条，本来也不影响。 */
+        m_stateCb->setEnabled(n != nullptr);
     }
-    while (count() < want) {
-        auto *p = new CssProperty(this);
-        p->setState(count());
-        connect(p, &BaseProperty::nodeEdited, this, &PropertyTab::nodeEdited);
-        m_pages.append(p);
-        addTab(p, tr("CSS属性_%1").arg(count()));
+    /* 【换控件回到第一页、第一个状态】不同控件的参数完全不一样，
+     * 停在上一个控件的第二页上会让人以为"这个控件没有基础参数"。 */
+    m_state = 0;
+    if (m_stateCb) {
+        QSignalBlocker b(m_stateCb);
+        m_stateCb->setCurrentIndex(0);
     }
-    for (int i = 0; i < m_pages.size(); ++i) {
-        m_pages.at(i)->setState(i);
-        m_pages.at(i)->showNode(n);
+    setSectionIndex(SecBasic);
+    for (int i = 0; i < SecCount; ++i) {
+        if (m_css[i]) {
+            m_css[i]->setState(0);
+            m_css[i]->showNode(n);
+        }
     }
 }
 
-void PropertyTab::onTabChanged(int idex)
-{
-    if (idex >= 0 && idex < m_pages.size()) {
-        m_pages.at(idex)->showNode(m_node);
-    }
-}
 
 /* ---- element_css.struct 的增删改 --------------------------------------
  * 原厂属性区页签上方有一排小按钮：清除 / 复制添加 / 复制插入 / 删除活动项。
  * 一个页签 = 一个 CSS 状态 = struct 数组里的一项，这四个按钮就是对这个数组
  * 做操作。之前重建版只把页签画出来了，数组是只读的 —— 想加一个状态只能去
  * 手改 json。 */
-void PropertyTab::onTabContextMenu(QPoint pos)
+void PropertyTab::onStateContextMenu(QPoint pos)
 {
-    const int idx = tabBar()->tabAt(pos);
-    if (idx < 0) {
+    if (!m_node) {
         return;
     }
-    setCurrentIndex(idx);
-
     QMenu menu(this);
     QAction *aClear  = menu.addAction(QStringLiteral("清除"));
     QAction *aAppend = menu.addAction(QStringLiteral("复制添加"));
@@ -1344,9 +1457,12 @@ void PropertyTab::onTabContextMenu(QPoint pos)
     menu.addSeparator();
     QAction *aRemove = menu.addAction(QStringLiteral("删除活动项"));
     /* 只剩一个状态时"删除活动项"直接置灰，比点了再弹一句"不让删"体面 */
-    aRemove->setEnabled(count() > 1);
+    aRemove->setEnabled(stateCount() > 1);
 
-    QAction *c = menu.exec(tabBar()->mapToGlobal(pos));
+    /* pos 是发信号那个控件的局部坐标（整行 / 标签 / 下拉框都可能），
+     * 统一按发送者换算，不然菜单会弹到别处去。 */
+    QWidget *from = qobject_cast<QWidget *>(sender());
+    QAction *c = menu.exec((from ? from : m_stateCb)->mapToGlobal(pos));
     if (c == aClear) {
         onClearState();
     } else if (c == aAppend) {
@@ -1360,43 +1476,45 @@ void PropertyTab::onTabContextMenu(QPoint pos)
 
 void PropertyTab::onClearState()
 {
-    if (!m_node || currentIndex() < 0) {
+    if (!m_node) {
         return;
     }
-    m_node->cssClearState(currentIndex());
+    const int st = m_state;
+    m_node->cssClearState(st);
     showNode(m_node);
+    setState(st);
     emit nodeEdited(m_node);
 }
 
 void PropertyTab::onCopyAppendState()
 {
-    if (!m_node || currentIndex() < 0) {
+    if (!m_node) {
         return;
     }
-    m_node->cssInsertState(m_node->cssStateCount(), m_node->cssState(currentIndex()));
+    m_node->cssInsertState(m_node->cssStateCount(), m_node->cssState(m_state));
     showNode(m_node);
-    setCurrentIndex(count() - 1);
+    setState(stateCount() - 1);
     emit nodeEdited(m_node);
 }
 
 void PropertyTab::onCopyInsertState()
 {
-    if (!m_node || currentIndex() < 0) {
+    if (!m_node) {
         return;
     }
-    const int at = currentIndex() + 1;
-    m_node->cssInsertState(at, m_node->cssState(currentIndex()));
+    const int at = m_state + 1;
+    m_node->cssInsertState(at, m_node->cssState(m_state));
     showNode(m_node);
-    setCurrentIndex(at);
+    setState(at);
     emit nodeEdited(m_node);
 }
 
 void PropertyTab::onRemoveState()
 {
-    if (!m_node || currentIndex() < 0) {
+    if (!m_node) {
         return;
     }
-    if (!m_node->cssRemoveState(currentIndex())) {
+    if (!m_node->cssRemoveState(m_state)) {
         /* 只剩一个状态时不让删 —— 删光了控件就没有几何也没有样式了 */
         EditorOps::tip(this, QStringLiteral("至少要保留一个 CSS 状态。"));
         return;

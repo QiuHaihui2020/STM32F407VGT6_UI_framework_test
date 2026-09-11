@@ -29,6 +29,7 @@
 #include <QScrollArea>
 #include <QPushButton>
 #include <QString>
+#include <QVector>
 #include <QRect>
 #include <QPoint>
 #include <QColor>
@@ -244,12 +245,40 @@ protected:
 };
 
 /** CSS 属性页：对齐方式 / 默认隐藏 / 标志 / 位置坐标 / 背景 / 内边框线。 */
+/**
+ * 属性面板分成两页之后，每一行归哪一页。
+ *
+ * 【为什么要分】一个「文字」控件铺满是 22 行，窄边栏里必须滚动才看得全。
+ * 拆成两页之后最高的「时间」也只有 13 行。
+ *
+ * 【怎么分】按"这一项是在配参数，还是在挂资源/调外观"：
+ *   Basic    对齐方式 / 默认隐藏 / 标志(图层是 z轴坐标) / 坐标
+ *            + 数据源、编码格式、格式、自动记时、滚动方式、默认高亮…、
+ *              旋转中心点、颜色类型、文字颜色、高亮颜色、事件属性
+ *   Resource 背景颜色 / 背景图片 / 边框
+ *            + 各种图片列表、文字列表
+ *
+ * 边框跟着背景走：它和背景一样是**外观装饰**，而且它一组就占 5 行 ——
+ * 留在第一页的话第一页还是 17 行，等于没拆。
+ *
+ * ★ 原厂是上下堆叠、只有 CSS状态 一层页签，这是**本版有意偏离**，
+ *   见 docs/FACTORY_UI.md §17。
+ */
+enum PropSection {
+    SecBasic = 0,       ///< 基础设置
+    SecResource = 1,    ///< 资源
+    SecCount = 2
+};
+
 class CssProperty : public BaseProperty
 {
     Q_OBJECT
 public:
     explicit CssProperty(QWidget *parent = nullptr);
     ~CssProperty() override;
+
+    /** 本页只铺哪一个分区的字段。 */
+    void setSection(PropSection s) { m_section = s; }
 
     /** 本页对应 element_css.struct 的哪一个状态（就是 "CSS属性_N" 的 N）。 */
     void setState(int s) { m_state = s; }
@@ -264,8 +293,9 @@ private:
     /** 把面板上的一次改动写回 element_css.struct[m_state]。 */
     void commitCss(const QString &propName, const QString &key, const QJsonValue &value);
 
-    int       m_state = 0;
-    Position *m_pos = nullptr;
+    int          m_state = 0;
+    PropSection  m_section = SecBasic;
+    Position    *m_pos = nullptr;
     /** 铺面板时挡住信号，否则一选中控件就把它标脏。 */
     bool      m_loading = false;
 };
@@ -280,10 +310,24 @@ public:
 
     void showNode(UiNode *n) override;
 
-    /** 控件专有属性（滚动方式 / 默认高亮行号 …）的容器。
-     *  原厂把它排在 CSS属性 页签**下面**，所以这块由外层 dock 自己摆放，
-     *  ComProperty 本体只显示最上面的 "ID号"。 */
-    QWidget *dynamicSection() const { return m_dyn; }
+    /**
+     * 控件专有属性的容器，一个分区一个。
+     *
+     * 由外层（PropertyTab）摆进对应的页签里；ComProperty 本体只显示
+     * 最上面那个常驻的 "ID号"。
+     */
+    QWidget *dynamicSection(PropSection s) const
+    {
+        return s == SecResource ? m_dynRes : m_dyn;
+    }
+
+    /** 自测：某一个分区铺了哪几行。 */
+    QStringList dynRowsForTest(PropSection s) const;
+    /** 自测/查找：专有属性区拆成了两半，这里给出两个搜索根。 */
+    QVector<QWidget *> dynamicSections() const { return { m_dyn, m_dynRes }; }
+    /** 自测：两半里所有的下拉框 / 标签（拆页签前是一次 findChildren 就够的）。 */
+    QList<QComboBox *> dynCombosForTest() const;
+    QList<QLabel *> dynLabelsForTest() const;
 
     /** 自测：当前的警告正文（空 = 没有警告）。 */
     QString warningTextForTest() const { return m_tipText; }
@@ -347,8 +391,10 @@ private:
     void setWarning(QLabel *mark, QWidget *anchor, const QString &msg);
 
     QLineEdit   *m_id = nullptr;
-    QWidget     *m_dyn = nullptr;
+    QWidget     *m_dyn = nullptr;        ///< 基础设置页那半
     QFormLayout *m_dynForm = nullptr;
+    QWidget     *m_dynRes = nullptr;     ///< 资源页那半
+    QFormLayout *m_dynFormRes = nullptr;
     /* 气泡自动收了之后还要能再叫出来，所以把内容和锚点留着 */
     QString      m_tipText;
     QWidget     *m_tipAnchor = nullptr;
