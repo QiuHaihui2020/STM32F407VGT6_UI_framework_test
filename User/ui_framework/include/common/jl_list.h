@@ -57,7 +57,6 @@ struct list_head {
 	 *
 	 * Note, that list is expected to be not empty.
 	 */
-/* REF_LIST: spi.c */
 #define list_first_entry(ptr, type, member) \
 		list_entry((ptr)->next, type, member)
 
@@ -125,7 +124,6 @@ struct list_head {
  * list_empty - tests whether a list is empty
  * @head: the list to test.
  */
-/* REF_LIST: spi.c */
 __attribute__((always_inline))
 static inline int list_empty(const struct list_head *head)
 {
@@ -157,7 +155,6 @@ static inline void __list_add(struct list_head *_new,
  * Insert a new entry before the specified head.
  * This is useful for implementing queues.
  */
-/* REF_LIST: spi.c */
 __attribute__((always_inline))
 static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 {
@@ -177,7 +174,6 @@ static inline void __list_del_entry(struct list_head *entry)
     __list_del(entry->prev, entry->next);
 }
 
-/* REF_LIST: spi.c */
 __attribute__((always_inline))
 static inline void list_del(struct list_head *entry) //修改过的list_del，这里与list_del_init一样
 {

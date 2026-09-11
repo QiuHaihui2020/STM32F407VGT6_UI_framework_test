@@ -1,24 +1,11 @@
 /*
  * ui_battery.c —— 电池控件
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_battery.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_battery.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_battery.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   battery_set_image_src@14  battery_level_change@20  battery_on_change@51
- *   new_ui_battery@84  ui_battery_set_level_by_id@127  ui_battery_set_level@139
- *   ui_battery_level_change@169  ui_battery_enable@180
- *
- *   battery_set_image_src 在原库中已被内联(无独立 define), 其签名取自 DWARF:
- *   arg1=battery, arg2=src, 无返回值。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的:
  *   struct ui_battery: elm=0 src=72 index=76 charge_image=78 normal_image=80
  *                      entry=84(next=84,prev=88) info=92 handler=96, sizeof=100
  *   struct ui_battery_info: head=0 normal_image=16 charge_image=20 action=24
- *   list_entry 反算: IR 里 gep(entry, -84) 得控件基址、gep(entry, -80) 得 elm.id
+ *   entry 在 +84, 所以 list_entry 从链表节点回推控件基址时减的就是 84。
  *
  * 【本模块特点】所有电池控件挂在一条静态链表 head 上, 便于
  *   ui_battery_level_change() 一次性刷新全部电池控件。
@@ -35,16 +22,10 @@
 static LIST_HEAD(head);
 
 /*
- * 原库在 ui_battery.c:14 有一个 4 行的静态 helper:
- *     static void battery_set_image_src(struct ui_battery *battery, int src)
- *     { battery->elm.css.background_image = src; }
- * (签名取自 DWARF: arg1=battery, arg2=src)
- * 它在原厂构建里被内联掉了, 没有留下独立函数体。
- *
- * 这里【直接在两处调用点写赋值】而不保留 helper: 因为写成 helper 时本地 clang
- * 在 -Oz 下判定"不内联更省体积"(位域写是 64 位 读-改-写, 展开约 6 条指令, 比
- * 一次 call 大), 于是多出一个函数体, 并连带使 battery_level_change 与
- * new_ui_battery 无法与原厂逐条比对。直接展开后产出的代码与原厂完全一致。
+ * 设置背景图就是一句 `battery->elm.css.background_image = src;`,
+ * 【两处调用点直接写赋值】, 不单独包一个 helper ——
+ * 那是个位域写(64 位读-改-写, 展开约 6 条指令), -Oz 下编译器会判定
+ * "不内联更省体积", 于是多出一个函数体, 反而变大。
  */
 
 /*
@@ -67,10 +48,9 @@ static void battery_level_change(void *_battery, int persent, int incharge)
         }
         image = img->image[battery->index];
         /*
-         * @note index 必须用 u8 局部变量过一手 —— 原库的自增是在 u8 上做的
-         *       (IR 为 add i8 后再 zext 比较)。若直接写
-         *       battery->index + 1 == img->num, C 的整型提升会让加法在 int 上做,
-         *       IR 变成 add i32 + trunc, 与原厂对不上。
+         * @note 自增要用 u8 局部变量过一手: 直接写
+         *       battery->index + 1 == img->num 的话, C 的整型提升会让加法在
+         *       int 上做 —— index 是 u8, 到 255 时应当回绕, 在 int 上算就不会。
          */
         index = battery->index + 1;
         battery->index = (index == img->num) ? 0 : index;
@@ -87,22 +67,21 @@ static void battery_level_change(void *_battery, int persent, int incharge)
         return;
     }
     battery->src = image;
-    battery->elm.css.background_image = image;   /* 原为 battery_set_image_src() */
+    battery->elm.css.background_image = image;   /* 见文件开头关于位域写的说明 */
     ui_core_redraw(battery);
 }
 
 /*
- * @note 1. 与 ui_pic 不同, 此处【没有】判 battery->handler 本身是否为 NULL,
- *          只判了 handler->onchange —— 原库行为(由 new_ui_battery 兜底为
- *          dumy_handler, 暂不会触发)。
- *       2. 应用层 onchange 返回 true 时通常吃掉事件, 但 RELEASE_PROBE/RELEASE
- *          例外, 必须继续往下走: 前者要摘链, 后者要释放内存, 漏了会挂链表野指针。
+ * @note 应用层 onchange 返回 true 时通常吃掉事件, 但 RELEASE_PROBE / RELEASE
+ *       是例外, 必须继续往下走: 前者要摘链, 后者要释放内存 —— 漏了就会在
+ *       链表里留下野指针。
  */
 int battery_on_change(void *_elm, enum element_change_event event, void *arg)
 {
     struct ui_battery *battery = (struct ui_battery *)_elm;
 
-    /* 加固: 原库未判 handler 本身(当前由 new_ui_battery 兜底为 dumy_handler)。 */
+    /* handler 本身也判一层: new_ui_battery 里已兜底为 dumy_handler, 这里是
+     * 纵深防御。 */
     if (battery->handler && battery->handler->onchange) {
         if (battery->handler->onchange(battery, event, arg)) {
             if (event != ON_CHANGE_RELEASE_PROBE && event != ON_CHANGE_RELEASE) {
@@ -155,7 +134,7 @@ static void *new_ui_battery(const void *_info, struct element *parent)
     battery->normal_image = (u16)(u32)info->normal_image;
     battery->charge_image = (u16)(u32)info->charge_image;
 
-    /* 加固: 原库不判 img 就取 image[0], 资源缺图时必然空指针解引用。
+    /* img 要判空再取 image[0], 否则资源缺图时就是空指针解引用。
      * 取不到就把 src 留作 0(battery 已 memset 清零), 控件仍建得起来 ——
      * 表现为电池图标不显示, 而不是整机死机。 */
     img = platform_api->load_image_list(info->head.page, info->normal_image);
@@ -165,7 +144,7 @@ static void *new_ui_battery(const void *_info, struct element *parent)
 
     css = platform_api->load_css(info->head.page, info->head.css);
 
-    /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+    /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
     ui_core_element_init(&battery->elm, info->head.id, info->head.page,
                          (u8)((u32)info->head.css >> 29),
                          css, &battery_div_handler, info->action);
@@ -179,7 +158,7 @@ static void *new_ui_battery(const void *_info, struct element *parent)
         battery->handler->onchange(battery, ON_CHANGE_INIT, NULL);
     }
 
-    battery->elm.css.background_image = battery->src;  /* 原为 battery_set_image_src() */
+    battery->elm.css.background_image = battery->src;  /* 同上, 直接写位域 */
 
     return battery;
 }
@@ -217,12 +196,7 @@ int ui_battery_set_level(struct ui_battery *battery, int persent, int incharge)
             return -EINVAL;
         }
         image = img->image[battery->index];
-        /*
-         * @note index 必须用 u8 局部变量过一手 —— 原库的自增是在 u8 上做的
-         *       (IR 为 add i8 后再 zext 比较)。若直接写
-         *       battery->index + 1 == img->num, C 的整型提升会让加法在 int 上做,
-         *       IR 变成 add i32 + trunc, 与原厂对不上。
-         */
+        /* @note 自增要用 u8 局部变量过一手, 理由同 battery_level_change。 */
         index = battery->index + 1;
         battery->index = (index == img->num) ? 0 : index;
     } else {
@@ -262,14 +236,19 @@ REGISTER_CONTROL_OPS(CTRL_TYPE_BATTERY)
 };
 
 /*
- * 加固记录(原库缺陷已全部修完, 见 README 第 8 节):
+ * 实现注意事项
  *
- * [已修] 1. new_ui_battery 不检查 load_image_list 的返回值就取 img->image[0],
- *           资源缺图时必然空指针解引用。-> 补判空; 取不到就把 src 留作 0
- *           (battery 已 memset 清零), 控件仍建得起来, 表现为图标不显示,
- *           而不是整机死机。
- * [已修] 2. battery_on_change 未判 battery->handler 为 NULL(当前由 new_ui_battery
- *           兜底为 dumy_handler, 属纵深防御)。-> 补 handler 判空。
+ *  1) 【load_image_list 的返回值一律判空】资源缺图时它会返回 NULL, 直接取
+ *     img->image[0] 就是空指针解引用。取不到图时把 src 留作 0, 控件仍建得
+ *     起来 —— 表现为图标不显示, 而不是整机死机。
  *
- * 差异已登记在 cpu/br27/tools/ui_reimpl/accept/ui_battery.txt 并锁定指纹。
+ *  2) 【handler 判两层】battery_on_change 里先判 battery->handler 再判
+ *     onchange。new_ui_battery 已把 handler 兜底成 dumy_handler, 所以这层
+ *     是纵深防御。
+ *
+ *  3) 【RELEASE_PROBE / RELEASE 不能被应用层吃掉】前者要摘链、后者要释放
+ *     内存, 漏了会在静态链表里留下野指针。
+ *
+ *  4) 【充电态与常态取图方式不同】充电态按 index 逐帧轮播(形成动画), 常态按
+ *     电量百分比换算帧号。index 的自增要在 u8 上做, 见函数内说明。
  */

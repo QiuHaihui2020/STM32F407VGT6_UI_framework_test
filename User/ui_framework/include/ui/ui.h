@@ -75,9 +75,10 @@ int ui_get_current_window_id();
 
 int ui_register_msg_handler(int id, const struct uimsg_handl *handl);
 
-/* 第三参原为 va_list。杰理 pi32 的 va_list 是裸指针, 所以框架可以拿
- * (void *)&msg[2] 伪造一个; 而 ARM AAPCS 的 va_list 是结构体, 这种伪造
- * 既编不过也不可能对。改为显式的 int 参数数组 —— 语义完全一致。 */
+/* 第三参【不用 va_list】: 有些 ABI 下 va_list 就是个裸指针, 调用方能拿
+ * (void *)&msg[2] 这种写法伪造一个出来; 而 ARM AAPCS 的 va_list 是结构体,
+ * 那样既编不过也不可能对。所以这里直接收一个 int 数组, 语义一样, 各平台
+ * 上都成立。 */
 int ui_message_handler(int id, const char *msg, const int *argv);
 
 const char *str_substr_iter(const char *str, char delim, int *iter);

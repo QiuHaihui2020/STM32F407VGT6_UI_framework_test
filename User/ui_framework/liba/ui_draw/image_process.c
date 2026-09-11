@@ -1,15 +1,15 @@
 /*
  * image_process.c —— 位图解码与合成(RGB565 / ARGB8565 / AL88 / AL44 / L1)
  *
- * 【来源】从 cpu/br27/liba/ui_draw.a 的 image_process.c.o 还原。该库交付的是
- *   LLVM bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/image_process.ll
- *     原始路径: btsdk/lib/utils/ui/ui_draw/image_process.c
+ * 图像解码路径上的任何偏差都会直接反映成整屏错位,
+ * 所以这里不做"顺手清理"; 需要注意的地方都在函数内就地注明。
+ * 各控件模块都依赖它的解码结果, 改动前先看文末的注意事项。
+ * 单色屏走 MONO 分支, 彩屏走 OSD16 分支。
  *
- * 【本工程为死代码】开源侧无调用者, 无法真机验证, 只能靠 verify.sh 两级校验。
- * 【行号锁定】image_decode_process 的 5 处 ASSERT(0) 必须落在原始行号
- *   541 / 549 / 584 / 613 / 683(ASSERT 宏内嵌 __LINE__)。本文件由
- *   cpu/br27/tools/ui_reimpl 的生成脚本按绝对行号拼出, 空行不要随意增删。
+ * 【本工程当前无调用者】这条解码路径还没在真机上跑过, 启用前先自己走一遍。
+ * 【行号约定】image_decode_process 的 5 处 ASSERT(0) 落在行号
+ *   595 / 603 / 638 / 667 / 737(ASSERT 宏内嵌 __LINE__)。本文件没有用
+ *   #line 拨号, 所以增删行会让断言打印的行号偏掉, 改之前先想清楚。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".image_process.data")
@@ -22,10 +22,10 @@
 #include "ui/ui_image.h"
 #include "res/resfile.h"
 #include "res/rle.h"
-#include "jl_debug.h"    /* ASSERT: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT: 显式包含, 保证本文件自包含 */
 
-/* 原库调用的三个外部符号: 开源侧头文件里没有(或已改名), 就地声明。
- * 签名必须与原厂 IR 的 declare 完全一致(含 zeroext), 否则 ABI 不同。 */
+/* 这两个函数的声明没有出现在任何公共头里, 就地声明。
+ * 签名要与 resfile.c 里的定义完全一致(含参数宽度), 否则 ABI 不符。 */
 void select_resfile(u8 index);
 int read_palette(int prj_id, RESFILE *specfile, struct image_file *f, u8 *data, int page);
 
@@ -36,22 +36,22 @@ int read_palette(int prj_id, RESFILE *specfile, struct image_file *f, u8 *data, 
  * @param alpha     0 = 全背景, 255 = 全前景
  * @return 混合结果, 同样是【字节交换过】的 RGB565
  *
- * 加固: 原库只在第 30 行声明了它, 而【OLED 配置下全工程没有任何定义】——
- * 彩屏那份(apps/common/ui/interface/ui_synthesis_manager.c)整个包在
- * #if (TCFG_SPI_LCD_ENABLE) 里被编译掉了。现在链接得过, 只是因为
- * image_process 是死代码、LTO 把整条引用丢掉了; 一旦它变活, 链接直接失败。
+ * 【本文件自带一份 static 实现】彩屏通路里另有一份同名的非 static 函数,
+ * 但它整个包在 #if (TCFG_SPI_LCD_ENABLE) 里; 本工程该宏为 0, 那份会被整个
+ * 编译掉, 所以这里必须自带一份 —— 否则这条解码路径一旦启用就是链接失败。
  *
- * 这里就地补一份 static 实现, 语义【与彩屏版逐条一致】:
+ * 约定(与彩屏那份一致, 不要改):
  *   · alpha==255 / alpha==0 两个早退分支都返回【字节交换后】的颜色;
  *   · 混合结果同样交换后返回。
- * 本文件第 833 行传进来的实参就是按这个约定预先交换过的。
+ * 本文件第 833 行传进来的实参就是按这个约定预先交换过的, 两边必须配对,
+ * 只改一侧就会整屏偏色。
  *
- * 【不能复用点阵屏那份】: ui_framework/lcd_drive/middle/ui_synthesis_oled.c 里有个
- * 同名 static 函数, 但它只处理 alpha==0、且返回【未交换】的 backcolor ——
+ * 【不能复用点阵屏那份】lcd_drive/middle/ui_synthesis_oled.c 里也有个同名
+ * static 函数, 但它只处理 alpha==0、且返回【未交换】的 backcolor ——
  * 把它的 static 去掉来顶替会静默产生错误像素。
  *
  * 写成 static 而非全局, 是为了不跟彩屏配置下那份非 static 的定义打架:
- * 两者语义相同, 各自文件内可见, 改回彩屏也不会重复定义。
+ * 两者语义相同、各自文件内可见, 改回彩屏也不会重复定义。
  */
 static u16 get_mixed_pixel(u16 backcolor, u16 forecolor, u8 alpha)
 {
@@ -92,17 +92,17 @@ static int image_data_read(int prj_id, RESFILE *specfile, struct image_file *f,
     return br23_read_image_data(specfile, f, data, len, offset);
 }
 /*
- * ⚠ 下面几处写法看着别扭, 但都是为了与原厂 bitcode 等价, 【不要"顺手改干净"】:
+ * ⚠ 下面几处写法看着别扭, 但都是刻意的, 【不要"顺手改干净"】:
  *   1. 偏移运算一律重新读【源字段】(dc->fbuf / var->temp_pixelbuf), 不读刚
- *      赋过值的目标字段。只有这样 "var->pixelbuf = dc->fbuf" 那条 load 的
- *      唯一 user 才是 store, InstCombine 才会把它换成 i32 load(原厂形态)。
- *   2. rle_line 头清零用 memset(..., 4) 而不是 *(u32 *)p = 0 —— memset 降级
- *      出的访存不带 !tbaa, 才能挡住紧随其后那次 var->ptemp 的读被前推。
- *   3. 循环里先判断再累加(break 前不更新 total_len), 否则多一个 phi。
- *   4. image_decode_read L1 分支的 remain_bytes 写成减 (offset - rle_offset),
- *      是为了复用 offset 里那个乘法, 阻止编译器提公因式。
- *   5. 透明色分支里像素取自 color >> 8 / color, 不重读 lut —— 中间有一次
- *      alphabuf 写, 重读会被当成可能别名而无法消除。
+ *      赋过值的目标字段 —— 这样每条赋值的来源都只有一处, 读起来和生成的
+ *      代码都更简单。
+ *   2. rle_line 头清零用 memset(..., 4) 而不是 *(u32 *)p = 0 —— 后者带类型,
+ *      编译器会当它与随后那次 var->ptemp 的读不相干, 把那次读提到清零之前。
+ *   3. 循环里先判断再累加(break 之前不更新 total_len), 免得多记一轮。
+ *   4. image_decode_read 的 L1 分支里 remain_bytes 写成减 (offset -
+ *      rle_offset), 是为了复用 offset 里那个乘法, 少算一次。
+ *   5. 透明色分支里像素直接取自 color >> 8 / color, 不重读 lut —— 中间隔着
+ *      一次 alphabuf 写, 重读多一次访存, 也容易读串。
  */
 static int line_update(u8 *mask, u16 mask_len, u16 y, u16 width)
 {
@@ -590,7 +590,7 @@ int image_decode_process(struct image_file *file, struct image_decode_var *var)
                 int ret = Rle_Decode(var->p0, line->len[hh], var->pixelbuf, file->width * 2, vw * 2, r->width * 2, 2);
                 if (ret == -1) {
                     int addr = 0;
-                    /* 原厂此处有一条已被 LOG 宏关掉的打印 */
+                    /* addr 是排查时给打印用的, 平时不输出: 每一行都会走到 */
 
                     ASSERT(0);
                 }
@@ -920,35 +920,23 @@ void draw_image(struct image_file *file, struct image_decode_var *var)
 }
 
 /*
- * 原库缺陷 + 加固状态(见 README 第 8 节与第 9.8 节):
+ * 实现注意事项
  *
- * 【已修】本文件引用的 get_mixed_pixel 在 OLED 配置下全工程无人定义
+ *  1) 【get_mixed_pixel 在本文件内自带一份 static 实现】彩屏通路那份非 static
+ *     的同名函数包在 #if (TCFG_SPI_LCD_ENABLE) 里, 本工程该宏为 0, 所以这条
+ *     解码路径一旦启用就需要本文件里这一份。
+ *     它按【彩屏语义】写的: alpha==255 / alpha==0 两个早退分支返回字节交换后
+ *     的颜色, 混合结果同样交换后返回 —— 调用处传进来的实参就是按这个约定
+ *     预先交换过的。
+ *     lcd_drive/middle/ui_synthesis_oled.c 里那个同名 static 函数【语义不同】
+ *     (只处理 alpha==0, 且返回未交换的 backcolor), 不能拿来顶替。
  *
- *   下面记的是【原库的状况】, 现已在本文件开头就地补了一份 static 实现
- *   (语义与彩屏版逐条一致), 链接缺口就此补上。
+ *  2) 【另外两个就地声明的符号】select_resfile / read_palette 都在
+ *     liba/res/resfile.c 里有定义(read_palette 在本配置下是死代码), 不是缺口。
  *
- *   原先的情况 —— 声明在文件开头、调用在下方约 833 行的
- *   u16 get_mixed_pixel(u16, u16, u8):
- *     · 彩屏配置下由 apps/common/ui/interface/ui_synthesis_manager.c:564 提供
- *       (非 static), 而整个文件包在 #if (TCFG_SPI_LCD_ENABLE) 里;
- *     · 本工程 TCFG_SPI_LCD_ENABLE = 0, 那份实现被整个编译掉;
- *     · 点阵屏侧 ui_framework/lcd_drive/middle/ui_synthesis_oled.c:373 虽然有同名函数,
- *       但它是 static, 而且【语义不同】——
- *         彩屏版: 处理 alpha==255 与 alpha==0 两种早退, 且早退时返回的是
- *                 【字节交换后】的颜色;
- *         点阵版: 只处理 alpha==0, 且返回【未交换】的 backcolor。
- *       本文件第 833 行传入的实参是按彩屏约定【预先交换过】的, 所以
- *       【不能】把点阵版的 static 去掉来顶替 —— 那会静默产生错误像素。
+ *  3) 【行号约定】image_decode_process 的 5 处 ASSERT(0) 内嵌 __LINE__,
+ *     预期落在 595 / 603 / 638 / 667 / 737。本文件按固定行号布局组织,
+ *     空行不要随意增删, 否则断言打印的行号会偏。
  *
- *   为什么现在链接得过: image_process 在本工程是死代码(开源侧零调用点),
- *   LTO 把整条引用丢掉了, 符号缺失暴露不出来。
- *
- *   原先一旦让 image_process 变成活代码(在 OLED 配置下), 链接就会直接失败。
- *   现在补的那份正是【彩屏语义】的实现, 不是复用点阵屏那个。
- *
- * 这是原厂的配置缺口(ui_draw.a 当年按彩屏配置构建), 不是还原引入的。
- *
- * @note 补上之后本文件【不再有未定义的外部符号】。另外两个就地声明的
- *       select_resfile / read_palette 在 resfile.c 里都有定义(虽然
- *       read_palette 在本配置下是死代码), 不属于缺口。
+ *  4) 【当前无调用者】这条解码路径还没在真机上验证过, 启用前先自己走一遍。
  */

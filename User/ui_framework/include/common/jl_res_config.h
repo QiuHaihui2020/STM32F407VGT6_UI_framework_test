@@ -14,7 +14,7 @@
 #define RES_PATH            UI_PORT_RES_ROOT "/"
 #define FONT_PATH           UI_PORT_FONT_ROOT "/"
 
-/* 原厂里内置 flash 与外置 flash 分两个根, 本移植统一走 FATFS 一个根 */
+/* 内置 flash 与外置 flash 本来分两个根, 本工程统一走 FATFS 一个根 */
 #define FLASH_ROOT          UI_PORT_RES_ROOT
 #define FLASH_RES_PATH      RES_PATH
 #define FLASH_APP_PATH      RES_PATH
@@ -34,7 +34,7 @@
 #define UI_WATCH_RES_ENABLE     0
 #define UI_UPGRADE_RES_ENABLE   1
 
-/* UI_USED_DOUBLE_BUFFER 有意【不】在这里定义 —— 它是移植配置项,
+/* UI_USED_DOUBLE_BUFFER 有意【不】在这里定义 —— 它是平台配置项,
  * 统一放在 ui_port_config.h, 避免两处定义打架 */
 
 #endif /* __JL_RES_CONFIG_H__ */

@@ -1,6 +1,6 @@
 /**
  * @file    jl_crc.h
- * @brief   杰理 crc.h 的等价声明。实现在 liba/common/jl_crc.c
+ * @brief   CRC16 接口声明。实现在 liba/common/jl_crc.c
  */
 #ifndef __JL_CRC_H__
 #define __JL_CRC_H__
@@ -16,7 +16,7 @@ u16 CRC16(const void *ptr, u32 len);
 /** 分段续算用: 传上一段的结果做初值 */
 u16 CRC16_with_initval(const void *ptr, u32 len, u16 i_val);
 
-/** 资源解扰。本移植资源不加扰, 为空实现 */
+/** 资源解扰。本工程资源不加扰, 为空实现 */
 void CrcDecode(void *buf, u16 len);
 
 #endif /* __JL_CRC_H__ */

@@ -1,16 +1,8 @@
 /*
  * ui_rotate.c —— 定点数图像旋转(双线性插值 + Alpha 混合)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_rotate.c.o 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_rotate.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_rotate.c
- *
- * 【函数原始行号(DISubprogram)】
- *   jlve_sin@48  jlve_cos@70  rotate_0@83  image_rle_buffer@224
- *   rotate_map@321  rotate_1@341
- *
- * 【本工程状态】死代码: rotate_0/1/map 无任何调用者(仅 ui_rotate.h 里有声明),
- *   但符号必须存在, 否则链接报 undefined reference。
+ * 【本工程当前未启用】rotate_0/1/map 没有调用者(只有 ui_rotate.h 里的声明),
+ *   但符号要留着 —— 有引用它的构建配置, 删了会链接失败。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_rotate.data.bss")

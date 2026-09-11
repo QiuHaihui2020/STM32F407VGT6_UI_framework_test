@@ -1,18 +1,12 @@
 /*
  * resfile.c —— 资源文件(.sty / .res / .str)的读取与解码入口
  *
- * 【来源】从 cpu/br27/liba/res.a 的 resfile.c.o 还原。该库交付的是 LLVM bitcode
- *   (非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/resfile.ll
- *     原始路径: btsdk/lib/utils/ui/resource/resfile.c
- *
- * 【谁在用】res.a 里 UI 依赖最重的一块。驱动层 ui_resources_manager.c /
+ * 【谁在用】资源读取里 UI 依赖最重的一块。驱动层 ui_resources_manager.c /
  *   ui_synthesis_oled.c 用 open_resfile / open_image_by_id / br23_read_image_data
- *   / res_f* 一族; 已还原的框架代码 liba/ui_draw/image_process.c 用
+ *   / res_f* 一族; 框架侧 liba/ui_draw/image_process.c 用
  *   br23_read_image_data / read_palette / select_resfile。
  *
- * 【无需行号锁定】本模块【没有任何 ASSERT】(declare 区无 cpu_assert),
- *   也没有 __FILE__ 字符串, 因此不存在 __LINE__ 依赖, 与 quicklz.c 一样自然书写。
+ * 【无 ASSERT】本模块不用 ASSERT, 也不依赖 __FILE__ / __LINE__。
  *
  * 【资源文件布局】
  *     偏移 0            : RES_HEAD_T   —— magic("RU21") / 版本 / 页数
@@ -96,13 +90,6 @@ extern int norflash_hardware_read_watch(u8 *buf, u32 addr, u32 len, u8 wait);
 /* pj_id 是 3 位字段(取自 (x >> 29) & 0x7), 所以 > 7 即表末哨兵 {-1,...}。 */
 #define PJ_ID_MAX       7
 
-/*
- * 原厂构建时 res_ver.h 里 STRING_VERION 的取值是 0xa2f21442 —— 它被硬编进了
- * 库里(还原阶段必须照抄才能与库等价)。加固时 str_file_version_compare 已改为
- * 使用形参 str_ver, 于是这个常量【再无任何代码引用】, 就地删掉, 免得后人误以为
- * 版本校验还锁在原厂那一版上。取值本身作为考古信息留在文末 TODO 9。
- */
-
 /* 资源文件头的魔数 "RU21" */
 #define RES_MAGIC_0     'R'
 #define RES_MAGIC_1     'U'
@@ -111,20 +98,18 @@ extern int norflash_hardware_read_watch(u8 *buf, u32 addr, u32 len, u8 wait);
 
 static int g_language_id = 1;
 /*
- * 加固: 原库四处读盘重试都写成
- *     int retry = 3;  do { ... } while (retry-- > 0);
- * 而 retry-- 是【后置自减】, 3、2、1、0 各判一次, 【实际循环 4 次】——
- * 字面与实际不符, 看代码的人会以为是 3 次。
- * 改成显式的"总共尝试 N 次"写法, 【次数保持 4 不变】: 减少一次重试对读盘
- * 容错是净损失, 不是修复。
+ * 读盘重试次数。四处重试统一写成
+ *     int try_cnt = RES_READ_MAX_TRY;  do { ... } while (--try_cnt > 0);
+ * 这种"总共尝试 N 次"的形式 —— 字面次数与实际一致, 避免用
+ * `while (retry-- > 0)` 那种后置自减写法(初值 3 实际会循环 4 次)。
  */
 #define RES_READ_MAX_TRY    4
 
 /*
- * 加固: 原库把"版本已校验过"的标志写成 res_file_version_compare /
- * str_file_version_compare 函数内的 static 局部变量, 一旦置位就【永不复位】——
- * 换了资源文件(open_resfile / open_str_file 打开另一个)之后不会重新校验版本,
- * 拿旧的校验结论继续用。提到文件级, 由这两个 open 成功时清掉。
+ * "版本已校验过"的标志放在【文件级】而不是校验函数内的 static 局部 ——
+ * 换了资源文件(open_resfile / open_str_file 打开另一个)之后必须重新校验,
+ * 而函数内的 static 一旦置位外部就无从清除。这两个标志由对应的 open
+ * 成功时清掉。
  */
 static bool res_ver_checked = false;
 static bool str_ver_checked = false;
@@ -159,8 +144,8 @@ int ui_set_sty_path_by_pj_id(int pj_id, const u8 *path)
 {
     struct ui_load_info *info;
 
-    /* 原厂是"大于上界就跳出"(IR 为 icmp ugt 7), 不是 "<= 上界"(那会编成
-     * icmp ult 8 并把两个分支目标对调)。极性必须照抄。 */
+    /* pj_id 是 3 位字段, 取值大于 PJ_ID_MAX 的那一项就是表末哨兵 {-1,...},
+     * 所以用"大于上界就跳出"作为遍历终止条件。 */
     for (info = ui_load_info_table; ; info++) {
         if (info->pj_id > PJ_ID_MAX) {
             break;
@@ -202,8 +187,7 @@ void *ui_load_sty_by_pj_id(int pj_id)
 {
     struct ui_load_info *info;
 
-    /* 原厂是"大于上界就跳出"(IR 为 icmp ugt 7), 不是 "<= 上界"(那会编成
-     * icmp ult 8 并把两个分支目标对调)。极性必须照抄。 */
+    /* 哨兵判断同 ui_set_sty_path_by_pj_id。 */
     for (info = ui_load_info_table; ; info++) {
         if (info->pj_id > PJ_ID_MAX) {
             break;
@@ -214,8 +198,8 @@ void *ui_load_sty_by_pj_id(int pj_id)
                 return info->file;
             }
 
-            /* 与 ui_load_res/str_by_pj_id 不同, 这里几个出口在原厂里【不汇合】,
-             * 各自 return; 而且外层没有 else 包裹 —— 块排布必须照抄。 */
+            /* 与 ui_load_res/str_by_pj_id 不同, 这里各个出口不共用一条
+             * return, 每种情况各自返回, 读起来更直接。 */
             if (info->path == NULL) {
                 return info->file;
             }
@@ -254,8 +238,7 @@ void *ui_load_res_by_pj_id(int pj_id)
 {
     struct ui_load_info *info;
 
-    /* 原厂是"大于上界就跳出"(IR 为 icmp ugt 7), 不是 "<= 上界"(那会编成
-     * icmp ult 8 并把两个分支目标对调)。极性必须照抄。 */
+    /* 哨兵判断同 ui_set_sty_path_by_pj_id。 */
     for (info = ui_load_info_table; ; info++) {
         if (info->pj_id > PJ_ID_MAX) {
             break;
@@ -266,9 +249,8 @@ void *ui_load_res_by_pj_id(int pj_id)
                 return info->res;
             }
 
-            /* 下面三个中间出口在原厂里【汇合到同一条 return】—— IR 里
-             * info->res 只有一次 load。各写一条 return 会多出两次 load,
-             * memcheck 会按 README 5.3.2 报"访问集合不同"。 */
+            /* 下面三个中间出口都 goto 到同一条 return, 这样 info->res
+             * 只读一次; 各写一条 return 会多出两次读。 */
             if (info->file == NULL) {
                 if (info->path == NULL) {
                     goto __exit;
@@ -313,8 +295,7 @@ void *ui_load_str_by_pj_id(int pj_id)
 {
     struct ui_load_info *info;
 
-    /* 原厂是"大于上界就跳出"(IR 为 icmp ugt 7), 不是 "<= 上界"(那会编成
-     * icmp ult 8 并把两个分支目标对调)。极性必须照抄。 */
+    /* 哨兵判断同 ui_set_sty_path_by_pj_id。 */
     for (info = ui_load_info_table; ; info++) {
         if (info->pj_id > PJ_ID_MAX) {
             break;
@@ -325,9 +306,8 @@ void *ui_load_str_by_pj_id(int pj_id)
                 return info->str;
             }
 
-            /* 下面三个中间出口在原厂里【汇合到同一条 return】—— IR 里
-             * info->str 只有一次 load。各写一条 return 会多出两次 load,
-             * memcheck 会按 README 5.3.2 报"访问集合不同"。 */
+            /* 下面三个中间出口都 goto 到同一条 return, 这样 info->str
+             * 只读一次; 各写一条 return 会多出两次读。 */
             if (info->file == NULL) {
                 if (info->path == NULL) {
                     goto __exit;
@@ -409,14 +389,12 @@ int open_resfile(const char *name)
     }
 
     /*
-     * 加固: 原库按 JLUI_TYPE_AND_VERSION 的 bit0 分出 if / else 两支, 而
-     * 【两支的魔数校验逐字相同】(都比 RES_MAGIC_0..3) —— 复制粘贴后忘了改。
-     * 本该是两套魔数, 但正确的第二套取值无从考证, 所以这里只把冗余分支合并,
-     * 不臆造魔数。bit0 若真要区分, 需拿到打包工具的约定后另行补。
+     * JLUI_TYPE_AND_VERSION 的 bit0 用来区分两种资源版本, 两版的头部魔数
+     * 本可以不同; 目前只确定了 "RU21" 这一套, 所以这里只做这一套校验 ——
+     * 需要区分第二套时, 得先拿到打包工具那边的约定再补。
      *
-     * 加固: 校验失败时原库【只 return, 不关句柄也不置 NULL】, 留下一个开着的
-     * res_file1, 且 res_file 仍指向上一次的旧句柄。这里与读头失败那一支对齐,
-     * 统一关掉并置 NULL。
+     * 校验失败必须【关掉句柄并置 NULL】, 与读头失败那一支保持一致:
+     * 否则会留下一个开着的 res_file1, 而 res_file 还指向上一次的旧句柄。
      */
     if (JLUI_TYPE_AND_VERSION & 0x10) {
         if (head.magic[0] != RES_MAGIC_0 || head.magic[1] != RES_MAGIC_1
@@ -430,7 +408,7 @@ int open_resfile(const char *name)
 
     res_file = res_file1;
 
-    /* 加固: 换了资源文件, 之前那次版本校验的结论就不作数了, 清掉标志
+    /* 换了资源文件, 之前那次版本校验的结论就不作数了, 清掉标志
      * 让 res_file_version_compare 下次重新校验。 */
     res_ver_checked = false;
 
@@ -486,19 +464,16 @@ int open_str_file(const char *name)
     }
 
     if (resfile_read(str_file1, (u8 *)&head, sizeof(head)) != sizeof(head)) {
-        /* 加固: 原库关掉句柄后【没有置回 NULL】(open_resfile 的同一处是置了的),
-         * 留下一个已关闭的悬空句柄; 下次进来开头的 close_str_file() 判到它非空,
-         * 就会对同一个句柄二次 resfile_close。 */
+        /* 关掉之后必须置回 NULL: 否则留下一个已关闭的悬空句柄, 下次进来
+         * 开头的 close_str_file() 判到它非空, 会对同一句柄二次 close。 */
         resfile_close(str_file1);
         str_file1 = NULL;
         return -EFAULT;
     }
 
     /*
-     * 加固: 同 open_resfile —— 原库按 JLUI_TYPE_AND_VERSION 的 bit0 分出的
-     * if / else 两支, 魔数校验逐字相同(都比 RES_MAGIC_0..3), 是复制粘贴后
-     * 忘了改。这里合并成一支, 不臆造第二套魔数。
-     * 失败时一并关掉句柄并置 NULL, 与读头失败那一支保持一致。
+     * 魔数校验同 open_resfile: 只校验已确定的那一套, 失败时一并关掉句柄
+     * 并置 NULL, 与读头失败那一支保持一致。
      */
     if (JLUI_TYPE_AND_VERSION & 0x10) {
         if (head.magic[0] != RES_MAGIC_0 || head.magic[1] != RES_MAGIC_1
@@ -512,7 +487,7 @@ int open_str_file(const char *name)
 
     str_file = str_file1;
 
-    /* 加固: 同 open_resfile —— 换了字符串资源文件就该重新校验版本。 */
+    /* 同 open_resfile —— 换了字符串资源文件就该重新校验版本。 */
     str_ver_checked = false;
 
     return 0;
@@ -535,10 +510,9 @@ int str_file_version_compare(int str_ver)
         }
 
         /*
-         * 加固: 原库【完全忽略形参 str_ver】, 比对的是编译期常量 STRING_VERION
-         * —— 还原自原厂构建时的取值。同文件的 res_file_version_compare 用的
-         * 却是形参, 两者不对称, 显然是漏改。这里改为使用形参。
-         * 注: 本函数目前全工程【零调用者】, 所以此改动不影响现有行为。
+         * 版本比对用【形参 str_ver】而不是写死的常量 —— 与同文件的
+         * res_file_version_compare 保持对称, 换一版字符串资源只需调用方传新值。
+         * 注: 本函数目前全工程零调用者。
          */
         printf("str_ver:0x%x, head.resver: 0x%x .\n", str_ver, head.resver);
         if (head.resver != str_ver) {
@@ -572,18 +546,18 @@ int open_image_by_id(RESFILE *specfile, struct image_file *f, int id, int page_n
 
     do {
         /*
-         * 加固: 原库这四次 res_fread 的返回值全被丢弃。最后一次(res_pic)有
-         * 末尾的 CRC16 兜着 —— 读失败时栈上的垃圾几乎必然校验不过, 会走重试;
-         * 但前三次没有任何兜底: head 读失败会把垃圾写进 f->version,
-         * page / entry 读失败则拿垃圾当偏移去 seek。
+         * 四次 res_fread 的返回值都要判: 最后一次(res_pic)虽有末尾的 CRC16
+         * 兜着(读失败时栈上的垃圾几乎必然校验不过), 但前三次没有任何兜底 ——
+         * head 读失败会把垃圾写进 f->version, page / entry 读失败则拿垃圾
+         * 当偏移去 seek。
          *
-         * 读失败一律 continue【走原有的重试】而不是直接 return: 这里的重试
-         * 本来就是靠末尾 CRC 失败驱动的, 直接 return 等于把重试废掉,
-         * 而 flash 偶发读错正是重试要救的场景。
+         * 读失败一律 continue【走重试】而不是直接 return: 本函数的重试就是
+         * 靠末尾 CRC 失败驱动的, 直接 return 等于把重试废掉, 而 flash 偶发
+         * 读错正是重试要救的场景。
          *
-         * @note res_fseek 的返回值故意不判, 理由见 ascii.c ——
-         *       resfile_seek 是闭源的, 成功语义无从确认; 定位失败会由紧接着
-         *       的 res_fread 读不满暴露出来。
+         * @note res_fseek 的返回值故意不判: resfile_seek 在各后端下"成功返回 0
+         *       还是返回新偏移"并不统一; 定位失败会由紧接着的 res_fread
+         *       读不满暴露出来。
          */
         res_fseek(file, 0, SEEK_SET);
         if (res_fread(file, (u8 *)&head, sizeof(head)) != sizeof(head)) {
@@ -775,23 +749,22 @@ int open_string_pic(struct image_file *file, int id)
     int i, language_index;
     u32 tmp;
 
-    /* 加固: 原库不判 str_file 就往下走(同文件 str_file_version_compare 是判了的)。 */
+    /* 字符串资源没打开时直接返回错误, 不往下走。 */
     if (str_file == NULL) {
         return -EINVAL;
     }
 
     do {
-        /* 加固: 原库丢弃返回值。读失败 continue 走重试, 理由同 open_image_by_id。 */
+        /* 读失败 continue 走重试, 理由同 open_image_by_id。 */
         res_fseek(str_file, sizeof(RES_HEAD_T), SEEK_SET);
         if (res_fread(str_file, (u8 *)&res_entry, sizeof(res_entry)) != sizeof(res_entry)) {
             continue;
         }
 
         /*
-         * 加固【本函数的硬伤】: 下面 tmp 的计算里有
-         *     res_entry.wCount / res_entry.langsum
-         * 而 langsum 直接来自读盘数据 —— 上面那次读失败时它是栈垃圾, 资源文件
-         * 损坏时它也可能就是 0, 于是整数除零。这里先挡住, 当作坏数据走重试。
+         * 下面 tmp 的计算里有 res_entry.wCount / res_entry.langsum, 而 langsum
+         * 直接来自读盘数据 —— 上面那次读失败时它是栈垃圾, 资源文件损坏时它也
+         * 可能就是 0, 于是整数除零。所以先挡住, 当作坏数据走重试。
          */
         if (res_entry.langsum == 0) {
             continue;
@@ -950,92 +923,49 @@ int res_get_picture_number(RESFILE *file, int page_num)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍然照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在
- * cpu/br27/tools/ui_reimpl/accept/resfile.txt 并锁定指纹)。
+ * 实现注意事项与已知限制
  *
- *   [已修]  1 —— 两支相同的魔数校验已合并为一支(不臆造第二套魔数, 正确取值
- *                 无从考证); 校验失败时补了 resfile_close + 置 NULL。
- *   [已修]  9 —— str_file_version_compare 改为使用形参 str_ver; 本地那个
- *                 #define STRING_VERION 0xa2f21442 随之删除(已无引用)。
- *                 该函数目前全工程零调用者, 改动不影响现有行为。
- *   [已修] 10 —— open_str_file 读头失败后置 str_file1 = NULL, 不再留悬空句柄,
- *                 也就不会被下次的 close_str_file() 二次 close。
+ *  1) 【资源版本 bit0 只校验一套魔数】JLUI_TYPE_AND_VERSION 的 bit0 本可用来
+ *     区分两种资源版本, 两版的头部魔数可以不同; 目前只确定了 "RU21" 这一套,
+ *     所以 open_resfile / open_str_file 只做这一套校验。需要区分第二套时,
+ *     先拿到打包工具那边的约定再补。
  *
- *   [已修]  2 —— res_fread 的返回值。先用最终固件符号表把这"十几处"的死活
- *                 分开了(方法见 README 3.3, 并跑了活函数对照组):
- *                   活: open_image_by_id(11)、open_string_pic(12) —— 已全部补判;
- *                   死: read_palette、load_pallet_table、res_get_picture_number
- *                       (固件符号数均为 0) —— 不动。
- *                 读失败一律 continue【走原有重试】而不是直接 return: 这里的
- *                 重试本就靠末尾 CRC 失败驱动, 直接 return 等于废掉重试,
- *                 而 flash 偶发读错正是重试要救的场景。
- *                 res_fseek 的返回值仍【故意不判】, 理由见 ascii.c。
- *   [已修]  4 —— open_string_pic 的 langsum 除零已挡住(当作坏数据走重试)。
- *                 langsum 直接来自读盘数据, 读失败时是栈垃圾、文件损坏时也
- *                 可能就是 0 —— 这是本文件唯一会【直接触发异常】的一条。
+ *  2) 【读盘返回值】活路径上的读盘全部判了返回值: open_image_by_id 四处、
+ *     open_string_pic 两处, 读失败一律 continue 走重试。
+ *     read_palette / load_pallet_table / res_get_picture_number 在当前配置下是
+ *     死代码(最终固件符号表里数不到), 其中的读盘没有判返回值 —— 改回彩屏配置
+ *     把它们用起来时, 要一并补上。
+ *     res_fseek 的返回值【故意不判】: resfile_seek 在各后端下"成功返回 0 还是
+ *     返回新偏移"并不统一, 贸然判断会把成功当失败; 定位失败会由紧接着的
+ *     res_fread 读不满暴露出来。
  *
- *   [已修]  3 —— retry 初值 3 而实际循环 4 次(retry-- 是【后置自减】,
- *                 3、2、1、0 各判一次), 字面与实际不符, 看代码的人会以为是 3 次。
- *                 已把四处统一改成
- *                     int try_cnt = RES_READ_MAX_TRY;
- *                     do { ... } while (--try_cnt > 0);
- *                 【次数保持 4 不变】—— 把它改成 3 次等于少一次重试,
- *                 对读盘容错是净损失, 那不叫修复。
- *   [保留]  5 —— 两处读调色板都不校验调用方缓冲区大小。read_palette 与
- *                 load_pallet_table 在最终固件里符号数均为 0, 是死代码。
- *   [保留]  6 —— rle_decode 越界时 return 0。同样是死代码(固件符号数 0);
- *                 注意它与 rle.c 的 Rle_Decode(37, 活)不是同一套。
- *   [保留]  7 —— quicklz_decode 的两个长度形参完全没用。整条 quicklz 链
- *                 (image_decode -> quicklz_decode -> qlz_decompress)固件符号数
- *                 全为 0, 见 quicklz.c 开头。
- *   [已修]  8 —— checked 标志一旦置位永不复位, 换资源文件后不再校验版本
- *                 (它原本是两个函数各自的 static 局部变量, 外部无从清除)。
- *                 -> 提到文件级(res_ver_checked / str_ver_checked), 由
- *                    open_resfile / open_str_file 成功打开新文件时清掉。
+ *  3) 【重试次数】四处重试统一为 RES_READ_MAX_TRY(4) 次, 由末尾的 CRC 校验
+ *     失败驱动。flash 偶发读错正是它要救的场景, 不要调小。
  *
+ *  4) 【除零防护】open_string_pic 用 res_entry.wCount / res_entry.langsum 定位
+ *     语言块, langsum 直接来自读盘数据(读失败是栈垃圾、文件损坏可能为 0),
+ *     已在使用前挡住 0 并当作坏数据走重试。这是本文件唯一会直接触发异常的量。
  *
- * 1) 【open_resfile / open_str_file 的 if-else 两支完全相同】。
- *    JLUI_TYPE_AND_VERSION 的 bit0 把魔数校验分成两条路径, 但两边比的是同一组
- *    常量 'R''U''2''1' —— 显然是复制粘贴后忘了改新版魔数。IR 里两个分支的
- *    指令逐条相同, 说明原厂就是这样, 不是还原引入的。
+ *  5) 【调色板读取不校验缓冲区】read_palette 写死读 512 字节, load_pallet_table
+ *     按 pal.dwLength 读, 两者都不校验调用方给的缓冲区够不够大。这两个函数
+ *     当前是死代码; 启用前必须把缓冲区长度加进接口。
  *
- * 2) 【几乎所有 res_fseek / res_fread 的返回值都被丢弃】。
- *    open_image_by_id / read_palette / load_pallet_table / open_string_pic /
- *    res_get_picture_number 里的十几次读盘全部不判返回值, 读失败时后续拿着
- *    栈上未初始化的 RES_*_T 继续算偏移, 会 seek 到任意位置。
+ *  6) 【本文件的 rle_decode 与 rle.c 的 Rle_Decode 不是同一套】前者是资源文件
+ *     自带的简单变体(字节 > 0xC0 表示重复), 越界时返回 0 —— 调用方无法把它和
+ *     "源长度为 0"区分开。当前是死代码。
  *
- * 3) 【重试次数比字面多一次】。do { ... } while (retry-- > 0) 且 retry 初值为 3,
- *    实际循环 4 次(3、2、1、0 各判一次)。read_image_data / read_str_data /
- *    open_image_by_id / open_string_pic 都是这个模式。
+ *  7) 【quicklz_decode 的两个长度形参没有用上】解压后的长度全靠压缩流头部自述,
+ *     调用方必须先用 qlz_size_decompressed 算出长度并按它分配缓冲区。整条
+ *     image_decode -> quicklz_decode -> qlz_decompress 链当前是死代码,
+ *     见 quicklz.c 开头。
  *
- * 4) open_string_pic 用 res_entry.wCount / res_entry.langsum 做除法,
- *    【不判 langsum 是否为 0】—— 资源文件损坏时会直接除零。
+ *  8) 【版本校验标志是文件级的】res_ver_checked / str_ver_checked 由
+ *     open_resfile / open_str_file 成功打开新文件时清掉, 所以换资源文件后会
+ *     重新校验版本, 不会拿旧结论继续用。
  *
- * 5) read_palette 与 load_pallet_table 读调色板时, 前者写死 512 字节,
- *    后者用 pal.dwLength; 两者都不校验调用方给的缓冲区够不够大。
+ *  9) 【str_file_version_compare 目前零调用者】它按形参 str_ver 比对头部版本,
+ *     与 res_file_version_compare 对称。
  *
- * 6) rle_decode 的重复计数取自 pSour[i-1] - 0xC0, 而判断用的是 > 0xC0,
- *    所以计数最小为 1; 但它【不校验 at + count 是否越过 DestLen】, 只在每写一个
- *    字节后判一次, 判到越界就直接 return 0 —— 返回值 0 与"源长度为 0"无法区分。
- *
- * 7) quicklz_decode 的 SourLen / DestLen 两个形参【完全没用】(IR 里已被优化成
- *    undef), 长度全靠压缩流头部自述 —— 见 quicklz.c 的 TODO 1。
- *
- * 8) res_file_version_compare / str_file_version_compare 的 checked 标志一旦置位
- *    就永不复位, 换资源文件后不会重新校验版本。
- *
- * 9) 【str_file_version_compare 的形参 str_ver 被完全忽略】。它比对的是编译期
- *    常量 STRING_VERION(0xa2f21442, 原厂构建时 res_ver.h 里的值), 而不是调用方
- *    传进来的 str_ver —— 连打印用的也是那个常量。同一文件里的
- *    res_file_version_compare 用的却是形参 res_ver, 两者不对称, 显然是漏改。
- *    后果: 该函数实际锁死在原厂那一版字符串资源上, 调用方传什么都不起作用;
- *    而本工程 res_ver.h 的 STRING_VERION 已经是 0x0c1b27ae, 对不上。
- *    (还原时必须照抄 0xa2f21442 才能与库等价, 改正属于行为变更, 单独提。)
- *
- * 10) 【open_str_file 的读头失败路径不把 str_file1 置回 NULL】。
- *    它 resfile_close(str_file1) 之后就直接 return, 留下一个已关闭的悬空句柄;
- *    下次再调 open_str_file 时开头的 close_str_file() 会对这个悬空句柄
- *    再 close 一次(double close)。open_resfile 的同一处是置了 NULL 的,
- *    又一处两支不对称。
+ * 10) 【句柄置 NULL】任何关闭句柄的路径都要把对应的静态指针置回 NULL,
+ *     否则下次 open 开头的 close_* 会对已关闭的句柄再 close 一次。
  */

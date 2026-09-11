@@ -32,7 +32,7 @@ typedef struct list_head BUFFER_MANAGER;
 
 
 // buffer管理原生API，不建议直接调用原生API，
-// 防止后续库升级导致调用方法改变，使用时请调用重封装的快捷调用
+// 防止后续实现调整导致调用方式改变，使用时请调用下面重封装的快捷宏
 int buffer_manager_set_default_handler(void *buffer_hdl);
 
 void *buffer_manager_init_handler(void *buf, unsigned int size, int block_num);

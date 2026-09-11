@@ -170,9 +170,9 @@ struct ui_text_info {
 struct ui_grid_info {
     struct ui_ctrl_info_head head;
     u8 page_mode;
-    /* -1 表示"无高亮项"。原为裸 char, 在 ARM 上无符号,
-     * 会让 ui_grid.c:3226 的 (highlight_index == -1) 恒为假。
-     * 本字段直接映射资源文件里的字节, s8 宽度仍为 1, 布局不变。 */
+    /* -1 表示"无高亮项", 所以类型必须写明 s8: 裸 char 在 ARM 上是无符号的,
+     * (highlight_index == -1) 会恒为假, 表现成"这个网格永远有高亮项"。
+     * 本字段直接映射资源文件里的一个字节, s8 宽度仍是 1, 布局不受影响。 */
     s8 highlight_index;
     struct element_event_action *action;
     struct layout_info *info;
@@ -305,8 +305,8 @@ struct control_ops {
 /* ====================================================================
  * 控件类型注册表
  *
- * 原厂靠链接脚本收集 .control_ops 段, 用 control_ops_begin/end 两个段符号
- * 界定范围。移植到 Keil/armlink 后改为【显式注册表】:
+ * 这张表也可以靠链接脚本收集 .control_ops 段, 用 control_ops_begin/end
+ * 两个段符号界定范围。本工程用 Keil/armlink, 改成了【显式注册表】:
  *   - armlink 没有 GNU ld 的 PROVIDE, 造不出这类段边界符号;
  *   - 更重要的是, 段收集漏掉一个控件是"界面元素整块不显示"的静默故障,
  *     显式表则漏了就编译期报错。换编译器/链接器也不用再改一次。

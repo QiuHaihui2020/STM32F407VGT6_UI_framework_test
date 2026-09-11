@@ -11,15 +11,14 @@ struct ui_text {
     struct ui_text_attrs attrs;
     char source[8];
     /*
-     * 加固: 原库这里是 u16, 存的却是 set_timer 返回的【指针】
-     * (IR 里 ptrtoint 后 trunc 到 i16, del_timer 时再 zext 回去) ——
-     * 指针被截断成 16 位。
+     * 定时器句柄按【指针宽度】存, 不要图省字节用 u16 ——
+     * set_timer 返回的是 void *, 截成 16 位再补零扩回去, 高位信息在存的
+     * 那一刻就丢了。
      *
-     * 目前【碰巧是安全的】: platform 层的 jlui_set_timer 返回的其实是
-     * sys_timer_add() 的定时器 ID 转成的伪指针, 而那是个小整数。
-     * 但这等于依赖"ID 永远不超过 16 位"这个【未文档化的假设】—— 一旦哪天
-     * sys_timer_add 改成返回真指针或大 ID, del_timer 就会拿着截断后的值
-     * 去删别人的定时器, 而且症状极难定位。改成如实存指针。
+     * 现在的 platform 层(jlui_set_timer)返回的是 sys_timer_add() 的定时器 ID
+     * 转成的伪指针, 是个小整数, 截断【碰巧】看不出问题; 但那等于依赖
+     * "ID 永远不超过 16 位"这个未文档化的假设 —— 一旦它改成返回真指针或
+     * 大 ID, del_timer 就会拿着截断后的值去删别人的定时器, 症状极难定位。
      */
     void *timer;
     u16 _str[UI_TEXT_LIST_MAX_NUM];

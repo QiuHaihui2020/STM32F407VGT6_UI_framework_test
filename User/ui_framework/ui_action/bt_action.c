@@ -2,17 +2,16 @@
  * @file    bt_action.c
  * @brief   BT 页面(PAGE_0)的事件响应
  *
- * 对应 703 SDK 的 apps/soundbox/ui/lcd/STYLE_SOUNDBOX/bt_action.c。
  * 本文件【只做事件骨架】—— 按键分发、弹层显示/隐藏、控件生命周期钩子;
  * 蓝牙协议栈 / 播放器 / EQ / 音量 / 电量这些业务动作一律留 TODO。
  *
- * ┌─ 与 703 原版的两处差异(与 music_action.c 相同) ────────────────────┐
- * │ 1. 注册方式: 原版 REGISTER_UI_EVENT_HANDLER 靠链接脚本收集段, 本   │
- * │    移植 sec() 是空宏, 改成文末直接定义 ui_handlers_bt, 再到        │
+ * ┌─ 本工程的两处约定(与 music_action.c 相同) ─────────────────────────┐
+ * │ 1. 注册方式: 段收集的写法(REGISTER_UI_EVENT_HANDLER)在本工程下      │
+ * │    不可用(sec() 是空宏), 改成文末直接定义 ui_handlers_bt, 再到      │
  * │    config/ui_port_registry.c 的 g_ui_handler_table 里登记一行。    │
  * │                                                                    │
- * │ 2. 键值: 原版用 UI_KEY_OK/MENU/UP/DOWN/VOLUME_INC/DEC/PHONE/MODE, 本工程 │
- * │    User/apps/app_core.c 只投递四个键 KEY_PAGE_ENTER / BACK /       │
+ * │ 2. 键值: 完整键盘会用到 UI_KEY_OK/MENU/UP/DOWN/VOLUME_INC/DEC 等,   │
+ * │    本工程 User/apps/app_core.c 只投递四个键 KEY_PAGE_ENTER / BACK /│
  * │    PREV / NEXT, 所以按这四个键分发。                               │
  * └────────────────────────────────────────────────────────────────────┘
  *
@@ -115,11 +114,11 @@ static int bt_layout_onkey(void *ctrl, struct element_key_event *e)
         break;
 
     case KEY_PAGE_BACK:
-        /* 主界面按返回 = 打开菜单。703 原版是独立的 UI_KEY_MENU,
+        /* 主界面按返回 = 打开菜单。完整键盘上这是独立的 UI_KEY_MENU,
          * 本工程按键不够, 复用 BACK。
-         * @note 原版这里判了 ui_get_disp_status_by_id() <= 0 才 show ——
+         * @note 这里判了 ui_get_disp_status_by_id() <= 0 才 show ——
          *       弹层已显示时按键根本到不了本函数(弹层先消费), 这个判断
-         *       是防御性的, 照抄留着。 */
+         *       属纵深防御, 保留。 */
         if (ui_get_disp_status_by_id(BT_MENU_LAYOUT) <= 0) {
             ui_show(BT_MENU_LAYOUT);
         }
@@ -130,8 +129,8 @@ static int bt_layout_onkey(void *ctrl, struct element_key_event *e)
     }
 
     /*
-     * @note 这里与 music_action.c 的 MUSIC_LAYOUT 不同: 703 原版
-     *       bt_layout_onkey 处理完返回 TRUE(music 的返回 FALSE), 照抄。
+     * @note 这里与 music_action.c 的 MUSIC_LAYOUT 不同: 本页处理完返回
+     *       TRUE(music 页返回 FALSE), 这是有意的。
      *       返回 TRUE 会把焦点(root.focus)设到本 layout 上, 之后按键改走
      *       "焦点优先 + 向父节点冒泡"那条路(ui_core_element_onkey) ——
      *       弹层是本 layout 的兄弟不是父节点, 冒泡到不了它。
@@ -145,8 +144,8 @@ static int bt_layout_onkey(void *ctrl, struct element_key_event *e)
 /* ====================================================================== *
  *  三、来电/通话层: BT_LAYOUT_CALL
  *
- *  703 原版: 接听与挂断在协议层是同一条 APP_MSG_MUSIC_PP, 由当前通话状态
- *  决定语义, 所以两个分支发同一条消息, 只是先用 bt_get_call_status() 卡时机。
+ *  接听与挂断在协议层是同一条 APP_MSG_MUSIC_PP, 由当前通话状态决定语义,
+ *  所以两个分支发同一条消息, 只是先用 bt_get_call_status() 卡时机。
  * ====================================================================== */
 
 static int bt_layout_call_onkey(void *ctrl, struct element_key_event *e)

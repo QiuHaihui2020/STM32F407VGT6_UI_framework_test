@@ -27,7 +27,7 @@
 #include "jl_typedef.h"
 /* 屏驱只需要初始化码魔数(_BEGIN_/_END_/REGFLAG_DELAY)、配置字解包宏
  * 与 delay_2ms —— 全在 jl_lcd_drive.h 里。
- * 【不再 include port/ui_port.h】: 那份头里是仿造的杰理 gpio_/spi_/mcpwm_
+ * 【不再 include port/ui_port.h】: 那份头里是占位用的 gpio_/spi_/mcpwm_
  * 声明, 本屏驱一个都没用 —— 它只提供命令表和 sleep/wakeup 回调,
  * 推屏由 lcd_drive/middle/ui_pushScreen_manager.c 经 ui_lcd_* 完成。 */
 #include "jl_lcd_drive.h"

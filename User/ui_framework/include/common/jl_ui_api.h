@@ -18,7 +18,7 @@ enum ui_devices_type {
     LED_7,
     LCD_SEG3X9,
     TFT_LCD,    /**< 彩屏 */
-    DOT_LCD,    /**< 点阵屏, 本移植用这个 */
+    DOT_LCD,    /**< 点阵屏, 本工程用这个 */
 };
 
 /** 板级配置。lcd_ui_init 的入参 */

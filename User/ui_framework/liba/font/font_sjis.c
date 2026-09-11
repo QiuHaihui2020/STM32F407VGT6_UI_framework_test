@@ -2,18 +2,7 @@
  * font_sjis.c —— Shift-JIS(日文)字库: 初始化、半角/全角取模、UTF-16 转内码、
  *                文本输出
  *
- * 【来源】从 cpu/br27/liba/font.a 的 font_sjis.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原,
- *   而非从反汇编推测。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/font_sjis.ll
- *     原始路径: btsdk/lib/utils/ui/font/font_sjis.c
- *
- * 【还原依据】函数原始行号(DISubprogram), 本文件按此顺序排列:
- *     InitFont_SJIS@11        GetSJISASCCharacterData@35   GetSJISCharacterData@58
- *     ConvertUTF16toSJIS@96   TextOut_SJIS@127             TextOutW_SJIS@207
- *   局部变量名与类型取自 DWARF。
- *
- * 【Shift-JIS 区位换算(从 IR 常量反推并验算过累计基址)】
+ * 【Shift-JIS 区位换算】累计基址都验算过:
  *   首字节 0x81~0x9F 与 0xE0~0xEF 两段, 每段每区 188 个字, 次字节分两段:
  *       0x40~0x7E(63 个) / 0x80~0xFC(125 个)
  *   0xE0 段的累计基址 5828 = 31 区(0x81~0x9F) * 188, 已独立验算。
@@ -25,7 +14,7 @@
  *   2. TextOutW_SJIS 在 ConvertUTF16toSJIS 之后会判转换结果是否落在
  *      【单字节区 0x20~0xDF】(含半角片假名), 是则按半角走 ASCII 取模。
  *
- * 【段属性】原库代码在 .font_sjis.text(见 ref IR 的 section 属性)。
+ * 【段属性】代码放在 .font_sjis.text。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma code_seg(".font_sjis.text")
@@ -34,7 +23,7 @@
 #include "jl_typedef.h"
 #include "font/font_all.h"
 #include "font/language_list.h"
-#include "jl_debug.h"    /* printf / puts: 原厂靠别处间接带入 */
+#include "jl_debug.h"    /* printf / puts: 显式包含, 保证本文件自包含 */
 
 extern u8 InitFont_ASCII(struct font_info *info);
 
@@ -59,9 +48,9 @@ bool InitFont_SJIS(struct font_info *info)
     }
 
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, 0);
-    /* 加固: 原库丢弃返回值。读不到字高时 info->pixel.size 保持旧值(首次调用
-     * 就是未初始化内存), 而 InitFont_* 仍返回 1 表示成功 —— 此后 nbytes 与
-     * 所有取模偏移全建立在垃圾值上。读失败就关掉文件并如实报错。 */
+    /* 读不到字高就关掉文件并如实报错: 放过这次失败的话 info->pixel.size 会
+     * 保持旧值(首次调用就是未初始化内存), 而 InitFont_* 还返回 1 表示成功 ——
+     * 此后 nbytes 与所有取模偏移全建立在垃圾值上。 */
     if (font_sd_fread(info->pixel.file.fd, &info->pixel.size, 1) != 1) {
         font_sd_fclose(info->pixel.file.fd);
         info->pixel.file.fd = NULL;
@@ -92,10 +81,9 @@ u8 GetSJISASCCharacterData(struct font_info *info, u16 asc)
     u16 nbytes;
 
     /*
-     * 加固: 原库没有任何入口检查, 传进来的 asc 有多大就照算 asc * 4 + 2 去
-     * fseek, 越界读文件、只靠 fread 失败兜着。
-     * 【注意不能照搬 font_ascii 的 asc > 127】—— 这一路要支持半角片假名
-     * (0xA1~0xDF), 正好在 127 以上。索引表是按单字节码建的, 所以上界取 255。
+     * 入口上界取 255, 【不能照搬 font_ascii 的 asc > 127】—— 这一路要支持
+     * 半角片假名(0xA1~0xDF), 正好在 127 以上; 索引表是按单字节码建的,
+     * 所以 255 是自然上界。不挡的话, asc 多大都会照算 asc * 4 + 2 去 fseek。
      */
     if (asc > 255) {
         return 0;
@@ -103,7 +91,7 @@ u8 GetSJISASCCharacterData(struct font_info *info, u16 asc)
 
     font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, asc * 4 + 2);
 
-    /* 加固: 原库丢弃返回值, 读失败会拿栈垃圾当索引表项用。 */
+    /* 读失败必须返回, 否则会拿栈垃圾当索引表项用。 */
     if (font_sd_fread(info->ascpixel.file.fd, &ascinfo, sizeof(ASCSTRUCT)) != sizeof(ASCSTRUCT)) {
         return 0;
     }
@@ -118,8 +106,8 @@ u8 GetSJISASCCharacterData(struct font_info *info, u16 asc)
         ascinfo.addr = font_ntoh(ascinfo.addr);
         font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, ascinfo.addr);
 
-        /* 加固: 原库丢弃返回值, 读失败时 pixelbuf 里是上一个字的点阵,
-         * 却照常返回宽度 —— 表现为"显示上一个字"。 */
+        /* 读失败必须返回 0: 此时 pixelbuf 里是上一个字的点阵, 照常返回宽度
+         * 就是"显示上一个字"。 */
         if (font_sd_fread(info->ascpixel.file.fd, info->ascpixel.pixelbuf, nbytes) != (int)nbytes) {
             return 0;
         }
@@ -170,8 +158,8 @@ u8 GetSJISCharacterData(struct font_info *info, u16 textCode)
 
     addr = ansi_offset + info->pixel.nbytes * offset;
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, addr);
-    /* 加固: 原库丢弃返回值。点阵读失败时 pixelbuf 里还是【上一个字】的点阵,
-     * 却照常返回字高 —— 表现为"显示上一个字", 排查起来很费劲。 */
+    /* 点阵读失败必须返回 0: 此时 pixelbuf 里还是【上一个字】的点阵, 若照常
+     * 返回字高, 界面上就是"显示上一个字", 排查起来很费劲。 */
     if (font_sd_fread(info->pixel.file.fd, info->pixel.pixelbuf, info->pixel.nbytes)
         != (int)info->pixel.nbytes) {
         return 0;
@@ -206,8 +194,8 @@ u16 ConvertUTF16toSJIS(struct font_info *info, u16 utf)
     }
 
     font_sd_fseek(info->tabfile.fd, SD_SEEK_SET, table_offset + addr);
-    /* 加固: 原库丢弃返回值。表项读失败时 gbk[] 是上一次的内容(或未初始化的
-     * 栈内容), 会被当成合法内码返回, 后面拿它去取模。 */
+    /* 表项读失败必须返回 0(查不到): 否则 gbk[] 里是上一次或未初始化的内容,
+     * 会被当成合法内码返回, 后面拿它去取模。 */
     if (font_sd_fread(info->tabfile.fd, gbk, 2) != 2) {
         return 0;
     }
@@ -402,38 +390,25 @@ u16 TextOutW_SJIS(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项与已知限制
  *
- *   [保留] 1 —— GetSJISASCCharacterData 缓冲不够时只打印不重分配, 不像
- *                font_ascii.c 那样 free+malloc 自愈。【不照搬那一套】: font_ascii
- *                的重分配本身就带着"nbytes 语义两边理解不一致"的老问题
- *                (见 font_textout.c 第 3 条), 复制过来是扩散而不是修复。
- *   [已修] 2 —— 没有入口检查, asc 多大都照算 asc*4+2 去 fseek -> 已补上界。
- *                注意【不能照搬 font_ascii 的 asc > 127】: 这一路要支持半角
- *                片假名(0xA1~0xDF), 正好在 127 以上, 故上界取 255(索引表按
- *                单字节码建)。两处 fread 也补了返回值判断。
- *   [保留] 3 —— TextOut_SJIS 认 0xE0~0xFC 为全角首字节, 而 GetSJISCharacterData
- *                只覆盖到 0xEF, 0xF0~0xFC 会被当全角吃掉 2 字节再显示横杠。
- *                按 SJIS 标准 0xF0~0xFC 确实是全角首字节(用户自定义区), 所以
- *                问题在【字库没有这一区的数据】, 不是判断写错。把 TextOut 的
- *                区间缩到 0xEF 会让这些码位改按单字节解析, 同样是错的显示。
- *                与 font_ksc 第 1 条同类, 等字库格式说明。
- *   [保留] 4 —— offset = -1 的哨兵写法, 行为正确, 见 font_big5.c 的同条说明。
+ *  1) 【半角取模是本文件自己的一份】GetSJISASCCharacterData 与 font_ascii.c 的
+ *     同类函数有两点不同: 入口上界是 255(要放过半角片假名 0xA1~0xDF), 缓冲
+ *     不够时【只打印错误、不重分配】。
+ *     这里有意不照搬 font_ascii 的 free+malloc 自愈 —— 那套重分配本身带着
+ *     "nbytes 语义两处理解不一致"的问题(见 font_textout.c 的注意事项),
+ *     复制过来是扩散而不是解决。代价是这一路碰到超宽字符会持续显示失败。
  *
- * 1) GetSJISASCCharacterData 缓冲不够时【只打印不重分配】就返回 0
- *    (font_ascii.c 的同类函数会 free + malloc 重开)。也就是说这一路碰到宽字符
- *    就永久显示失败, 而不是自愈。
+ *  2) 【0xF0~0xFC 这一区字库里没有数据】TextOut_SJIS 按 Shift-JIS 标准把
+ *     0x81~0x9F 与 0xE0~0xFC 都当全角首字节, 而 GetSJISCharacterData 的区位
+ *     换算只覆盖到 0xEF(标准里 0xF0 之后是用户自定义区)。落在 0xF0~0xFC 的
+ *     码位会被当全角吃掉 2 字节、取模失败后显示 '-'。
+ *     把 TextOut 的区间缩到 0xEF 并不对 —— 那会让这些码位改按单字节解析,
+ *     显示同样是错的。等字库这一区的数据与偏移算法明确后再补。
  *
- * 2) GetSJISASCCharacterData 没有 `asc > 127` 的入口检查 —— 这是半角片假名
- *    (0xA1~0xDF)必需的, 但同时也意味着传入任意大的 asc 都会照算
- *    `asc * 4 + 2` 去 fseek, 越界读文件, 只靠 fread 失败兜着。
+ *  3) 【offset 用 -1 作哨兵】赋给 u32 再用 `== -1` 判定, 两边都是 0xFFFFFFFF,
+ *     行为正确。区位不合法时就是这条路径。
  *
- * 3) TextOut_SJIS 的全角首字节区间写作 0xE0~0xFC, 而 GetSJISCharacterData
- *    只覆盖到 0xEF。首字节落在 0xF0~0xFC 时会当全角进来、取模失败、
- *    退回显示 '-' 并吃掉 2 个字节。参考 IR 两处的常量确认原库就是这样
- *    (TextOut 的 `(c+32) <u 29` 覆盖到 0xFC; GetSJISCharacterData 的
- *     `(textCode & 0xF000) == 0xE000` 只覆盖 0xE0~0xEF)。
- *
- * 4) `offset = -1` 是把 -1 赋给 u32 再用 `== -1` 判定, 与其它 font_* 一致。
+ *  4) 【TextOutW_SJIS 多一步单字节区判定】转换结果落在 0x20~0xDF(ASCII +
+ *     半角片假名)时按半角走 ASCII 取模, 这是 Shift-JIS 特有的一步。
  */

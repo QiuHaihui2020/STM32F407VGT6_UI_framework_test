@@ -1,23 +1,16 @@
 /*
  * ui_circle.c —— 圆弧 / 环形进度条的位图绘制(1bpp 与 16bpp 两种位深)
  *
- * 【来源】从 cpu/br27/liba/ui_draw.a 的 ui_circle.c.o 还原。该库交付的是
- *   LLVM bitcode(非机器码)且保留完整调试信息, 故按 IR + DWARF 还原。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/ui_circle.ll
- *     原始路径: btsdk/lib/utils/ui/ui_draw/ui_circle.c
+ * 【本工程当前无调用者】环形进度条控件没有启用, 所以这份实现没有经过真机
+ *   验证 —— 启用前先自己走一遍。
  *
- * 【本工程为死代码】开源侧无调用者(sdk.lst 里的 get_rect_cover 来自
- *   interface/system/generic/rect.h 的 static inline, 不是本库), 无法真机
- *   验证, 结论只靠 verify.sh 的两级校验。
+ * 【行号约定】bitmap_set 的 3 处 ASSERT 内嵌 __LINE__, 预期落在 31 / 38 / 42。
+ *   本文件的类型定义是就地重述的(ui_draw/ui_circle.h 不在本工程的 -I 路径里),
+ *   序言比较长, 所以用下面的 #line 把行号拨回, 让断言打印的行号与函数自身的
+ *   逻辑行号对应。#line 之后的部分不要随意增删行。
  *
- * 【行号锁定】bitmap_set 的 3 处 ASSERT 必须落在原始行号 31 / 38 / 42
- *   (ASSERT 宏内嵌 __LINE__)。原厂前 10 行是 include, 类型定义都在
- *   ui_draw/ui_circle.h 里; 该头在本工程的 -I 路径之外(见文件头注释),
- *   只能就地重述类型, 序言放不进 10 行, 故用下面的 #line 把行号拨回。
- *   本文件由 cpu/br27/tools/ui_reimpl/gen_ui_circle.py 生成, 不要手改。
- *
- * 【段属性】代码在 .ui_circle.text; get_rect_cover 由 rect.h 的 AT_UI_RAM
- *   落在 .ui_ram, 与原厂一致。
+ * 【段属性】代码在 .ui_circle.text; get_rect_cover 由 jl_rect.h 的 AT_UI_RAM
+ *   落在 .ui_ram。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_circle.data")
@@ -28,9 +21,9 @@
 #include "jl_typedef.h"
 #include "jl_rect.h"
 #include "ui_math.h"
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
-/* 以下三个类型原厂在 ui_draw/ui_circle.h 里, 字段序列与 DWARF 逐项核对过 */
+/* 以下三个类型在 ui_draw/ui_circle.h 里也有一份, 字段顺序必须与那边一致 */
 typedef struct {
     uint16_t color;
     uint16_t width;
@@ -85,7 +78,7 @@ static inline void bitmap_set(const area_t *area, int x, int y)
     case 1:
         offset = y * pitch + x / 8;
         if (offset < area->len) {
-            /* 原厂此处有一条已被 LOG 宏关掉的打印 */
+            /* 越界只靠下面的 ASSERT 报, 不在这里打印: 每个像素都会走到 */
             ASSERT((y * pitch + x / 8) < area->len);
             bitmap[offset] |= BIT(x % 8);
         } break;

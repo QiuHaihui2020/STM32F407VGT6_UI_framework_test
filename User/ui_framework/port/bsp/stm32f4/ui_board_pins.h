@@ -16,8 +16,8 @@
  *   这两件事无法区分。
  *
  * @note token 的编码规则由本文件与 ui_hal_<mcu>.c 【共同约定】, 是纯粹的
- *       port 内部实现细节。换 MCU 时可以整套换掉(例如杰理直接用
- *       port*16+pin), 不需要通知任何人 —— ui_hal.h 对此完全无知。
+ *       port 内部实现细节。换 MCU 时可以整套换掉(比如改成 port*16+pin
+ *       这种紧凑编码), 不需要通知任何人 —— ui_hal.h 对此完全无知。
  */
 #ifndef __UI_BOARD_PINS_H__
 #define __UI_BOARD_PINS_H__

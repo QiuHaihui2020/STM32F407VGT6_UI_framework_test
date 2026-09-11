@@ -9,7 +9,7 @@
 #include "jl_lcd_drive.h"
 #include "ui/buffer_manager.h"
 #include "asm/imd.h"
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 
 struct ui_priv {
@@ -220,9 +220,9 @@ static int jlui_put_draw_context(struct draw_context *dc)
 #else
             __this->lcd->draw(dc->buf, dc->disp.height * dc->disp.width * 2, wait);
 #if (TCFG_SPI_LCD_ENABLE)
-            /* IMD 硬件推屏才需要等忙。点阵屏走的是 SPI DMA(见
-             * ui_pushScreen_manager.c), imd_var.imd_busy 从没人置位,
-             * 这里原本是个空操作。 */
+            /* 只有 IMD 硬件推屏才需要在这里等忙。点阵屏走的是 SPI DMA
+             * (见 ui_pushScreen_manager.c), imd_var.imd_busy 没人置位,
+             * 所以这条路径上这一句实际什么也不做。 */
             imd_wait();
 #endif
 #endif

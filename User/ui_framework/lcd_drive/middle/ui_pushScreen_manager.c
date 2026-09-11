@@ -4,26 +4,21 @@
 #pragma const_seg(".ui_pushScreen_manager.text.const")
 #pragma code_seg(".ui_pushScreen_manager.text")
 #endif
-/* COPYRIGHT NOTICE
- * 文件名称 ：ui_pushScreen_manager.c
- * 简    介 ：UI框架推屏管理层
- * 功    能 ：
- * 			输入控制：LCD屏幕驱动，板级SPI配置
- * 			出输控制：硬件SPI推TFT彩屏，硬件SPI推OLED点阵屏，IMD推TFT彩屏
+/**
+ * @file    ui_pushScreen_manager.c
+ * @brief   UI 框架推屏管理层
  *
- * 			输入作用：
- * 				LCD屏幕驱动：LCD初始化代码，LCD特别控制参数和方法
- * 				板级SPI配置：SPI模块选择，控制IO配置，SPI模块配置参数，LCD类型
- * 			输出根据：
- * 				lcd->type 判断为TFT彩屏或OLED屏，选择推点阵屏或彩屏
- * 				cpu	判断推TFT彩屏时使用硬件SPI还是IMD（具有IMD模块的芯片默认使用IMD，否则默认使用硬件SPI）
+ * 输入:
+ *   LCD 屏驱      初始化命令序列, 屏的专有控制参数与方法
+ *   板级 SPI 配置 SPI 实例、控制 IO、SPI 参数、LCD 类型
  *
- * 			说明：
- * 				点阵屏只能用SPI驱动推
- * 				TFT彩屏使用硬件SPI或IMD模块，可通过CPU宏来控制
+ * 输出通路的选择:
+ *   按 lcd->type 区分 TFT 彩屏与 OLED 点阵屏;
+ *   彩屏再按芯片是否带 IMD 模块决定走 IMD 还是硬件 SPI。
  *
- * 作    者 ：zhuhaifang
- * 创建时间 ：2022/05/10 10:26
+ * 说明:
+ *   点阵屏只能用 SPI 推;
+ *   彩屏可用硬件 SPI 或 IMD, 由 CPU 宏控制。
  */
 
 #include "ui_port_config.h"
@@ -68,10 +63,10 @@ static u8  backlight_status = 0;
 static u8  lcd_sleep_in     = 0;
 static volatile u8 is_lcd_busy = 0;
 static struct lcd_platform_data *lcd_dat = NULL;
-/* 原有 `struct mcpwm_config lcd_pwm_p_data;` 已删除: 该类型来自杰理的
- * asm/mcpwm.h(移植期由 port/ui_port.h 仿造), 而全工程【零处使用】——
- * TCFG_BACKLIGHT_PWM_MODE=0 走纯 GPIO, mcpwm_init/set_duty 连实现都没有。
- * 需要 PWM 调背光时, 在 port/bsp/ui_lcd_if.h 里加 ui_lcd_backlight_set() 更直接。 */
+/* 这里【不放】PWM 背光的配置结构体: TCFG_BACKLIGHT_PWM_MODE=0 时背光走纯
+ * GPIO, 全工程一处都用不上它, 放着还得跟着平台的 mcpwm 头文件走。
+ * 真要做 PWM 调光, 在 port/bsp/ui_lcd_if.h 里加一个 ui_lcd_backlight_set()
+ * 更直接 —— 占空比是板级知识, 不该出现在这一层。 */
 
 
 // 推屏管理模块私有参数，读写命令、数据需要根据不同屏幕配置，因此需根据屏幕类型设置
@@ -91,9 +86,8 @@ static struct ui_push_screen_var push_screen = {0};
  * 控制线。本文件【不知道任何引脚】—— 只说"把这条线拉高/拉低",
  * 接在哪个端口哪一位写在 port/bsp/stm32f4/ui_board_pins.h 里。
  *
- * 原厂这几个函数里是 `gpio_set_mode(lcd_dat->pin_cs / 16,
- * BIT(lcd_dat->pin_cs % 16), val)` —— 框架既持有引脚编号、又要自己把它
- * 拆成端口号加位掩码。现在这两件事都不关框架的事了。
+ * 所以这几个函数只做一层转发, 不写 `pin / 16`、`BIT(pin % 16)` 这类拆解 ——
+ * 那等于本层既持有引脚编号、又要知道端口一组是 16 位, 换个 MCU 两处都得改。
  *
  * 未接的线(本板的 BL/EN/TE)由 port 层静默忽略, 所以这里不需要逐个判空。
  */
@@ -125,9 +119,9 @@ static void spi_dc_ctrl(u8 val)
 // TE 控制
 static int spi_te_stat()
 {
-    /* 原厂这里先用 gpio_set_mode 的第三参把脚切成上拉/下拉/高阱再读 ——
-     * 那是杰理 gpio_set_mode() 复用第三参表示输入模式的约定。新接口里
-     * 读 TE 是独立的 ui_lcd_te_read(), 引脚方向在 ui_lcd_init() 里定好。
+    /* 读 TE 走独立的 ui_lcd_te_read(), 不把"上拉/下拉/高阻"这类输入模式
+     * 塞进某个通用 gpio 函数的第三个参数里 —— 那种一参多用的约定很难读,
+     * 而且引脚方向本来就该在 ui_lcd_init() 里一次定好。
      * @note 本板没接 TE, ui_lcd_te_read() 直接返回 -1, 让框架走不等 TE
      *       的直推路径 —— "有没接 TE" 也是 port 层的知识。 */
     return (int)ui_lcd_te_read();
@@ -195,12 +189,11 @@ int lcd_drv_backlight_ctrl(u8 on)
     if (__this->lcd->backlight_ctrl) {
         __this->lcd->backlight_ctrl(on);
     } else if (ui_lcd_has_backlight()) {
-        /* 原为 `else if (lcd_dat->pin_bl != -1)`。框架不再持有背光脚,
-         * 改成问 port 层"这块板能不能控背光" —— 语义等价,
-         * 但引脚这个概念不再出现在本层。
+        /* 这里问 port 层"这块板能不能控背光", 而不是去判某个背光引脚号是否
+         * 有效 —— 引脚这个概念不该出现在本层。
          *
-         * @note PWM_MODE == 0 分支原厂就是空的(GPIO 背光由 lcd_bl_ctrl()
-         *       单独控), 这里不动它 —— 本次只做分层, 不改行为。 */
+         * @note PWM_MODE == 0 这一支是空的: GPIO 背光由 lcd_bl_ctrl() 单独
+         *       控制, 走不到这里来。 */
 #if (TCFG_BACKLIGHT_PWM_MODE == 0)
 
 #elif (TCFG_BACKLIGHT_PWM_MODE == 1)
@@ -375,7 +368,7 @@ int lcd_drv_init(void *p)
     /* 给屏供电。没接使能脚时这是空操作 */
     ui_lcd_power(1);
 
-    /*** mcu屏io注册 br27 IMD not surpport mcu screen***/
+    /*** MCU 屏的 IO 注册: 当前 IMD 通路不支持 MCU 屏, 故整段留作注释 ***/
     /* __this->param->pap.wr_sel = lcd_dat->mcu_pins.pin_wr; */
     /* __this->param->pap.rd_sel = lcd_dat->mcu_pins.pin_rd; */
     /* printf("location [[%s : %s : %d]]\n", __FILE__, __FUNCTION__, __LINE__); */
@@ -650,9 +643,8 @@ int lcd_sleep_ctrl(u8 enter)
  *********************************************************************************************************
  */
 
-/* lcd_get_hdl() 已移到 config/ui_port_registry.c ——
- * 原实现遍历链接器收集的 .lcd_if_info 段, 移植后改为显式注册表,
- * 与控件/风格两张表放在同一个文件里便于对照。 */
+/* lcd_get_hdl() 的实现在 config/ui_port_registry.c —— 推屏接口用显式注册表,
+ * 不靠链接器收集段; 和控件表、页面回调表放在同一个文件里, 便于一起核对。 */
 
 
 void lcd_drv_set_draw_area(u16 xs, u16 xe, u16 ys, u16 ye)
@@ -711,33 +703,28 @@ static void lcd_bl_h()
 
 static int lcd_spi_send_byte(u8 byte)
 {
-    /* 原厂这里把返回值存进 ret 又恒返回 0(错误被吞掉)。改为如实返回 */
+    /* 如实把底层的结果返回去 —— 存进局部变量却恒返回 0 等于把错误吞掉 */
     return (int)ui_lcd_write_byte(byte);
 }
 
 /*
- * 原有的 spi_dma_wait_finish() 与 static int spi_pnd 已删除。
+ * 【等 DMA 只有一个入口】所有等待点都直接调 ui_lcd_wait_done()。
  *
- * 那份实现靠 spi_get_pending() 轮询, 而移植层里该函数恒返回 1 ——
- * 整个循环是空转, 真正的等待发生在 HAL 内部。留着它的害处是让人以为
- * 推屏有一套异步握手, 实际没有。现在所有等待点直接调
- * ui_lcd_wait_done(), 只有一个真实现。
- *
- * lcd_bl_io() 也一并删了: 它把引脚 token 当 u8 返回(会截断),
- * 而全工程零处调用。
+ * 这里不另写一个轮询 pending 位的等待函数: 真正的等待发生在 HAL 内部,
+ * 外面再包一层轮询只会空转, 还让人误以为推屏有一套异步握手。
+ * 一个真实现, 出问题时也只有一个地方要看。
  */
 
 /**
  * @brief 走 DMA 发一块数据
  * @param wait 非 0 = 发完才返回
  * @note 屏障必须在【启动 DMA 之前】: 确保调用方刚写进 buf 的显存内容已经
- *       落到内存, DMA 才读得到正确数据。原代码把 ui_lcd_memory_barrier()
- *       放在启动传输【之后】, 顺序是反的 —— 只因为那条路径实际是同步发送,
- *       这个错才没有暴露出来。
+ *       落到内存, DMA 才读得到正确数据。放到启动传输之后就是反的 ——
+ *       同步发送的路径上看不出问题, 一旦真走异步 DMA 就是花屏。
  */
 static int __spi_dma_send(const void *buf, u32 len, u8 wait)
 {
-    /* 原为 pi32 的 asm("csync")(流水线/写缓冲同步) */
+    /* 写缓冲同步。用哪条指令是架构相关的, 收在 port 层里 */
     ui_lcd_memory_barrier();
 
     return (int)ui_lcd_write_block((const u8 *)buf, len, wait);
@@ -772,11 +759,10 @@ void spi_dma_send_byte(u8 dat)
     }
 }
 /** 建立屏用到的全部硬件: 控制脚 + SPI + DMA。幂等
- * @note 原名 spi_init(int spi_cfg) —— 那个参数一路传到 shim 就被丢弃,
- *       真正的 SPI 实例选择在 board/ui_board_stm32f4.h。去掉参数后,
- *       "改哪里能换 SPI" 就只有一个答案。
- * @note 中断注册(原 LCD_SPI_INTERRUPT_ENABLE 分支的 request_irq)也去掉了:
- *       DMA 完成中断由 HAL 在 ui_lcd_init() 里自己配好并常开。 */
+ * @note 【故意不带参数】别给它加个 spi_cfg 之类的形参: 真正的 SPI 实例选择
+ *       在 board/ui_board_stm32f4.h, 多一个参数只会让人以为改它就能换 SPI,
+ *       传下去也是被丢掉。这样"改哪里能换 SPI"就只有一个答案。
+ * @note 这里也不注册中断: DMA 完成中断由 HAL 在 ui_lcd_init() 里配好并常开。 */
 static void lcd_hw_init(void)
 {
     if (ui_lcd_init() < 0) {
@@ -855,10 +841,9 @@ static void lcd_spi_dev_init(void *p)
     __this->param		= __this->lcd->param;	// 获取LCD参数配置
     lcd_dat = (struct lcd_platform_data *)cfg->private_data;
     ASSERT(lcd_dat, "Error! spi io not config");
-    /* 【顺序修正】先建硬件再写电平。原代码是先 gpio_set_mode() 写三个脚,
-     * 后调 spi_init() —— 而把引脚配成推挽输出恰好就在 spi_init() 里面,
-     * 那三次写是打在未配置的脚上(无效)。之后 port 层的引脚初始化又置了
-     * 一次空闲电平, 所以侥幸正确。现在顺序理顺了。 */
+    /* 【顺序要紧】先建硬件, 再写空闲电平。反过来写的话, 那三次写是打在还
+     * 没配成推挽输出的脚上, 根本不生效 —— 把引脚配成输出正是在
+     * lcd_hw_init() 里面做的。 */
     lcd_hw_init();
 
     ui_lcd_rst(1);
@@ -877,7 +862,7 @@ static int lcd_spi_set_draw_area(u16 xs, u16 xe, u16 ys, u16 ye)
         return 0;
     }
     is_lcd_busy = 1;
-    /* 原有 spi_set_ie(spi_cfg, 0) 已删: DMA 中断由 HAL 自己管, 框架不再开关它 */
+    /* 这里不去开关 SPI 的中断使能: DMA 中断由 HAL 自己管 */
     ui_lcd_wait_done();
 
     lcd_spi_write_cmd(0x2A);
@@ -945,9 +930,9 @@ static int lcd_spi_clear_screen(u16 color)
         lcd_spi_set_draw_area(0, -1, 0, -1);
         memset(line_buffer, 0x00, __this->param->lcd_width * __this->param->lcd_height / 8);
         lcd_spi_write_map((char *)line_buffer, __this->param->lcd_width * __this->param->lcd_height / 8);
-        /* write_map 是异步的(wait=0), 而下面立即 free(line_buffer) ——
-         * 不等完 DMA 就把源内存还给堆, 会推出垃圾或碰上重分配。
-         * 原代码只在 RGB565 分支等了, MONO 分支漏了。 */
+        /* write_map 是异步的(wait=0), 而下面马上就 free(line_buffer) ——
+         * 不等 DMA 完就把源内存还给堆, 会推出垃圾或碰上重分配。
+         * 两个分支都要等, 漏一个就是偶发花屏。 */
         ui_lcd_wait_done();
     } else {
         ASSERT(0, "the color_format %d not support yet!", __this->param->in_format);

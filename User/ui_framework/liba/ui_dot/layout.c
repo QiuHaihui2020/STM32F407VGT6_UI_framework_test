@@ -1,30 +1,15 @@
 /*
  * layout.c —— 布局容器
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 layout.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/layout.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/layout.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   layout_lose_focus@11  layout_on_focus@16  layout_highlight@22
- *   layout_ontouch@32  layout_onkey@50  layout_onchange@67  layout_init@113
- *   layout_release_probe@176  layout_release@184  layout_new@199
- *   __layout_new@225  layout_delete_probe@239  layout_delete@248
- *   __layout_show@261  __layout_hide@276  layout_show@284  layout_hide@295
- *   layout_toggle@307
- *
- *   layout_highlight 在原库已被内联进 layout_onchange(无独立 define)。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct layout: elm=0 位域(hide:1,inited:1,release:6)=72 layout=76
  *                  info=80 handler=84, sizeof=88
  *   struct layout_info: head=0 action=16 ctrl=20
  *   位域测试速记: & 1 -> hide, & 2 -> inited, 整字节 > 3 -> release != 0
  *
  * 【一个容易看错的点】布局的"是否已展开"用的是 inited(bit1), 不是 hide(bit0)。
- *   layout_toggle / layout_ontouch / layout_onkey 判的都是 inited, IR 里到处是
- *   and i8 x, 2。hide 位在本模块里其实没被读过(只在 layout_init 里被清零)。
+ *   layout_toggle / layout_ontouch / layout_onkey 判的都是 inited。
+ *   hide 位在本模块里其实没被读过(只在 layout_init 里被清零)。
  *
  * 【handler 可能为 NULL】与各控件模块不同, 本模块【没有】dumy_handler 兜底 ——
  *   layout_init 里 element_event_handler_for_id 查不到就是 NULL, 所以每次调用
@@ -50,10 +35,9 @@ void layout_on_focus(struct layout *layout)
 }
 
 /*
- * 原库 layout.c:22 有一个 layout_highlight(layout, arg) 辅助函数, 在原厂构建里
- * 被内联进了 layout_onchange(无独立 define)。本地 clang 因为有两处调用点而保留
- * 了函数体, 结果代码布局位移, 连带 layout_new/__layout_new/__layout_show 的
- * 机器码都对不上。故在两处调用点直接展开, 形态记录在此。
+ * 高亮切换那几行(查 widget_info -> 判 css_num -> set_element_css)在
+ * layout_onchange 里【两处调用点直接展开】, 没有单独包一个 helper ——
+ * 它只有两个调用点, 包起来编译器多半也会内联掉, 反而多一层跳转。
  */
 
 static int layout_ontouch(void *_elm, struct element_touch_event *e)
@@ -176,7 +160,7 @@ int layout_init(struct layout *layout, struct layout_info *info,
 
         css = platform_api->load_css(_info->head.page, _info->head.css);
 
-        /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+        /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
         ui_core_element_init(&layout->elm, _info->head.id, _info->head.page,
                              (u8)((u32)_info->head.css >> 29),
                              css, &event_handler, _info->action);
@@ -197,15 +181,13 @@ int layout_init(struct layout *layout, struct layout_info *info,
      * ctrl_num 必须【先取出来】, 绝对不能写成 i < _info->head.ctrl_num。
      *
      * platform_api->load_widget_info() 返回的是 ui_resources_manager.c 里
-     * 那个【唯一的 static union ui_control_info info】的地址(见其 return &info),
-     * 每次调用都会把它整块覆盖。而下面循环体里既调了 load_widget_info(child),
-     * 又通过 ops->new() 间接再调 —— 所以第 2 轮开始 _info 指向的内容已经不是
-     * 本 layout 的 info 了。
+     * 那个【唯一的 static union ui_control_info】的地址, 每次调用都会把它整块
+     * 覆盖。而下面循环体里既调了 load_widget_info(child), 又通过 ops->new()
+     * 间接再调 —— 所以第 2 轮开始 _info 指向的内容已经不是本 layout 的了。
      *
-     * 写成 i < _info->head.ctrl_num 的后果: 第 1 轮判定用的是真的 ctrl_num,
-     * 建完第一个控件后缓存被覆盖, 第 2 轮读到的是那个子控件的 ctrl_num(通常 0),
+     * 写成 i < _info->head.ctrl_num 的后果: 第 1 轮用的是真 ctrl_num, 建完
+     * 第一个控件后缓存被覆盖, 第 2 轮读到的是那个子控件的 ctrl_num(通常 0),
      * 循环立刻结束 —— 界面上只剩第一个控件, 而且【不会有任何报错】。
-     * 参考 IR 里这个 load 位于循环外(b5 的 %v55), 说明原厂源码也是局部变量。
      */
     ctrl_num = _info->head.ctrl_num;
     for (i = 0; i < ctrl_num; i++) {
@@ -216,7 +198,7 @@ int layout_init(struct layout *layout, struct layout_info *info,
         child = platform_api->load_widget_info(&head->type, 0xff);
         len = child->len;
 
-        /* 原为遍历 .control_ops 段; 移植后改为查显式注册表, 见 control.h */
+        /* 控件类型 -> ops 走显式注册表(见 control.h), 不依赖链接器的段收集 */
         ops = get_control_ops_by_type(child->type);
         if (!ops) {
             puts("!!!!!unknow:ctrl_type");
@@ -277,15 +259,15 @@ struct layout *layout_new(struct layout_info *info, int num,
 
 /*
  * 控件工厂入口 —— 由 ui_core 在建控件树时调用。
- * @note 原库这里【没有】检查 layout_new 的返回值就写 release 位, 见文末 TODO。
+ * @note layout_new 的返回值【必须判】, 见函数内说明。
  */
 static void *__layout_new(const void *_info, struct element *parent)
 {
     struct layout *layout;
 
     layout = layout_new((struct layout_info *)_info, 1, parent);
-    /* 加固: 原库不检查返回值 —— 内存不足时 layout_new 返回 NULL,
-     * 紧接着写 layout->release 就是空指针解引用。 */
+    /* 内存不足时 layout_new 返回 NULL, 不判的话紧接着写 layout->release
+     * 就是空指针解引用。 */
     if (layout == NULL) {
         return NULL;
     }
@@ -378,11 +360,18 @@ REGISTER_CONTROL_OPS(CTRL_TYPE_LAYOUT)
 };
 
 /*
- * 原库缺陷清单 + 加固状态(描述的是【原库】行为; 方括号是当前处理结果,
- * 差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *  [已修] __layout_new 未检查 layout_new 的返回值 —— 内存不足时 layout_new
- *         返回 NULL, 紧接着写 layout->release 就是空指针解引用。
- *  __layout_new 未检查 layout_new 的返回值 —— 内存不足时 layout_new 返回 NULL,
- *  紧接着写 layout->release 就是空指针解引用。
+ *  1) 【__layout_new 要判 layout_new 的返回值】内存不足时它返回 NULL, 紧接着
+ *     写 layout->release 就是空指针解引用。
+ *
+ *  2) 【ctrl_num 先取到局部变量】load_widget_info 返回的是一块公用缓存,
+ *     循环里会被覆盖 —— 详见 layout_init 里的说明。这是本文件最容易踩的坑。
+ *
+ *  3) 【release 位的含义】非 0 表示这个 layout 是控件工厂(__layout_new)动态
+ *     创建的, RELEASE_PROBE / RELEASE 要走"自己释放自己"; 静态数组创建的那些
+ *     由 layout_delete 统一释放。
+ *
+ *  4) 【handler 可能为 NULL】本模块没有 dumy_handler 兜底, 所以每次调用前都
+ *     要判两层(handler 与 handler->onchange)。
  */

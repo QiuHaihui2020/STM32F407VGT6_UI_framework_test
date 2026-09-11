@@ -1,14 +1,9 @@
 /*
  * ui_core_dot.c —— 点阵屏 UI 核心(元素树 / draw_context / 绘制 / 事件分发)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_core_dot.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_core_dot.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_core_dot.c
- *
- * 【本模块是整个 UI 框架的基础】其余各控件模块都依赖它。原库 72 个独立函数,
- *   其中 6 个(in_rect / get_rect_cover / get_rect_nocover_l/r/t/b)来自已开源的
- *   interface/system/generic/rect.h, 只要 include 就有, 不需要重写。
+ * 【本模块是整个 UI 框架的基础】其余各控件模块都依赖它。矩形运算
+ *   (in_rect / get_rect_cover / get_rect_nocover_l/r/t/b)在 jl_rect.h 里,
+ *   include 进来即可, 不在本文件实现。
  *
  * 【几个必须记住的结构约定】
  *   struct element(sizeof=72):
@@ -17,18 +12,19 @@
  *     +28 focus   +32 css(element_css, 32 字节)  +64 dc   +68 handler
  *
  *   【父子链表的挂法】element.child 是【链表头】, element.sibling 是【链表节点】。
- *   所以遍历子元素时, 拿到的 list_head 指针要【减 12】才是 element 起始
- *   (参考 IR 里到处是 getelementptr i8, %p, i32 -12)。
+ *   sibling 在 +12, 所以遍历子元素时拿到的 list_head 指针要【减 12】才是
+ *   element 的起始地址 —— 本文件里到处是这个 -12。
  *
  *   struct element_css 首字节是位域 {align:2, invisible:1, z_order:5},
- *   所以 IR 里的 `lshr i8 x, 3` 是取 z_order, `lshr 2 & 1` 是取 invisible。
+ *   取 z_order 就是右移 3, 取 invisible 是右移 2 再与 1。
  *
  *   【css 的 left/top/width/height 是万分比】相对父元素, 换算成绝对像素要
  *   乘父矩形再除 10000 —— 见 ui_core_get_element_abs_rect(它是递归的)。
  *
- * 【.ui_ram 段】原库把 ui_core_get_element_abs_rect 与 ui_core_get_dc 放在
- *   .ui_ram(见 ref IR 的 section 属性), 用 rect.h 里的 AT_UI_RAM 宏标注。
- *   get_rect_cover 也在该段, 但它由 rect.h 提供。
+ * 【.ui_ram 段】ui_core_get_element_abs_rect 与 ui_core_get_dc 放在 .ui_ram
+ *   (要在 RAM 里执行), 用 jl_rect.h 里的 AT_UI_RAM 宏标注 —— 它们在绘制
+ *   热路径上, 每个元素每帧都要走几次。get_rect_cover 同样在该段, 由
+ *   jl_rect.h 提供。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_core_dot.data.bss")
@@ -39,7 +35,7 @@
 
 #include "ui/ui_core.h"
 #include "jl_rect.h"
-#include "jl_debug.h"    /* ASSERT / config_asser: 原厂靠别处间接带入 */
+#include "jl_debug.h"    /* ASSERT / config_asser: 显式包含, 保证本文件自包含 */
 #include "ui_port_config.h"   /* UI_PORT_PUSH_TRACE: 上板排查开关 */
 
 /* 应用层没注册 handler 时的兜底; ui_core_set_default_handler 往里填回调 */
@@ -47,8 +43,8 @@ struct element_event_handler dumy_handler;
 
 struct ui_platform_api *platform_api;
 
-/* 前置声明: 定义在本文件靠后(2489 行), 但 1909 行就调用了它。
- * 原厂靠 C89 的隐式声明糊过去, C99 起是告警 + 默认 int 返回类型。 */
+/* 前置声明: 定义在本文件靠后, 但 ui_core_hide 里就要用它。
+ * 不声明的话 C99 起是"隐式声明"告警 + 默认 int 返回类型。 */
 int ui_core_redraw_old(void *_elm);
 
 
@@ -110,13 +106,11 @@ extern void ui_vslider_enable(void);
 extern void ui_number_enable(void);
 
 /*
- * @note ASSERT 宏在这里【手工展开】: 宏体里的 __FILE__ / __LINE__ 会被编进
- *       字符串常量, 用本地路径编出来的常量与原厂对不上(原厂是 90 字符的
- *       /jks/workspace/... 绝对路径, 行号 127)。其余模块凡是带 ASSERT 的
- *       地方(ui_core_api.c 等)都是同样的处理。
+ * @note 这里把 ASSERT 宏【手工展开】了: 宏体里的 __FILE__ 会把整条编译路径
+ *       编进字符串常量, 换个构建目录就变 —— 展开后写死相对路径与行号,
+ *       打印出来的位置才稳定。本文件与 ui_core_api.c 的几处 ASSERT 都这么做。
  *
- * @note memset 只在 p 非空时执行 —— 原厂 if.then16 只从 "p != NULL" 那条边
- *       进来, 不是无条件 memset。
+ * @note memset 只在 p 非空时做 —— 分配失败时没有可清的内存。
  */
 void *ui_core_malloc(int size)
 {
@@ -124,12 +118,12 @@ void *ui_core_malloc(int size)
 
     if (config_asser) {
         if (!p) {
-            int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
+            int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
             printf("cpu %d file:%s, line:%d", cnum,
-                   "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_dot.c",
+                   "liba/ui_dot/ui_core_dot.c",
                    127);
             puts("ASSERT-FAILD: p != NULL ui_core_malloc");
-            cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_dot.c",
+            cpu_assert("liba/ui_dot/ui_core_dot.c",
                        127, 0, "p != NULL");
         }
     } else {
@@ -162,7 +156,8 @@ void get_element_rect(struct element *elm, struct rect *r)
  * css 里的 left/top/width/height 是【万分比】(相对父元素的比例), 这里递归
  * 到根节点再一层层乘回去, 得到绝对像素矩形。
  *
- * @note 递归而不是循环 —— 参考 IR 里 if.end 分支就是对 elm->parent 的自调用。
+ * @note 用递归而不是循环: 换算必须自上而下(先有父矩形才能算子矩形),
+ *       递归天然就是这个顺序。控件树很浅, 不担心栈。
  */
 AT_UI_RAM
 void ui_core_get_element_abs_rect(struct element *elm, struct rect *rect)
@@ -236,17 +231,17 @@ void ui_core_remove_element(void *_child)
     list_del(&child->sibling);
 }
 
-/* 原库是空函数(只有 ret), 照留 */
+/* 空实现: 点阵屏没有"显示前准备"这一步, 留着是为了接口完整 */
 void ui_core_element_show(struct element *elm, int init)
 {
 }
 
-/* 原库是空函数(只有 ret), 照留 */
+/* 空实现: 触摸失焦在点阵屏上无事可做(没有触摸) */
 void ui_core_ontouch_lose_focus(struct element *elm)
 {
 }
 
-/* 原库直接 return 0, 淡入淡出在点阵屏上没实现 */
+/* 淡入淡出在点阵屏(1bpp)上没有意义, 恒返回 0 */
 int ui_core_element_fadein(int id, int value)
 {
     return 0;
@@ -299,7 +294,7 @@ int ui_core_open_platform_device(struct draw_context *dc, void *device)
  * 按 id 在所有已登记的页面回调表里查 —— 表本体见 config/ui_port_registry.c
  * 的 g_ui_handler_table, 每个页面一张。
  *
- * 原厂是在链接器拼出来的那一整段 handler 里 p++ 单层遍历; 本移植改成
+ * 段收集的做法是把所有 handler 拼成连续一段、单层 p++ 遍历; 本工程改成
  * "先遍历页面表, 再遍历表内条目"的双层, 语义一致(全表按 id 找第一个命中)。
  *
  * @note 表都很短(一页十来项), 线性查即可; 控件创建时查一次并把结果存进
@@ -322,12 +317,11 @@ const struct element_event_handler *element_event_handler_for_id(u32 id)
 }
 
 /*
- * 原厂在这里按名字从 .ui_style 段里选一套风格, 把它的 handler 表边界装进
- * elm_event_handler_begin/end。本移植去掉了"风格"这一层: 只有一套资源,
- * g_ui_handler_table 里所有页面的表全部生效, 不需要按名字选。
+ * "风格"这一层本工程去掉了: 只有一套资源, g_ui_handler_table 里所有页面的
+ * 表全部生效, 不需要按名字从多套里选。
  *
- * 保留函数是因为 ui_resources_manager.c 会拿资源文件名调它。返回恒 0 ——
- * 顺带消掉了原来"资源文件名与 STYLE_NAME 对不上 -> 整屏静默无响应"那类 bug。
+ * 函数保留是因为 ui_resources_manager.c 会拿资源文件名调它。返回恒 0 ——
+ * 顺带消掉了"资源文件名与风格名对不上 -> 整屏静默无响应"那类问题。
  */
 int ui_core_set_style(const char *style)
 {
@@ -364,8 +358,8 @@ struct element *ui_core_get_element_by_id(u32 id)
 }
 
 /*
- * @return 1 可见, 0 不可见, -ENOENT(-14) 找不到该 id
- * @note 返回的是 !invisible, 所以 IR 里是 lshr 2 -> and 1 -> xor 1。
+ * @return 1 可见, 0 不可见, -ENOENT 找不到该 id
+ * @note 返回的是 !invisible —— 注意与字段本身的极性相反。
  */
 int ui_core_get_disp_status_by_id(u32 id)
 {
@@ -382,9 +376,9 @@ int ui_core_get_disp_status_by_id(u32 id)
  * 开 draw_context 之前, 自底向上(先递归子节点, 再通知自己)给整棵子树发一次
  * ON_CHANGE_TRY_OPEN_DC, 让各控件有机会按需要调整 dc(例如 grid 改可视区)。
  *
- * @note 递归在【前】、通知自己在【后】—— 参考 IR 里 for.end(循环结束)之后
- *       才取 handler 调 onchange。
- * @note 传给 onchange 的 arg 是 dc 本身(IR 里是 &dc->ref, 即 dc 首字段地址)。
+ * @note 递归在【前】、通知自己在【后】: 子控件先调整完, 父控件才能拿到
+ *       最终的 dc 参数。
+ * @note 传给 onchange 的 arg 就是 dc 指针。
  */
 static void __try_open_draw_context(struct draw_context *dc, struct element *elm)
 {
@@ -464,7 +458,8 @@ static int ui_core_get_element(struct element *elm)
 
 /*
  * 引用计数减一; 减到 0 才真的释放 —— 清空子链表并给自己发 ON_CHANGE_RELEASE。
- * @note ref 是 5 位位域, 自减靠位域自然回绕(IR 里是 +31 再 &31)。
+ * @note ref 是 5 位位域, 自减是在位域宽度内回绕的 —— 不要在 ref 为 0 时再调
+ *       (ui_core_get_element 已经挡住了那种情况)。
  */
 static void ui_core_put_element(struct element *elm)
 {
@@ -486,12 +481,11 @@ static void ui_core_put_element(struct element *elm)
  * 并把 element 复位成"刚建好"的状态(ref = 1, 子链表与兄弟链表都自环)。
  *
  * @note 两处容易漏:
- *   1. z_order 为 0 时要改成 31(IR: css 首字节 < 8 时 or -8)。z_order 0 表示
- *      资源没填, 按"最上层"处理。
- *   2. image_quadrant 先按资源写一次, 最后又【清零】(IR 里对
- *      background_color 那个 i64 位域有两次 store, 最后一次把高 8 位清掉)。
+ *   1. z_order 为 0 时要改成 31 —— 0 表示资源里没填, 按"最上层"处理。
+ *   2. image_quadrant 先按资源写一次, 最后又【清零】: 象限是运行时才决定的,
+ *      资源里那份不作为初值。
  *
- * @note action 参数原库【没有使用】(IR 标了 readnone)。
+ * @note action 参数目前没有使用, 保留在签名里是为了接口稳定。
  */
 void ui_core_element_init(struct element *elm, u32 id, u8 page, u8 prj,
                           struct element_css1 *css,
@@ -544,8 +538,8 @@ void ui_core_element_init(struct element *elm, u32 id, u8 page, u8 prj,
  * 释放前的"预告"遍历: 深度优先给整棵子树发 ON_CHANGE_RELEASE_PROBE,
  * 让控件有机会先停定时器、放外部资源。
  *
- * @note 必须用 list_for_each_safe(先把 next 存下来再递归) —— 递归里可能会
- *       动链表。参考 IR 里 for.body 是先 load p->next 保存, 再处理 p。
+ * @note 必须用 list_for_each_safe(先把 next 存下来再递归) —— 递归里控件会
+ *       把自己从链表上摘掉。
  */
 static void ui_core_element_release_probe(struct element *elm)
 {
@@ -602,10 +596,10 @@ void ui_core_release_child(struct element *elm)
 }
 
 /*
- * @note 30 个 wait_call 节点是【一次 malloc 出来的连续数组】(480 = 30 * 16),
- *       全部挂进空闲链表; 之后 ui_core_show 之类要延后执行时从链表里取。
- * @note 末尾逐个调各控件模块的 xxx_enable() —— 那是让控件工厂注册进
- *       .control_ops 的入口(见 README 6.6)。
+ * @note 30 个 wait_call 节点是【一次 malloc 出来的连续数组】, 全部挂进空闲
+ *       链表; 之后 ui_core_show 之类要延后执行时从链表里取。
+ * @note 末尾逐个调各控件模块的 xxx_enable() —— 那是把控件模块链进固件的
+ *       入口(控件工厂的注册项在各模块的 .c 里)。
  */
 int ui_core_init(struct ui_platform_api *api, struct rect *rect)
 {
@@ -651,8 +645,8 @@ int ui_core_init(struct ui_platform_api *api, struct rect *rect)
  * yes != 0: 若 elm 已在链里就先把它摘掉(prev->focus = elm->focus), 然后压到链头。
  * yes == 0: 从链里摘掉并把自己的 focus 清空。
  *
- * @note 取焦那一支里, 摘掉之后【还继续遍历】(IR 里 if.end 跳的是 for.inc,
- *       不是退出); 只有 elm 恰好就是链头(prev == NULL)时才 break。照抄。
+ * @note 取焦那一支里, 摘掉之后【还继续遍历】—— 焦点链理论上不该有重复项,
+ *       但真出现了就一并摘掉; 只有 elm 恰好是链头(prev == NULL)时才 break。
  */
 void ui_core_element_on_focus(struct element *elm, int yes)
 {
@@ -690,7 +684,7 @@ void ui_core_element_on_focus(struct element *elm, int yes)
 /*
  * 递归把整棵子树的 highlight 位设成 yes, 每层都发一次 ON_CHANGE_HIGHLIGHT。
  * @return 状态没变化时返回 -1(不做任何事), 否则 0。
- * @note onchange 的 arg 是把 yes 当指针传(IR: inttoptr i32 %yes to i8*)。
+ * @note onchange 的 arg 是把 yes 直接当指针传(接收方也按整数取)。
  */
 int ui_core_highlight_element(struct element *elm, int yes)
 {
@@ -715,8 +709,7 @@ int ui_core_highlight_element(struct element *elm, int yes)
 
 /*
  * 换一套 css(高亮态/常态切换时用)。与 ui_core_element_init 里那段的区别:
- *   1. invisible 位【保持原值】—— 进来先存下来, 最后再写回(IR 开头的
- *      bf.clear = bf.load & 4 与末尾的 bf.set126 就是这件事)。
+ *   1. invisible 位【保持原值】—— 进来先存下来, 最后再写回。
  *      也就是说"是否隐藏"由 ui_core_show/hide 管, 不跟着 css 走。
  *   2. 没有 image_quadrant 清零, 也没有 z_order == 0 -> 31 的兜底。
  */
@@ -831,9 +824,9 @@ int ui_unlock_layer(int id)
  * 最后优先返回 min_elm(真正在上方的最近者), 没有才返回 max_elm ——
  * 也就是【绕回到最远的那一端】, 实现循环导航。
  *
- * @note 比较是【无符号】的(IR: icmp ugt), 且 min/max 初值就是未初始化的
- *       (IR 里 phi 的初值是 undef) —— 靠 min_elm/max_elm 为 NULL 来兜第一次。
- *       照抄, 不要"顺手"初始化成 0。
+ * @note 比较按【无符号】做; min / max 故意不给初值 —— 第一次进分支时靠
+ *       min_elm / max_elm 还是 NULL 来判定, 初始化成 0 反而会让"距离 0"
+ *       误判成已有候选。
  */
 struct element *ui_core_get_up_element(struct element *elm)
 {
@@ -877,9 +870,8 @@ struct element *ui_core_get_up_element(struct element *elm)
  * @note elm 自己没有 dc 时沿 parent 往上找第一个有 dc 的祖先, 并把它【记回
  *       elm->dc】(缓存), 下次就不用再找。
  *
- * @note width 取的是找到的那个 pdc, 而 height/lines/col_align/row_align 取的是
- *       【elm->dc】(刚被赋值的那个) —— 原厂 IR 里 %8 与 %38 是两次不同的读,
- *       混用的。值相同, 但照抄以对齐 IR。
+ * @note width 取自找到的那个 pdc, 而 height / lines / col_align / row_align
+ *       取自 elm->dc(上面刚赋过值) —— 两者此刻指向同一个 dc, 值相同。
  */
 int ui_core_get_draw_context(struct draw_context *dc, struct element *elm,
                              struct rect *draw)
@@ -893,15 +885,15 @@ int ui_core_get_draw_context(struct draw_context *dc, struct element *elm,
             parent = parent->parent;
         } while (!parent->dc);
 
-        /* ASSERT 手工展开, 行号与路径照原厂(见 ui_core_malloc 的说明) */
+        /* ASSERT 手工展开, 理由见 ui_core_malloc 的说明 */
         if (config_asser) {
             if (!parent) {
-                int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
+                int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
                 printf("cpu %d file:%s, line:%d", cnum,
-                       "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_dot.c",
+                       "liba/ui_dot/ui_core_dot.c",
                        273);
                 printf("ASSERT-FAILD: parent != NULL ");
-                cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_dot.c",
+                cpu_assert("liba/ui_dot/ui_core_dot.c",
                            273, 0, "parent != NULL");
             }
         } else {
@@ -933,8 +925,8 @@ int ui_core_get_draw_context(struct draw_context *dc, struct element *elm,
     dc->col_align        = elm->dc->col_align;
     dc->row_align        = elm->dc->row_align;
 
-    /* @note disp / draw 都是【逐字段】拷(原厂 IR 是 4 次 load+store,
-     *       不是结构体整体赋值/memcpy) */
+    /* @note disp / draw 都是【逐字段】拷, 不用结构体整体赋值 —— 将来
+     *       struct rect 加了字段时, 这里要显式决定拷不拷 */
     dc->disp.left   = pdc->disp.left;
     dc->disp.top    = pdc->disp.top;
     dc->disp.width  = pdc->disp.width;
@@ -1076,12 +1068,11 @@ struct element *ui_core_get_right_element(struct element *elm)
  *   DOWN:  先清 touch_focus; 命中矩形才继续(lock 住的元素跳过命中判定);
  *          子元素优先, 都不要时自己 handler 消费了就把 touch_focus 设成自己。
  *   MOVE:  只发给 touch_focus, 且【重新组一个 event】——
- *          只填 onfocus/event/pos 三样, 其余字段是栈上的未初始化值(原库如此)。
+ *          只填 onfocus/event/pos 三样, 其余字段靠 memset 清零(见函数内说明)。
  *   HOLD/UP(default): 直接发给 touch_focus; UP 之后清掉 touch_focus。
  *
- * @note MOVE 与 default 两支调 touch_focus->handler->ontouch 时【都没判空】,
- *       且 put 之前【重新读了一次 touch_focus】(handler 里可能改过它)。
- *       见文末 TODO。
+ * @note MOVE 与 default 两支里, handler / ontouch 都要判空 —— touch_focus
+ *       可能是个没注册 handler 的元素。
  */
 int ui_core_element_ontouch(struct element *elm, struct element_touch_event *e)
 {
@@ -1159,9 +1150,9 @@ _exit:
 
         ui_core_get_element_abs_rect(elm, &r);
 
-        /* 加固: 原库只填 onfocus / event / pos 三样就把 ev 交给 handler,
-         * 其余字段(xoffset / yoffset / hold_up / move_dir / private_data /
-         * has_energy)全是栈上的未初始化值。先整体清零再填。 */
+        /* ev 是栈上的, 【必须先整体清零】再填 —— 只填 onfocus / event / pos
+         * 三样的话, xoffset / yoffset / hold_up / move_dir / private_data /
+         * has_energy 就都是垃圾值, 交给 handler 会随机触发滑动之类的处理。 */
         memset(&ev, 0, sizeof(ev));
 
         ev.onfocus = in_rect(&r, &e->pos);
@@ -1173,7 +1164,7 @@ _exit:
             return 0;
         }
 
-        /* 加固: 原库直接调, 没判 handler 与 ontouch(同函数上面两处都判了)。 */
+        /* handler / ontouch 都要判空(同函数上面两处也是这么判的)。 */
         ret = 0;
         if (touch_focus->handler && touch_focus->handler->ontouch) {
             ret = touch_focus->handler->ontouch(touch_focus, &ev);
@@ -1191,7 +1182,7 @@ _exit:
             return 0;
         }
 
-        /* 加固: 同 MOVE 支, 原库直接调没判空。 */
+        /* 同 MOVE 支: handler / ontouch 都要判空。 */
         ret = 0;
         if (touch_focus->handler && touch_focus->handler->ontouch) {
             ret = touch_focus->handler->ontouch(touch_focus, e);
@@ -1277,12 +1268,8 @@ _ret:
  *
  *   有可见焦点 -> 走【焦点元素】: 先给焦点自己, 不消费就沿 parent 一路往上冒泡。
  *
- * @note 三处原库缺陷(保持等价, 见文末 TODO):
- *   1. 焦点那条路上调 focus->handler->onkey 时【没判 handler 与 onkey 为空】。
- *   2. 冒泡那段里 ui_core_get_element 返回值判的是 > 0(不是 >= 0), 且拿到
- *      引用后【重新 load 了一次 handler 与 onkey】才调用。
- *   3. 第一条路子里子元素消费掉按键后, 返回值仍然是 0(原厂 do.end 的 phi
- *      在那条边上给的就是 0) —— 上层会以为没人处理。
+ * @note 两条路都要判 handler / onkey 为空, 且子元素消费掉按键后要把返回值
+ *       置 1, 否则上层会以为没人处理、继续把这个键分发给别人。
  */
 int ui_core_element_onkey(struct element *elm, struct element_key_event *e)
 {
@@ -1313,11 +1300,8 @@ int ui_core_element_onkey(struct element *elm, struct element_key_event *e)
             }
             if (__ui_core_onkey(c, e)) {
                 /*
-                 * 加固: 原库这里【只 break 不置 ret】(原厂 do.end 的 phi 在这条
-                 * 边上给的就是 0), 于是子元素明明已经消费掉按键, 返回给上层的
-                 * 却是"没人处理"。
-                 * @note 这会改变上层行为(原本可能继续把该键分发给别人),
-                 *       需要真机验证一遍按键响应。
+                 * 子元素消费掉按键时【必须置 ret = 1】再 break —— 只 break 的话
+                 * 返回给上层的是"没人处理", 上层会继续把这个键分发给别人。
                  */
                 ret = 1;
                 break;
@@ -1335,9 +1319,7 @@ _put_elm:
 
     ret = 0;
 
-    /* 加固: 原库这里【直接调】focus->handler->onkey, 既没判 handler 也没判
-     * onkey —— 焦点元素没注册 handler 时就是空指针解引用。注意同函数上面那条
-     * 路子(无焦点时)判了两层, 只有这里漏了。 */
+    /* 这里同样要判两层(handler 与 onkey): 焦点元素完全可能没注册 handler。 */
     if (focus->handler && focus->handler->onkey
         && focus->handler->onkey(focus, e)) {
         ret = 1;
@@ -1401,9 +1383,9 @@ struct element *ui_core_get_next_elm(struct element *elm)
  *
  * @return 1 表示已经得出结论(调用方不用再往下找), 0 表示这一层没找到。
  *
- * @note background_color == 0xffffff 被当作"透明/不画背景"的哨兵值: 遇到这种
- *       兄弟直接返回 1 而【不改 redraw】—— 它盖住了但不会真的挡住内容。
- *       (同一个哨兵值在 window_show 里也出现过。)
+ * @note background_color == 0xffffff 是"透明/不画背景"的哨兵值: 遇到这种
+ *       兄弟直接返回 1 而【不改 redraw】—— 它盖在上面, 但不会真的挡住内容。
+ *       (同一个哨兵值在 window_show 里也用到。)
  * @note redraw 的取值: 覆盖区与目标矩形完全相同 -> 0(整块被盖住);
  *       只是部分重叠 -> 2。
  */
@@ -1480,7 +1462,7 @@ int ui_core_show_background(struct element *parent, struct rect *rect,
 /*
  * 真正画一个元素的一块区域。整个绘制流程的最底层。
  *
- * 顺序(每一步都要照抄, 控件靠这几个回调分工):
+ * 顺序(不要调整, 控件靠这几个回调分工):
  *   1. ON_CHANGE_SHOW_PROBE(4)  —— 给控件调整内容的机会(arg 为 NULL)
  *   2. ui_core_get_draw_context —— 组一个临时 dc
  *   3. ON_CHANGE_SHOW(5)        —— 控件自己画; 【返回 0 就整个结束】
@@ -1962,8 +1944,8 @@ int ui_core_hide(void *_elm)
  * 从空闲队列里取一个延后调用的节点; 队列空(或队头那个还在用)就 malloc 一个。
  * 与 ui_core_api.c 里的同名函数是同一套写法。
  *
- * @note 用 __list_del_entry(只做 __list_del 的两次 store), 不是 list_del ——
- *       后者会额外做自环初始化。取到之后还判了一次 p(恒真), 照抄。
+ * @note 用 __list_del_entry 而不是 list_del —— 后者会额外把节点初始化成
+ *       自环, 而这个节点马上就要被复用, 那两次写是多余的。
  */
 static struct ui_core_wait_call *__get_call_entry(void)
 {
@@ -2082,8 +2064,8 @@ static void __do_wait_call(void)
  *            redraw == 3 -> 先画自己背景, 再从【父元素】重画
  *            其它        -> 先画自己背景, 再从自己重画
  *
- * @note 早退路径(裁剪后没有可见区域)【直接返回, 没有 put_element 也没有把
- *       handl.count 减回去】—— 原库如此, 见文末 TODO, 这是个真缺陷。
+ * @note 所有早退路径都必须 goto _end —— 既要还引用, 也要把 handl.count
+ *       减回去, 见下面各处说明。
  */
 int ui_core_redraw(void *_elm)
 {
@@ -2123,9 +2105,10 @@ int ui_core_redraw(void *_elm)
     handl.count = 1;
 
     if (ui_core_get_element(elm) < 0) {
-        /* 加固: 这一处【不能走 _end】—— 引用根本没拿到, 不该 put。
-         * 但 handl.count 上一行刚置 1, 原库直接 return 就把它永久卡住了,
-         * 之后所有 redraw 都会被当成"正在绘制"排队, 界面再也不刷新。 */
+        /* 这一处【不能走 _end】—— 引用根本没拿到, 不该 put。
+         * 但上一行刚把 handl.count 置 1, 所以必须就地复位:
+         * count 一旦卡在 1, 之后所有 redraw 都会被当成"正在绘制"排进队列,
+         * 界面就再也不刷新了。 */
         handl.count = 0;
         return -EINVAL;
     }
@@ -2140,10 +2123,10 @@ int ui_core_redraw(void *_elm)
     if (r.left < 0) {
         r.width += r.left;
         if (r.width < 0) {
-            /* 加固: 原库这里【直接 return, 不走 _end】—— 引用没还回去
-             * (ui_core_put_element), ui_core_redraw 里还漏了把 handl.count
-             * 减回去。后者更要命: count 一旦卡在 1, 之后所有 redraw 都会被
-             * 当成"正在绘制"排进队列, 【界面就再也不刷新了】。 */
+            /* 早退也要 goto _end: 引用要还(ui_core_put_element), 而
+             * ui_core_redraw 里还得把 handl.count 减回去 —— count 一旦卡在 1,
+             * 之后所有 redraw 都会被当成"正在绘制"排进队列,
+             * 【界面就再也不刷新了】。 */
             err = -EINVAL;
             goto _end;
         }
@@ -2153,10 +2136,10 @@ int ui_core_redraw(void *_elm)
     if (r.top < 0) {
         r.height += r.top;
         if (r.height < 1) {
-            /* 加固: 原库这里【直接 return, 不走 _end】—— 引用没还回去
-             * (ui_core_put_element), ui_core_redraw 里还漏了把 handl.count
-             * 减回去。后者更要命: count 一旦卡在 1, 之后所有 redraw 都会被
-             * 当成"正在绘制"排进队列, 【界面就再也不刷新了】。 */
+            /* 早退也要 goto _end: 引用要还(ui_core_put_element), 而
+             * ui_core_redraw 里还得把 handl.count 减回去 —— count 一旦卡在 1,
+             * 之后所有 redraw 都会被当成"正在绘制"排进队列,
+             * 【界面就再也不刷新了】。 */
             err = -EINVAL;
             goto _end;
         }
@@ -2166,13 +2149,13 @@ int ui_core_redraw(void *_elm)
     dc = elm->dc;
 
     if (dc->rect.top + dc->rect.height < r.top) {
-        /* 加固: 同上, 原库直接 return 不走 _end, 引用与 handl.count 都没还。 */
+        /* 同上: 早退也要 goto _end, 引用与 handl.count 都要还。 */
         err = -EINVAL;
         goto _end;
     }
 
     if (dc->rect.left + dc->rect.width < r.left) {
-        /* 加固: 同上, 原库直接 return 不走 _end, 引用与 handl.count 都没还。 */
+        /* 同上: 早退也要 goto _end, 引用与 handl.count 都要还。 */
         err = -EINVAL;
         goto _end;
     }
@@ -2528,7 +2511,7 @@ int ui_core_show_old(void *_elm, int init)
  * 旧版局部重绘。没有重入排队、没有遮挡判断、没有对齐扩边 ——
  * 裁剪完就整块交给 ui_core_redraw_rect_old。
  *
- * @note 早退路径同样【不 put_element】(与 ui_core_redraw 一样的缺陷), 照抄。
+ * @note 早退路径同样要 goto _end 把引用还回去。
  */
 int ui_core_redraw_old(void *_elm)
 {
@@ -2551,10 +2534,10 @@ int ui_core_redraw_old(void *_elm)
     if (r.left < 0) {
         r.width += r.left;
         if (r.width < 0) {
-            /* 加固: 原库这里【直接 return, 不走 _end】—— 引用没还回去
-             * (ui_core_put_element), ui_core_redraw 里还漏了把 handl.count
-             * 减回去。后者更要命: count 一旦卡在 1, 之后所有 redraw 都会被
-             * 当成"正在绘制"排进队列, 【界面就再也不刷新了】。 */
+            /* 早退也要 goto _end: 引用要还(ui_core_put_element), 而
+             * ui_core_redraw 里还得把 handl.count 减回去 —— count 一旦卡在 1,
+             * 之后所有 redraw 都会被当成"正在绘制"排进队列,
+             * 【界面就再也不刷新了】。 */
             err = -EINVAL;
             goto _end;
         }
@@ -2564,10 +2547,10 @@ int ui_core_redraw_old(void *_elm)
     if (r.top < 0) {
         r.height += r.top;
         if (r.height < 0) {
-            /* 加固: 原库这里【直接 return, 不走 _end】—— 引用没还回去
-             * (ui_core_put_element), ui_core_redraw 里还漏了把 handl.count
-             * 减回去。后者更要命: count 一旦卡在 1, 之后所有 redraw 都会被
-             * 当成"正在绘制"排进队列, 【界面就再也不刷新了】。 */
+            /* 早退也要 goto _end: 引用要还(ui_core_put_element), 而
+             * ui_core_redraw 里还得把 handl.count 减回去 —— count 一旦卡在 1,
+             * 之后所有 redraw 都会被当成"正在绘制"排进队列,
+             * 【界面就再也不刷新了】。 */
             err = -EINVAL;
             goto _end;
         }
@@ -2577,13 +2560,13 @@ int ui_core_redraw_old(void *_elm)
     dc = elm->dc;
 
     if (dc->rect.top + dc->rect.height < r.top) {
-        /* 加固: 同上, 原库直接 return 不走 _end, 引用与 handl.count 都没还。 */
+        /* 同上: 早退也要 goto _end, 引用与 handl.count 都要还。 */
         err = -EINVAL;
         goto _end;
     }
 
     if (dc->rect.left + dc->rect.width < r.left) {
-        /* 加固: 同上, 原库直接 return 不走 _end, 引用与 handl.count 都没还。 */
+        /* 同上: 早退也要 goto _end, 引用与 handl.count 都要还。 */
         err = -EINVAL;
         goto _end;
     }
@@ -2639,51 +2622,32 @@ _end:
 }
 
 /*
- * 原库缺陷清单 + 加固状态(描述的是【原库】行为; 方括号是当前处理结果,
- * 差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *  [已修] 1. ui_core_redraw / ui_core_redraw_old 的【早退路径不释放引用】——
- *            裁剪后没有可见区域时直接 return -EINVAL, 没走 ui_core_put_element;
- *            ui_core_redraw 还漏了把 handl.count 减回去。后者更严重: count 一旦
- *            卡在 1, 之后所有 redraw 都会被当成"正在绘制"排进队列, 【界面就再也
- *            不刷新了】。八处早退已全部改走 _end; 唯独 get_element 失败那处
- *            【不能走 _end】(引用根本没拿到, 不该 put), 改为就地复位 count。
- *  [已修] 2. ui_core_element_onkey 的焦点路径上 focus->handler->onkey 是【直接
- *            调】的, 没判 handler 与 onkey 为空 —— 焦点元素没注册 handler 时
- *            空指针解引用。(同函数无焦点那条路子是判了两层的, 只有这里漏了。)
- *  [保留] 3. 冒泡那段里 ui_core_get_element 的返回值判的是 > 0 而不是 >= 0。
- *            【这不是缺陷】: ui_core_get_element 失败返回 -EINVAL, 成功返回
- *            elm->ref 自增【之后】的值, 而进入时 ref != 0, 所以成功时必 >= 2
- *            —— > 0 与 >= 0 在这里完全等价。至于"拿到引用后又重新 load 一次
- *            handler/onkey": 单线程 UI 任务里不存在 TOCTOU, 保持原样。
- *  [已修] 4. 第一条路子里子元素消费掉按键之后返回值仍是 0(原厂 do.end 的 phi
- *            在那条边上给的就是 0), 上层会以为没人处理。已置 ret = 1。
- *            @note 这会改变上层行为(原本可能继续把该键分发给别人), 需真机验证。
- *  [已修] 5. ui_core_element_ontouch 的 MOVE 与 HOLD/UP 两支调
- *            touch_focus->handler->ontouch 时同样没判空。已补。
- *  [已修] 6. MOVE 支里那个临时 event 只填了 onfocus/event/pos 三样, 其余字段
- *            (xoffset/yoffset/hold_up/move_dir/private_data/has_energy)是栈上
- *            未初始化值就传给了 handler。已在填之前整体 memset。
+ *  1) 【早退路径一律 goto _end】ui_core_redraw / ui_core_redraw_old 里, 裁剪后
+ *     没有可见区域时不能直接 return: 引用要还(ui_core_put_element), 而
+ *     ui_core_redraw 还得把 handl.count 减回去 —— count 一旦卡在 1, 之后所有
+ *     redraw 都会被当成"正在绘制"排进队列, 界面就再也不刷新了。
+ *     唯一的例外是 ui_core_get_element 失败那处: 引用根本没拿到, 不能 put,
+ *     所以在那里就地把 count 复位。
  *
- *  1. ui_core_redraw / ui_core_redraw_old 的【早退路径不释放引用】——
- *     裁剪后没有可见区域时直接 return -EINVAL, 没走 ui_core_put_element,
- *     ui_core_redraw 还漏了把 handl.count 减回去。后者更严重: count 一旦
- *     卡在 1, 之后所有 redraw 都会被当成"正在绘制"而排进队列, 界面就再也
- *     不刷新了。修法: 早退改为 goto _end。
+ *  2) 【每个回调指针都判两层】handler 本身与具体的 ontouch / onkey / onchange
+ *     都要判空 —— 元素完全可能没注册 handler(焦点元素、touch_focus 尤其容易
+ *     碰到)。
  *
- *  2. ui_core_element_onkey 的焦点路径上, focus->handler->onkey 是【直接调】的,
- *     没判 handler 与 onkey 为空。焦点元素没注册 handler 时空指针解引用。
+ *  3) 【按键被消费后要如实返回 1】ui_core_element_onkey 里子元素消费掉按键时,
+ *     必须置 ret = 1 —— 返回 0 会让上层继续把这个键分发给别人。
  *
- *  3. 同函数冒泡那段里 ui_core_get_element 的返回值判的是 > 0 而不是 >= 0,
- *     且拿到引用后又重新 load 了一次 handler/onkey 才调用。
+ *  4) 【临时 event 要先清零】ui_core_element_ontouch 的 MOVE 支里那个栈上
+ *     event 只填三个字段, 其余必须靠 memset 清零, 否则 handler 会读到垃圾
+ *     (xoffset / move_dir 之类会随机触发滑动处理)。
  *
- *  4. ui_core_element_onkey 第一条路子里, 子元素消费掉按键之后返回值仍然是 0
- *     (原厂 do.end 的 phi 在那条边上给的就是 0), 上层会以为没人处理。
+ *  5) 【遍历子元素的方向】事件分发一律【从尾往前】(child.prev 起) —— child
+ *     按 z_order 升序挂, 反向就是从最上层往下问; 绘制则是【从头往后】,
+ *     即从底层往上画。两处不要弄反。
+ *     两者都要用 safe 版遍历, 因为回调里可能把元素摘掉。
  *
- *  5. ui_core_element_ontouch 的 MOVE 与 HOLD/UP 两支调
- *     touch_focus->handler->ontouch 时同样没判空。
- *
- *  6. ui_core_element_ontouch 的 MOVE 支里那个临时 event 只填了
- *     onfocus/event/pos 三样, 其余字段(xoffset/yoffset/hold_up/move_dir/
- *     private_data/has_energy)是栈上的未初始化值就传给了 handler。
+ *  6) 【引用计数】凡是在回调前后可能被释放的元素, 都要用
+ *     ui_core_get_element / ui_core_put_element 夹住。get 返回负数表示
+ *     ref 已经是 0(正在销毁), 这时直接放手。
  */

@@ -14,15 +14,14 @@
  * (实代码 ~100 行), 在 port/res/ui_res_backend.h 的 CTX_SIZE 表里加一行,
  * 改 config/ui_port_config.h 的 UI_RES_BACKEND_* 宏。core 与框架都不动。
  *
- * 接口面已按【实际调用】收敛过 —— 原先还有 resfile_get_pos /
- * resfile_get_name / resfile_write / fread_fast / fseek_fast 五个, 全工程
- * 零调用, 却让每个移植者都要白写一遍(get_name 还要在句柄里存一份
- * 文件名, 8 个句柄白占 128 字节 RAM)。真需要写入能力时再加, 到时
- * 只有一个调用方, 接口形状反而能按真实需求定。
+ * 接口面按【实际调用】来定: 只声明框架真正用得到的这几个函数。写入、
+ * 取当前位置、取文件名一类的能力先不放进来 —— 每多一个函数, 每个新后端
+ * 都得白实现一遍(取文件名还要在句柄里存一份路径, 8 个句柄就是 128 字节
+ * RAM)。真需要写入能力时再加, 到时只有一个调用方, 接口形状反而能按真实
+ * 需求定。
  *
- * @note 接口名沿用杰理的 resfile_* / mount, 是为了让框架 39 个 .c 的调用点
- *       一行都不用改 —— 这些名字本身就是一套通用的只读文件 API,
- *       没有平台语义。
+ * @note 函数名用 resfile_* / mount 这套通用只读文件 API 的叫法, 让 39 个
+ *       .c 的调用点读起来一致, 也不带任何平台语义。
  */
 #ifndef __JL_FS_H__
 #define __JL_FS_H__
@@ -118,7 +117,7 @@ int resfile_close(RESFILE *fp);
  *  兼容用的零碎项
  * ==================================================================== */
 
-/** 杰理时间戳。框架里只作为 vfs_attr 的成员出现, 不参与逻辑 */
+/** 文件时间戳。框架里只作为 vfs_attr 的成员出现, 不参与逻辑 */
 struct sys_time {
     u16 year;
     u8  month;
@@ -140,7 +139,7 @@ struct vfs_attr {
 
 
 /* ---- 歌词索引回写用的 flash 直存 ------------------------------------
- * 【本移植不支持】—— 开关在 config/ui_port_config.h 的
+ * 【本工程不支持】—— 开关在 config/ui_port_config.h 的
  * UI_PORT_LYRICS_FLASH_SAVE_ENABLE, 默认 0, 存根实现在
  * liba/common/ui_port_stubs.c。
  *
@@ -148,8 +147,7 @@ struct vfs_attr {
  * 链接器会把 lyrics.o 连这两个存根整个丢弃(实测 42 个 section 全被移除),
  * 所以声明留在这里不占任何空间。
  *
- * ☠ 声明不能删: lyrics.c 经本文件拿到它们, 而那个文件受等价性锁
- *   保护改不得 —— 删了就是隐式声明错误。 */
+ * ☠ 声明不能删: lyrics.c 经本文件拿到它们 —— 删了那边就是隐式声明错误。 */
 u32 sdfile_cpu_addr2flash_addr(u32 addr);
 u32 sdfile_flash_addr2cpu_addr(u32 addr);
 /* sfc_erase / sfc_write 有意不在这里声明: liba/ui_dot/lyrics.c 自己 extern 了

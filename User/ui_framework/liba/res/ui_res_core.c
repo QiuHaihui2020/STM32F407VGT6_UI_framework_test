@@ -277,7 +277,7 @@ int resfile_get_attrs(RESFILE *fp, struct resfile_attrs *attrs)
 
     attrs->attr  = 0;               /* 只读资源, 无特殊属性位 */
     attrs->fsize = (u32)size;
-    /* sclust 是杰理 VFS 的起始簇号, 框架只在 flash 直存路径用它 ——
+    /* sclust 是 VFS 语义下的起始簇号, 框架只在 flash 直存路径用它 ——
      * 那条路已由 UI_PORT_LYRICS_FLASH_SAVE_ENABLE 关闭。填 0 表示"拿不到",
      * 调用方(liba/ui_dot/lyrics.c:564)靠判空放弃。 */
     attrs->sclust = 0;

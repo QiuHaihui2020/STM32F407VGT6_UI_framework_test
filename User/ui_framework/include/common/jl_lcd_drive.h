@@ -2,8 +2,8 @@
  * @file    jl_lcd_drive.h
  * @brief   屏驱注册结构体与推屏接口定义
  *
- * 只保留本移植真正用到的部分(原厂那份还带彩屏 QSPI/DSPI/RGB 的一大堆
- * 像素格式组合宏, 点阵屏一个都用不到)。
+ * 只定义本工程用得到的部分: 彩屏那套 QSPI/DSPI/RGB 的像素格式组合宏,
+ * 点阵屏一个都用不到, 就不往这里堆。
  */
 #ifndef __JL_LCD_DRIVE_H__
 #define __JL_LCD_DRIVE_H__
@@ -66,7 +66,7 @@ extern void delay_2ms(int cnt);
 enum LCD_COLOR {
     LCD_COLOR_RGB888,
     LCD_COLOR_RGB565,
-    LCD_COLOR_MONO,     /**< 单色点阵, 本移植用这个 */
+    LCD_COLOR_MONO,     /**< 单色点阵, 本工程用这个 */
 };
 
 enum LCD_IF {
@@ -80,17 +80,17 @@ enum LCD_IF {
  * OUTPUT_FORMAT_* 与 LCD_COLOR_MODE/LCD_DATA_MODE 由 asm/imd.h 以 enum
  * 形式给出, 这里【不能】再用 #define 重复定义 —— 宏会把 imd.h 里的
  * 枚举名替换掉, 报 "expected identifier"。
- * 两边取值已核对一致: RGB888=0, RGB565=1, 本移植的 MONO=2。 */
+ * 两边取值已核对一致: RGB888=0, RGB565=1, 本工程的 MONO=2。 */
 
 
 /* ---- 屏驱配置字 -----------------------------------------------------
  * 屏驱文件用一个 u32 把 "SPI 线制 + 输出色彩格式 + 像素打包方式" 打包成
  * LCD_DRIVE_CONFIG, 再用 SPI_IF_MODE/OUT_FORMAT/PIXEL_TYPE 解包填进
- * struct imd_param。本移植不走 IMD 硬件推屏, 这几个字段实际不参与推屏,
- * 但屏驱源码要用, 故保留原厂的打包规则。
+ * struct imd_param。本工程不走 IMD 硬件推屏, 这几个字段实际不参与推屏,
+ * 但屏驱源码要用, 故保留这套打包规则。
  *
  * 右边那些常量(SPI_MODE / SPI_WIRE4 / FORMAT_RGB565 / PIXEL_1P2T /
- * PIXEL_1T8B)来自框架自带的 include/ui/cpu/br27/asm/imd_spi.h。 */
+ * PIXEL_1T8B)定义在 include/ui/cpu/br27/asm/imd_spi.h。 */
 #define SPI_SUBMODE(config)     (((config) >> 16) & 0xf0)
 #define SPI_WIRE(config)        (((config) >> 16) & 0x0f)
 #define PIXEL_nPnT(config)      (((config)) & 0xe0)
@@ -111,30 +111,30 @@ enum LCD_IF {
  * power() 这几个语义函数拉高拉低, "CS 接在 PB6" 只写在
  * port/bsp/stm32f4/ui_board_pins.h 里, 只有 port/lcd/ui_lcd_<mcu>.c 读得到。
  *
- * 原厂这里有过下面这些东西, 本移植已全部去除:
+ * 屏配置结构体里常见的下面这几类东西, 这里【故意不放】, 各有原因:
  *
- *   pin_reset/cs/dc/en/bl/te   引脚编号。框架拿着它们去调 gpio_set_mode(),
- *                              等于让 UI 层知道接线。现在改接线不波及框架。
+ *   引脚编号(reset/cs/dc/en/bl/te)  放进来 UI 层就知道了接线, 改接线要动
+ *                                   框架。现在引脚表只有 port 层读得到。
  *
- *   hw_spi_dev / spi_cfg       SPI 控制器编号。一路传到底就被丢掉, 真值在
- *                              board/ui_board_stm32f4.h。留着只会让人以为
- *                              改它就能换 SPI。
+ *   SPI 控制器编号                  即便一路传下去, 到最后也会被丢掉 ——
+ *                                   真值在 board/ui_board_stm32f4.h。放着
+ *                                   只会让人以为改它就能换 SPI。
  *
- *   NO_CONFIG_PORT (-1)        "引脚未配置"的第二种标记。框架里 -1 和 0 两种
- *                              写法混用, 判断散在十几处, 漏一处就是去操作一个
- *                              不存在的引脚。现在这类判断只在 port 内部一处。
+ *   "引脚未配置"的第二种标记(-1)     和 0 两种写法一混用, 判断就会散到十几
+ *                                   处, 漏一处就是去操作一个不存在的引脚。
+ *                                   这类判断现在只在 port 内部一处。
  *
- *   IO_PORT_SPILT(x)           把引脚号拆成 (port, bitmask) 两个参数的宏。配上
- *                              框架里另一套 (pin/16, BIT(pin%16)) 写法, 同一个函数有
- *                              两种调用约定, 只能靠"第二参是否为 0"去猜。
+ *   把引脚号拆成 (port, bitmask)    再配上 (pin/16, BIT(pin%16)) 那种写法,
+ *   的宏                            同一个函数就有两套调用约定, 只能靠
+ *                                   "第二参是否为 0"去猜。
  *
- *   PORT_HIGHZ / PORT_INPUT_PULLUP_10K / PORT_INPUT_PULLDOWN_10K
- *                              杰理 gpio_set_mode() 复用第三参表示输入模式的约定。
- *                              新接口读 TE 是独立的 ui_lcd_te_read()。
+ *   高阻 / 上拉 / 下拉这些输入模式  那是把 gpio_set_mode 的第三参复用成输入
+ *   常量                            模式的约定。读 TE 用独立的
+ *                                   ui_lcd_te_read() 更直白。
  *
- * 结构体本身保留: 框架的 ui_devices_cfg.private_data 机制还在用它做
- * "屏配置已就位"的非空检查, 且 MCU 屏 / RGB 屏 那两条通路将来启用时
- * 仍需要一个搾放屏参的地方。
+ * 结构体本身保留: ui_devices_cfg.private_data 机制要拿它做"屏配置已就位"
+ * 的非空检查, 而且 MCU 屏 / RGB 屏那两条通路将来启用时, 仍需要一个搁放
+ * 屏参的地方。
  */
 
 /** lcd_ui_api.c 用这对宏定义板级配置实例 */
@@ -142,14 +142,14 @@ enum LCD_IF {
 #define LCD_SPI__PLATFORM_DATA_END()     };
 
 struct lcd_platform_data {
-    /** 屏驱私有参数。本移植不用, 置 NULL */
+    /** 屏驱私有参数。本工程不用, 置 NULL */
     const void *spi_pdata;
 };
 
 
 /* ---- 屏驱注册 -------------------------------------------------------
  * REGISTER_LCD_DEVICE() 展开成一个【普通全局变量】lcd_drive
- * (原厂就是这样, 不是段收集), 一个工程只能有一块屏。 */
+ * (不是段收集), 一个工程只能有一块屏。 */
 struct _lcd_drive {
     char *logo;                 /**< 屏名, 如 "ssd1306" */
     u8 column_addr_align;
@@ -170,8 +170,8 @@ extern struct _lcd_drive lcd_drive;
 
 
 /* ---- 推屏接口 -------------------------------------------------------
- * 原厂用链接脚本收集 .lcd_if_info 段得到 lcd_interface_begin/end。
- * 本移植改成【显式注册表】(见 config/ui_port_registry.c) —— armlink 没有
+ * 这份接口表也可以靠链接脚本收集 .lcd_if_info 段, 得到 lcd_interface_begin/end。
+ * 本工程改成【显式注册表】(见 config/ui_port_registry.c) —— armlink 没有
  * GNU ld 的 PROVIDE, 而且段收集漏了是"界面整块不显示"的静默故障。 */
 struct lcd_info {
     u16 width;

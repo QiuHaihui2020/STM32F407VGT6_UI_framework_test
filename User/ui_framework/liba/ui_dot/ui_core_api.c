@@ -1,3 +1,12 @@
+/*
+ * ui_core_api.c —— UI 框架对外 API 的实现层(show / hide / 高亮 / 事件入口)
+ *
+ * 【延后调用队列】ui_show / ui_hide 在"正在处理事件"时被调用, 就把请求挂进
+ *   handl.entry 排队(count 是嵌套深度), 等这一轮结束再由 __do_wait_call
+ *   统一执行 —— 避免在事件分发过程中就把控件树改掉。
+ *
+ * 【id 的编码】控件类型占 bits[21:16], 取出来要 >> 16 再 & 0x3f, 见 ui_show。
+ */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_core_api.data.bss")
 #pragma data_seg(".ui_core_api.data")
@@ -74,10 +83,10 @@ struct element *ui_get_highlight_child_by_id(int id)
         if (elm) {
             return __get_highlight_child(elm);
         }
-        int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
-        printf("cpu %d file:%s, line:%d", cnum, "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 56);
+        int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
+        printf("cpu %d file:%s, line:%d", cnum, "liba/ui_dot/ui_core_api.c", 56);
         printf("ASSERT-FAILD: elm != NULL ");
-        cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 56, 0, "elm != NULL");
+        cpu_assert("liba/ui_dot/ui_core_api.c", 56, 0, "elm != NULL");
         return NULL;
     }
     if (!elm) {
@@ -93,10 +102,10 @@ int ui_get_child_by_id(int id, int (*event_handler_cb)(u8 *, int, int))
 
     if (config_asser) {
         if (!elm) {
-            int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
-            printf("cpu %d file:%s, line:%d", cnum, "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 70);
+            int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
+            printf("cpu %d file:%s, line:%d", cnum, "liba/ui_dot/ui_core_api.c", 70);
             printf("ASSERT-FAILD: elm != NULL ");
-            cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 70, 0, "elm != NULL");
+            cpu_assert("liba/ui_dot/ui_core_api.c", 70, 0, "elm != NULL");
             return -14;
         }
     } else {
@@ -142,10 +151,10 @@ int ui_invert_element_by_id(int id)
 
     if (config_asser) {
         if (!elm) {
-            int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
-            printf("cpu %d file:%s, line:%d", cnum, "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 103);
+            int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
+            printf("cpu %d file:%s, line:%d", cnum, "liba/ui_dot/ui_core_api.c", 103);
             printf("ASSERT-FAILD: elm != NULL ");
-            cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 103, 0, "elm != NULL");
+            cpu_assert("liba/ui_dot/ui_core_api.c", 103, 0, "elm != NULL");
             return -22;
         }
     } else {
@@ -200,10 +209,10 @@ int ui_highlight_sibling(struct element *elm, int direction)
 
     if (config_asser) {
         if (!elm) {
-            int cnum = 0;   /* 原为 pi32 读 cnum(CPU 编号); Cortex-M4 单核恒 0 */
-            printf("cpu %d file:%s, line:%d", cnum, "/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 157);
+            int cnum = 0;   /* 单核平台, CPU 编号恒为 0 */
+            printf("cpu %d file:%s, line:%d", cnum, "liba/ui_dot/ui_core_api.c", 157);
             printf("ASSERT-FAILD: elm != NULL ");
-            cpu_assert("/jks/workspace/manifest_dev_soundbox_export/btsdk/lib/utils/ui/ui_framework/ui_core_api.c", 157, 0, "elm != NULL");
+            cpu_assert("liba/ui_dot/ui_core_api.c", 157, 0, "elm != NULL");
         }
     } else {
         if (!elm) {
@@ -274,14 +283,12 @@ int ui_show(int id)
 
     handl.count = 1;
     /*
-     * @note 必须【只取 6 位】。原厂 IR 是 lshr i32 id, 16 之后 trunc to i6,
-     *       即只看 bits[21:16]; 同文件 ui_get_child_by_id 里原厂写的也是
-     *       lshr 16 + and 63。
+     * @note 控件类型只占 id 的 bits[21:16], 所以【必须 & 0x3f】。
      *
      *       写成 switch ((u32)id >> 16) 是错的: 实测 id = 0x1420005 时
-     *       >> 16 得 0x142(322), 原厂 322 & 63 = 2 走 case 2(window_show),
-     *       而 switch(322) 会掉进 default 去查 element —— 窗口根本不会创建,
-     *       界面全黑。
+     *       >> 16 得 0x142(322), 而 322 & 63 = 2 才是真正的类型(window),
+     *       switch(322) 会掉进 default 去查 element —— 窗口根本不会创建,
+     *       界面全黑。同文件 ui_get_child_by_id 里的取法也是 >> 16 再 & 63。
      */
     switch (((u32)id >> 16) & 0x3f) {
     case 2:
@@ -336,14 +343,7 @@ int ui_hide(int id)
 
     handl.count = 1;
     /*
-     * @note 必须【只取 6 位】。原厂 IR 是 lshr i32 id, 16 之后 trunc to i6,
-     *       即只看 bits[21:16]; 同文件 ui_get_child_by_id 里原厂写的也是
-     *       lshr 16 + and 63。
-     *
-     *       写成 switch ((u32)id >> 16) 是错的: 实测 id = 0x1420005 时
-     *       >> 16 得 0x142(322), 原厂 322 & 63 = 2 走 case 2(window_show),
-     *       而 switch(322) 会掉进 default 去查 element —— 窗口根本不会创建,
-     *       界面全黑。
+     * @note 同 ui_show: 控件类型只占 id 的 bits[21:16], 必须 & 0x3f。
      */
     switch (((u32)id >> 16) & 0x3f) {
     case 2:
@@ -493,13 +493,12 @@ static struct ui_wait_call *__get_call_entry(void)
         p = (struct ui_wait_call *)node;
         if (p->func == NULL) {
             /*
-             * @note 必须用 __list_del_entry(只做 __list_del 的两次 store),
-             *       不能用 list_del —— 本 SDK 的 list_del 额外做了自环初始化
-             *       (entry->next = entry->prev = entry), 会多两次 store。
-             *       参考 IR 的 b3 里只有两个 store。
+             * @note 这里用 __list_del_entry 而不是 list_del —— 本工程的
+             *       list_del 额外把节点初始化成自环(next = prev = entry),
+             *       而这个节点马上就要被复用, 那两次写是多余的。
              */
             __list_del_entry(node);
-            /* @note 原厂在这里确实又判了一次 p(恒真), 照抄以匹配 IR。 */
+            /* p 在这条路径上必然非空, 这层判断是纵深防御 */
             if (p) {
                 return p;
             }

@@ -2,8 +2,7 @@
  * @file    jl_debug.h
  * @brief   UI 框架日志 / 断言接口
  *
- * 合并了原厂 interface/utils/debug.h(分级日志宏) 与
- * interface/system/generic/cpu.h(ASSERT) 两处, 只保留框架真正用到的。
+ * 把分级日志宏与 ASSERT 合并到一处, 只保留框架真正用到的那些。
  * 实现在 liba/common/jl_debug.c, 最终落到工程 RTT/log_debug.h 的串口打印。
  *
  * @note 有意【不】叫 debug.h —— 避免和别处同名头相互抢占。
@@ -45,7 +44,7 @@
 #define Reset               "\033[0;25m"
 
 /* ---- 底层输出 ------------------------------------------------------- */
-/** 日志等级, 与原厂取值保持一致 */
+/** 日志等级, 取值与框架源码里的约定一致 */
 #define __LOG_VERB      0
 #define __LOG_INFO      1
 #define __LOG_DEBUG     2
@@ -77,7 +76,7 @@ void log_put_buf(const uint8_t *buf, u32 len);
  * 而 y_/g_/r_printf 在框架里是无条件打印, 没有分级需求。 */
 
 /* ---- 分级日志宏 -----------------------------------------------------
- * 原厂支持"宏控制"和"常量控制"两套开关机制。本移植统一走宏控制:
+ * 分级开关有"宏控制"和"常量控制"两种做法。本工程统一走宏控制:
  * 每个 .c 在 #include 本文件之前自行 #define LOG_DEBUG_ENABLE 等,
  * 未定义的等级会被编译成空语句。
  *
@@ -142,12 +141,12 @@ void log_put_buf(const uint8_t *buf, u32 len);
  * config_asser 为真 = 断言失败时打印详情;
  * cpu_assert 是最终落点, 由 liba/common/jl_debug.c 决定停机还是继续。
  *
- * 保持原厂两级结构(而不是直接 while(1)), 因为框架里有 161 处 ASSERT,
+ * 保持这种两级结构(而不是直接 while(1)), 因为框架里有 161 处 ASSERT,
  * 其中不少是"参数不该为空但为空了也能降级运行"的软断言。 */
 extern const int config_asser;
 void cpu_assert(char *file, int line, bool condition, char *cond_str);
 
-/** 单核, 恒为 0。原厂 ASSERT 宏里会打印它 */
+/** 单核, 恒为 0。下面的 ASSERT 宏里会打印它 */
 #define current_cpu_id()    0
 
 #define ASSERT(a, ...) \

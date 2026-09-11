@@ -134,11 +134,10 @@ static u8 lrc_analysis_in_flash(void *lrc_handle, const LRC_FILE_IO *file_io)
             u16 cnt;
 
             /*
-             * @note 这一句原先漏了。原厂在【排序之前】就把 g_plabel_buf 指向
-             *       flash 映射地址(ref IR 的 %v78: store %v74 -> lab_info 的
-             *       field 5), 后面排完序才第二次赋值(%v163)。
-             *       漏掉它的后果: 排序中途任何一条 return 0 的失败路径上,
-             *       g_plabel_buf 都还是上一轮的旧值(或 NULL)。
+             * @note g_plabel_buf 要在【排序之前】就指向 flash 映射地址:
+             *       下面排序途中任何一条 return 0 的失败路径都会直接退出,
+             *       若那时它还是上一首歌的旧值(或 NULL), 调用方拿去取歌词
+             *       就会读到野指针。排完序后会再指向排好的那一半。
              */
             g_lrc_info->lab_info->g_plabel_buf = plabel_buf;
 
@@ -169,16 +168,17 @@ static u8 lrc_analysis_in_flash(void *lrc_handle, const LRC_FILE_IO *file_io)
                     u16 time_s_b = plabel_buf[idx_b].dbtime_s;
 
                     /*
-                     * @note 与 lrc_analysis_in_ram 里那段同构, 原先犯了同样的
-                     *       三个错(照 ref IR 的 b28/b29/b31/b30/b32 改正):
-                     *   1. 第二次比较是 time_s_a > time_s_b(原厂 %v136 =
-                     *      icmp ugt %v133(a), %v131(b)), 原先写反成 b > a ——
-                     *      整个歌词排序会倒过来。
-                     *   2. dbtime_s 相等且 btime_100ms 不需要换时, 原厂直接
-                     *      continue(跳 b27), 不落到第二个比较。
-                     *   3. 第一次换过之后, 第二次交换写回的是【换回】的值
-                     *      (原厂 b32 的 %v132/%v134 两个 phi 在 b31 路径上取值
-                     *      正好与 b28 路径相反), 原先两处都写成同一个方向。
+                     * @note 这段与 lrc_analysis_in_ram 里的排序同构, 三个容易
+                     *       写错的地方:
+                     *   1. 第二次比较的方向是 time_s_a > time_s_b, 也就是
+                     *      "前一条晚于后一条才换"。写反的话整首歌的歌词顺序
+                     *      会倒过来。
+                     *   2. 秒数相等、而 100ms 位又不需要换时直接 continue,
+                     *      不要落到第二个比较 —— 秒数已经相同, 再比一次不会
+                     *      有结果, 只是白跑。
+                     *   3. 相等分支换过之后, 局部的 idx_a/idx_b 与
+                     *      time_s_a/time_s_b 都要跟着换回来, 否则紧接着的
+                     *      第二个比较用的还是交换前的值。
                      */
                     if (time_s_a == time_s_b) {
                         if (plabel_buf[idx_a].btime_100ms > plabel_buf[idx_b].btime_100ms) {
@@ -295,16 +295,14 @@ static u8 lrc_analysis_in_ram(void *lrc_handle, const LRC_FILE_IO *file_io)
                 u16 j;
                 u16 sub = cnt - i;
                 /*
-                 * @note 照抄原厂 b18/b19/b21/b20/b22 的结构, 有三处以前写错了:
-                 *   1. 第二次比较是 plabel[j-1].dbtime_s > plabel[j].dbtime_s
-                 *      (原厂 %v106 = icmp ugt %v104(a), %v103(b))。原先写成
-                 *      plabel[j].dbtime_s > plabel[j-1].dbtime_s —— 方向反了,
-                 *      整个歌词排序会倒过来。
-                 *   2. dbtime_s 相等且 btime_100ms 不需要换时, 原厂直接
-                 *      continue(跳 b17), 不会落到第二个比较。
-                 *   3. 交换代码只有【两处】(b21 与 b22), 不是三处 —— 相等分支
-                 *      交换后要用交换后的值再做第二次比较(原厂用 trunc i64
-                 *      直接从刚存进去的值里取 dbtime_s, 不重新 load)。
+                 * @note 冒泡内层有三个容易写错的地方:
+                 *   1. 第二次比较是 plabel[j-1].dbtime_s > plabel[j].dbtime_s,
+                 *      也就是"前一条晚于后一条才换"。写成反向的话整首歌的
+                 *      歌词顺序会倒过来。
+                 *   2. 秒数相等、而 100ms 位又不需要换时直接 continue, 不要
+                 *      落到第二个比较 —— 秒数已经相同, 再比一次不会有结果。
+                 *   3. 交换代码只有【两处】, 不是三处: 相等分支换完之后,
+                 *      紧接着那次比较读的已经是交换后的元素, 不用再补一处。
                  */
                 for (j = 1; j < sub; j++) {
                     if (plabel[j - 1].dbtime_s == plabel[j].dbtime_s) {
@@ -514,9 +512,10 @@ int lrc_param_init(LRC_CFG *cfg, u8 *lrc_info_buf)
 
     {
         /*
-         * @note 不要把 cfg 的三个字段提前 load 到局部变量 —— 原厂 IR 里
-         *       这三次 load 都在【用到的地方】(%v19 / %v34 / %v49), 编译器
-         *       无法证明 cfg 与 lrc_info_buf 不重叠, 所以不能提前。
+         * @note cfg 的字段都在【用到的地方】现读, 不要提前抄到局部变量 ——
+         *       调用方常把 cfg 和 lrc_info_buf 放在同一块静态内存里, 下面对
+         *       g_lrc_info(即 lrc_info_buf)的赋值有可能覆盖到 cfg, 提前读
+         *       就会用上被覆盖前的旧值。
          */
         if (!g_lrc_info) {
             if (!lrc_info_buf) {
@@ -530,14 +529,16 @@ int lrc_param_init(LRC_CFG *cfg, u8 *lrc_info_buf)
             g_lrc_info->sorting = (SORTING_INFO *)buf;
             buf = lrc_info_buf + 84;
             g_lrc_info->blrc_buf = buf;
-            /* @note LRC_SIZEOF_ALIN 宏本身就是 ((var+al-1)/al)*al, 不能再手动 +3 ——
-             *       原先写成 (len + 3) 编出 add 6, 原厂是 add 3。 */
+            /* @note LRC_SIZEOF_ALIN 宏里已经做了 ((var+al-1)/al)*al 的向上对齐,
+             *       别再手动写成 (len + 3) —— 那样等于对齐两次, 白占 4 字节。 */
             buf = buf + LRC_SIZEOF_ALIN(cfg->once_disp_len, 4);
 
             /*
-             * @note 两个分支是【互斥】的, 各自只写一个字段 —— 原厂 IR 是用
-             *       phi 选出目标指针后【只 store 一次】(b8 的 %v33)。
-             *       原先在 else 分支也写了 plabel_buf_tmp, 多一次 store。
+             * @note 两个分支各只写一个字段, 语义不同, 不要都写:
+             *       标签存 flash 时, 这块 buf 是排序用的索引临时区
+             *       (plabel_buf_tmp), g_plabel_buf 要留空, 等 lrc_analysis
+             *       把它指向 flash 映射地址;
+             *       标签留在 RAM 时, 这块 buf 本身就是标签数组。
              */
             if (cfg->enable_save_lable_to_flash) {
                 g_lrc_info->lab_info->g_plabel_buf = NULL;
@@ -598,9 +599,9 @@ static u8 lrc_coding_judge(void)
         u8 type;
 
         /*
-         * @note 判完再【一次性】写回 coding_type。原先四个分支各写一次,
-         *       编出 4 个 store; 原厂 IR 是所有分支汇聚到一个 phi 后只 store
-         *       一次(b3 的 %v28/%v29)。
+         * @note 先用局部 type 定下来, 判完再【一次性】写回 coding_type ——
+         *       四个分支各写一次的话, 以后加一种编码很容易漏掉赋值, 而
+         *       coding_type 漏写的后果是整首歌按错编码取模, 满屏乱码。
          */
         if (b0 == 0xFF && b1 == 0xFE) {
             type = LRC_UTF16_S;
@@ -635,13 +636,13 @@ static u8 lrc_find_row_timelabel(u8 *plabel, u8 *pn)
         LRC_INFO *info;
 
         /*
-         * @note 循环条件是 info->real_len 而不是 1 —— 原先写成 while (1),
-         *       漏掉了"缓冲区已读空"的退出判断。原厂 IR 的 b5 每轮都先
-         *       load info->real_len(%v20) 并判 0, 为 0 时跳 b7 -> 返回 0。
+         * @note 循环条件是 info->real_len, 不能写成 while (1) —— real_len
+         *       变 0 表示文件已经读空, 这是本循环唯一的正常出口, 漏掉就会
+         *       一直空转。
          *
-         *       info 指针也照抄: 进循环前取一次 g_lrc_info(b1 的 %v13),
-         *       每轮体内 coding_data_pick 之后重新取(b10 的 %v15) ——
-         *       coding_data_pick 会改 real_len, 所以必须重读。
+         *       info 在 coding_data_pick 之后要重新取一次: 那个函数会改
+         *       real_len(缓冲区不够时还会换一批数据), 沿用调用前的快照就会
+         *       拿着过期的长度继续取字符。
          */
         info = g_lrc_info;
         while (info->real_len) {
@@ -670,7 +671,7 @@ static u8 lrc_find_row_timelabel(u8 *plabel, u8 *pn)
             brlen++;
         }
 
-        /* real_len 变 0 = 数据读空, 原厂在这里返回 0(b7 -> b15 的 phi 值 0) */
+        /* real_len 变 0 = 数据读空, 后面再没有时间标签了 */
         return 0;
 
 label_found:
@@ -772,12 +773,12 @@ label_found:
 
         {
             /*
-             * @note 照抄原厂的 switch(不要写成 if/else 链):
-             *   1. default 分支是【continue】(原厂 switch 的默认标签就是外层
-             *      循环的 backedge b3), 不是"当作 type 1 处理"。原先写成
-             *      else { bch = read_buf[dlc]; }, coding_type 越界时行为不同。
-             *   2. 三个 case 各自读 lrc_read_buf / data_len_count(原厂
-             *      b47/b48/b49 里各 load 一次), 不要提到 switch 外面缓存。
+             * @note 这里用 switch 而不是 if/else 链, 两点要注意:
+             *   1. default 走的是【continue】(回外层循环重新找标签), 不是
+             *      "当成单字节编码处理" —— coding_type 越界说明编码判别本身
+             *      出了问题, 硬按某种编码往下读只会读出乱码。
+             *   2. 各 case 各自读一次 lrc_read_buf / data_len_count, 不提到
+             *      switch 外面缓存, 免得将来某个分支改了计数器还看不出来。
              */
             LRC_INFO *info = g_lrc_info;
             u8 bch;
@@ -836,12 +837,12 @@ label_found:
 
                 {
                     /*
-                     * @note bdata_len 必须【每轮重读】—— 原厂 b61 里
-                     *       %v181 = load sorting / %v183 = load bdata_len
-                     *       都在循环体内; 原先提到循环外缓存成 bdl 了。
-                     *       g_lrc_info 本身只 load 一次(b59 的 %v174)。
-                     *       计数器是 i32 而不是 u8(原厂 %v176 = zext *pn to i32,
-                     *       %v178 = add nsw i32 %v177, -1)。
+                     * @note 同一行歌词可能挂着多个时间标签([00:12][01:20] 这种
+                     *       写法), 这里把行位置和行长度回填给每一个。
+                     *       bdata_len 每轮都从 g_lrc_info 里现读: 它是全局
+                     *       状态, 缓存到循环外, 将来循环体里一旦改了它就
+                     *       不一致。计数器用 u32 而不是 u8 —— 先减再判 0 的
+                     *       写法用无符号宽类型不会绕回。
                      */
                     LRC_INFO *info2 = g_lrc_info;
                     u32 k = *pn;
@@ -932,10 +933,11 @@ static u16 coding_data_pick(u8 *char_len)
         {
             u8 *buf = g_lrc_info->lrc_read_buf;
             /*
-             * @note 照抄原厂的 buf[data_len_count++] 风格: 计数器分【两次】
-             *       递增(先 +1 再 +2), 不要写成 dlc + 2 一次存回。
-             *       组合时用局部 b0(原厂 b9/b10 用的是那个 i8 值), 不要用
-             *       已写进 dbtext 的值。
+             * @note 两个字节分【两次】取, 每次都用 data_len_count++ 推进 ——
+             *       两次读之间还要读 coding_type 判字节序, 一次算出 dlc + 2
+             *       再存回的写法留不下这个插入点。
+             *       组合时用局部 b0, 不要回读已写进 dbtext 的值: dbtext 是
+             *       u16, 取低字节还得再截一次, 白绕一圈。
              */
             u8 b0 = buf[g_lrc_info->data_len_count++];
             u8 is_be;
@@ -944,10 +946,9 @@ static u16 coding_data_pick(u8 *char_len)
             dbtext = b0;
 
             /*
-             * @note 顺序照抄原厂 b8: 先读 coding_type(%v38/%v39), 再推进计数器
-             *       到 dlc+2(%v40), 再读第二个字节(%v43), 最后才分支。
-             *       把 buf[..++] 写进两个分支里会让编译器在每个分支各生成一份
-             *       (机器码 105 对 108)。
+             * @note 先把字节序判断的结果存进 is_be, 再读第二个字节, 最后才
+             *       分支 —— 若把 buf[..++] 搬进两个分支里, 计数器的递增就被
+             *       复制成两份, 以后改一处漏一处, 偏移就错开了。
              */
             is_be = (g_lrc_info->coding_type == 2);
             b1 = buf[g_lrc_info->data_len_count++];
@@ -978,11 +979,10 @@ static u16 coding_data_pick(u8 *char_len)
                     return (u16)-1;
                 }
                 /*
-                 * @note data_len_count 必须在 utf8_2_unicode_one() 【之后】
-                 *       重新读一遍再累加 —— 它是外部调用, 编译器不能(也不该)
-                 *       复用调用前的值。原厂 IR 里 b16 在调用后重新 load 了
-                 *       g_lrc_info 与 data_len_count(%v84/%v86)。
-                 *       原先缓存成 dlc2 再 dlc2 + utf8_size 是错的。
+                 * @note data_len_count 在这里必须【现读】, 不能沿用上面那个
+                 *       dlc —— 紧挨着的 check_and_read(utf8_size) 在数据不够
+                 *       时会重新读一批并把计数器清零, 拿旧快照做下标就会读到
+                 *       缓冲区里错位的字节。
                  */
                 utf8_2_unicode_one(&g_lrc_info->lrc_read_buf[g_lrc_info->data_len_count],
                                    &dbtext);
@@ -1008,13 +1008,11 @@ static int lrc_text_get(u16 dbtime_s, u8 btime_100ms, LRC_INFO *lrc_info, TIME_L
     u32 wline_pos;
     u32 time_gap;
     /*
-     * @note 必须是【一个】函数级 static(原厂 IR 只有一个
-     *       @lrc_text_get.wpre_place, 在 .lyrics.data.bss)。
-     *
-     *       原先在三个块作用域里各写了一个 `static u32 wpre_place`, 那是三个
-     *       互不相通的独立变量: 第一个设 0 没人读、第二个读到的恒为 0、
-     *       第三个写了没人读 —— 于是 `wpre_place == wline_pos` 几乎永不成立,
-     *       同一行歌词每次都会被重新读取并刷新一遍。
+     * @note wpre_place 记的是"上一次已经显示过的那一行在文件里的位置",
+     *       靠它判断当前时间点对应的还是不是刚才那一行。所以它只能有
+     *       【一个】, 而且必须是函数级 static: 若分散成几个块作用域里各自
+     *       的 static, 它们互不相通, wpre_place == wline_pos 几乎永不成立,
+     *       同一行歌词每次都会被重新读文件、重新刷屏。
      */
     static u32 wpre_place;
 
@@ -1099,9 +1097,10 @@ static int read_next_lrc(TIME_LABEL lrc_label, LRC_INFO *lrc_info, int *cnt)
 
     {
         /*
-         * @note 不要把 lrc_info->blrc_buf 缓存到局部变量 —— 原厂每写一个字节
-         *       都重新 load 一次该字段(ref IR 的 b4/b5/b3 里各有 4 次
-         *       `load i8*, i8** %v17`)。缓存后只剩 1 次, 机器码对不上。
+         * @note 按编码往已有内容后面补一个换行, 好让下一行接着显示:
+         *       双字节编码要补四个字节(CR 0 LF 0 或 0 CR 0 LF, 高低位顺序
+         *       跟着 coding 走), 单字节编码只补 CR LF 两个。
+         *       补错长度或字节序, 下一行就会从半个字符开始, 整行歪掉。
          */
         u8 coding = lrc_info->coding_type;
 
@@ -1142,8 +1141,9 @@ static int read_next_lrc(TIME_LABEL lrc_label, LRC_INFO *lrc_info, int *cnt)
 
         {
             /*
-             * @note btext_len 读一次(原厂 %v66 复用), 但 wline_pos 在两个分支里
-             *       【各读一次】(原厂 b11 的 %v76 / b12 的 %v86), 不要提出来缓存。
+             * @note 先判"这一行还放得下"再去读文件: text_len 加上已写入的
+             *       content_cnt 超过缓冲区就直接返回 LRC_BUF_OVER, 否则
+             *       lrc_get_data 会写出界。
              */
             u8 text_len = plabel_buf[sel].btext_len;
 
@@ -1207,12 +1207,12 @@ static int get_sel_label(u16 dbtime_s, u8 btime_100ms, TIME_LABEL *labelbuf)
 }
 
 /*
- * @note 两处照抄原厂, 别"顺手优化":
- *   1. 步进只有 i++ 一次。原先在循环体末尾又多写了一个 i++(实际每轮 +2),
- *      原厂 IR 的 phi 里所有路径都是 i+1。
- *   2. 不要把 lrc_info->blrc_buf 提到循环外的局部变量 —— 原厂在写完
- *      blrc_buf[i] 之后【重新 load 了一次该字段】(b8 的 %v16), 说明源码里
- *      每处都是直接写 lrc_info->blrc_buf[...]。
+ * 把取模时会显示成乱码的字节对(0xAC 0xE3 / 0xE3 0xAC)换成"空格 + 0",
+ * 免得一个坏字符把整行往后都挤歪。
+ *
+ * @note 步进是【每轮一格】, 不是两格。虽然每次动的是相邻两个字节, 但下一轮
+ *       还要从中间那个字节重新判一次 —— 跨过去会漏掉 "AC E3 AC" 这种连排
+ *       的情况。
  */
 static void error_coding_wipe(u32 wfirst, u32 wlast, LRC_INFO *lrc_info)
 {

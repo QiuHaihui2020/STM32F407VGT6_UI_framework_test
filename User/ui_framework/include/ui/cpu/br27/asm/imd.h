@@ -7,7 +7,7 @@
 #include "asm/imd_spi.h"
 
 
-/* AT_UI_RAM 已由 jl_typedef.h 统一给出(本移植是空宏), 这里不再重复定义 */
+/* AT_UI_RAM 已由 jl_typedef.h 统一给出(本工程是空宏), 这里不再重复定义 */
 
 
 extern const int ENABLE_JL_UI_FRAME;

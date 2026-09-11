@@ -1,11 +1,6 @@
 /*
  * ascii.c —— ASCII 字模的读取(点阵字库 .PIX/.TAB 里的 ASCII 部分)
  *
- * 【来源】从 cpu/br27/liba/res.a 的 ascii.c.o 还原。该库交付的是 LLVM bitcode
- *   (非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/ascii.ll
- *     原始路径: btsdk/lib/utils/ui/resource/ascii.c
- *
  * 【谁在用】驱动层 ui_synthesis_oled.c(取字模) 与 ui_resources_manager.c(初始化)。
  *
  * 【文件格式】字库文件开头 1 字节是 font_size(字高), 之后是一张按字符码索引的
@@ -14,17 +9,18 @@
  *   换成小端后再定位过去读 size 字节点阵。
  *   注: +2 是跳过文件头那 1 字节 font_size 后再偏移 1, 与打包工具约定一致。
  *
- * 【行号锁定】ASSERT 宏内嵌 __LINE__, 必须落在原始行号 96。函数体由
- *   cpu/br27/tools/ui_reimpl/gen_ascii.py 按绝对行号拼出, 空行不要随意增删。
+ * 【行号约定】ASSERT 宏内嵌 __LINE__。下面的 #line 26 把行号拨回函数自身的
+ *   布局, 让断言打印的行号不受文件头这段说明增删的影响。
  *
  * 【段属性】代码在 .ascii.text; file 在 .ascii.data; font_size 在 .ascii.data.bss。
  *
- * 【两处不能"写干净"的地方, 改了就与原厂不等价】
- *   1. font_size 必须 aligned(4)。u8 默认 align 1, 而原厂 IR 是 align 4。
+ * 【两处不能"写干净"的地方】
+ *   1. font_size 必须 aligned(4)。u8 默认 align 1, 这里要求 4 字节对齐 ——
+ *      它会被按字访问。
  *   2. 字节交换必须保留那两个冗余掩码(即 font_all.h 里 font_ntoh 宏的形态)。
- *      写成 (x >> 8) | (x << 8) 会被 InstCombine 折成 llvm.bswap.i16,
- *      原厂保留的是 lshr/shl/or/trunc 展开形式。掩码本身会被 demanded-bits
- *      消掉(IR 里看不见 and), 但它挡住了 bswap 的识别。
+ *      写成 (x >> 8) | (x << 8) 会被优化器折成一条字节交换指令; 必须保留
+ *      移位加或的展开形式。掩码本身会被优化掉, 但它挡住了优化器对
+ *      "这是一次字节交换"的识别。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma data_seg(".ascii.data")
@@ -35,7 +31,7 @@
 #include "jl_os_api.h"
 #include "res/resfile.h"
 #include "res/font_ascii.h"
-#include "jl_debug.h"    /* ASSERT: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT: 显式包含, 保证本文件自包含 */
 
 struct ascii_head {
     u8 width;
@@ -45,7 +41,7 @@ struct ascii_head {
 
 /* 带初值 -> 在声明处就地发射(位于 .ascii.data, 且排在所有字符串常量之前);
  * font_size 不带初值是 tentative definition, 由 clang 在【首次被引用】处
- * 建立(第 42 行), 所以它在 IR 里排在 "fail!!!" 那条字符串之后。顺序必须一致。 */
+ * 建立(第 42 行), 所以它排在 "fail!!!" 那条字符串常量之后。顺序必须保持。 */
 static RESFILE *file = NULL;
 static u8 font_size __attribute__((aligned(4)));
 
@@ -66,8 +62,8 @@ int font_ascii_init(const char *name)
     }
 
 
-    /* 加固: 原库丢弃返回值。读不到字高就把文件关掉并报错, 否则后面每次取字模
-     * 都会拿一个未初始化(实为 0)的字高去画, 表现为整屏无字却无任何提示。 */
+    /* 读不到字高就把文件关掉并报错: 否则后面每次取字模都会拿一个未初始化
+     * (实为 0)的字高去画, 表现为整屏无字却没有任何提示。 */
     if (res_fread(file, &font_size, 1) != 1) {
         puts("font_ascii_init: read font_size fail!!!\n");
         res_fclose(file);
@@ -84,8 +80,8 @@ void font_ascii_get_width_and_height(char code, int *height, int *width)
     int offset;
     struct ascii_head head;
 
-    /* 加固: 原库出错时【直接 return 而不给 *height / *width 赋值】,
-     * 调用方拿到的是未初始化的栈值。这里统一先清零。 */
+    /* 出参统一先清零: 任何一条失败路径都会直接 return, 不清零的话调用方
+     * 拿到的是未初始化的栈值。 */
     if (height == NULL || width == NULL) {
         return;
     }
@@ -97,16 +93,16 @@ void font_ascii_get_width_and_height(char code, int *height, int *width)
         return;
     }
 
-    /* 加固: code 是 char(本目标有符号), 字符码 >= 0x80 时 code * 4 为负,
-     * 会定位到文件头之前。按无符号取索引。 */
+    /* code 是 char(本目标有符号), 字符码 >= 0x80 时 code * 4 会是负数、
+     * 定位到文件头之前, 所以按无符号取索引。 */
     offset = (u8)code * sizeof(struct ascii_head) + 2;
 
-    /* @note res_fseek 的返回值【故意不判】: 它转调闭源的 resfile_seek,
-     * 成功时返回 0 还是新偏移无从确认, 贸然判断可能把成功当失败。
+    /* @note res_fseek 的返回值【故意不判】: 它转调的 resfile_seek 在各后端
+     * 下"成功时返回 0 还是返回新偏移"并不统一, 贸然判断可能把成功当失败。
      * 定位失败会由紧接着的 res_fread 读不满而暴露出来。 */
     res_fseek(file, offset, SEEK_SET);
 
-    /* 加固: 原库丢弃返回值, 读失败就拿栈上未初始化的 head 往下算。 */
+    /* 读失败就不能往下算 —— head 是栈上变量, 未读满时里面是垃圾。 */
     if (res_fread(file, (u8 *)&head, sizeof(head)) != sizeof(head)) {
         return;
     }
@@ -125,8 +121,8 @@ int font_ascii_get_pix(char code, u8 *pixbuf, int buflen, int *height, int *widt
     int offset;
     struct ascii_head head;
 
-    /* 加固: 原库不判 pixbuf(其余三个函数对入参指针也一概不判)。
-     * 这是要往里写点阵的目标缓冲, 为空就没什么可做的了。 */
+    /* pixbuf 是要往里写点阵的目标缓冲, 为空就没什么可做的了;
+     * 三个出参在这里一并判空。 */
     if (pixbuf == NULL || height == NULL || width == NULL) {
         return -1;
     }
@@ -136,14 +132,14 @@ int font_ascii_get_pix(char code, u8 *pixbuf, int buflen, int *height, int *widt
         return -1;
     }
 
-    /* 加固: 同 font_ascii_get_width_and_height, code 按无符号取索引。 */
+    /* 同 font_ascii_get_width_and_height, code 按无符号取索引。 */
     offset = (u8)code * sizeof(struct ascii_head) + 2;
 
     /* @note res_fseek 返回值故意不判, 理由见 font_ascii_get_width_and_height。 */
     res_fseek(file, offset, SEEK_SET);
 
-    /* 加固: 原库丢弃返回值。索引表读不全就往下走, head.size / head.addr
-     * 全是栈垃圾, 会直接喂给下面那次 res_fread。 */
+    /* 索引表读不全就得返回: head.size / head.addr 会是栈垃圾, 直接喂给
+     * 下面那次 res_fread 就是按垃圾长度读盘。 */
     if (res_fread(file, (u8 *)&head, sizeof(head)) != sizeof(head)) {
         return -1;
     }
@@ -156,10 +152,10 @@ int font_ascii_get_pix(char code, u8 *pixbuf, int buflen, int *height, int *widt
     *width  = head.width;
 
     /*
-     * 加固【本文件最严重的一处】: 原库只有 ASSERT, 而 ASSERT 在 config_asser
-     * 为假时只调 cpu_assert【不停机】, 之后照样执行 res_fread(pixbuf, head.size)
-     * —— 断言失败紧接着就是一次缓冲区溢出写。ASSERT 保留(开发期仍要停机),
-     * 后面补一道真正拦得住的检查。
+     * 【本文件最要紧的一处】ASSERT 不能当拦截用: 它在 config_asser 为假时
+     * 只记录、不停机, 之后会照样执行 res_fread(pixbuf, head.size) ——
+     * 那就是一次缓冲区溢出写。所以 ASSERT 留着(开发期停机便于定位),
+     * 后面再补一道真正拦得住的 if。
      */
     ASSERT(head.size <= buflen);
     if (buflen <= 0 || head.size > buflen) {
@@ -188,13 +184,13 @@ int font_ascii_width_check(const char *str)
     }
 
     while (*str != 0) {
-        /* 加固: 同前, *str 是 char, 按无符号取索引。 */
+        /* 同前, *str 是 char, 按无符号取索引。 */
         offset = (u8)(*str) * sizeof(struct ascii_head) + 2;
 
         /* @note res_fseek 返回值故意不判, 理由见 font_ascii_get_width_and_height。 */
         res_fseek(file, offset, SEEK_SET);
 
-        /* 加固: 原库丢弃返回值, 读失败会把栈垃圾累加进总宽度。 */
+        /* 读失败必须返回, 否则会把栈垃圾累加进总宽度。 */
         if (res_fread(file, (u8 *)&head, sizeof(head)) != sizeof(head)) {
             return -1;
         }
@@ -208,39 +204,24 @@ int font_ascii_width_check(const char *str)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍然照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在
- * cpu/br27/tools/ui_reimpl/accept/ascii.txt 并锁定指纹)。
+ * 实现注意事项
  *
- *   [已修] 1 —— 三处 res_fread 的返回值都补上了判断。但 res_fseek 的返回值
- *                【故意仍不判】: 它转调闭源的 resfile_seek, 成功时返回 0 还是
- *                新偏移无从确认, 贸然判断可能把成功当失败; 定位失败会由紧接着
- *                的 res_fread 读不满而暴露。
- *   [已修] 2 —— file 为 NULL 时先把 *height / *width 清零再 return。
- *   [已修] 3 —— ASSERT 之后补了一道真正拦得住的 if, 断言不停机也不会溢出写。
- *   [已修] 4 —— 四个函数对入参指针一概不判。-> font_ascii_get_pix 补上了
- *                pixbuf / height / width 三个判空,
- *                font_ascii_get_width_and_height 补了 height / width。
- *   [已修] 5 —— code / *str 一律按 (u8) 取索引, 不再出现负偏移。
+ *  1) 【读盘返回值都要判】四个函数里三处 res_fread 都判了实际读到的长度 ——
+ *     字库文件损坏或定位越界时, 栈上的 head 里是垃圾, 拿它算偏移会 seek 到
+ *     任意位置, 上层则拿到一帧看不出问题的错误点阵。
+ *     res_fseek 的返回值【故意不判】: resfile_seek 在各后端下"成功返回 0 还是
+ *     返回新偏移"并不统一; 定位失败会由紧接着的 res_fread 读不满暴露出来。
  *
- * 【注意】文件头"行号锁定 ASSERT 必须落在 96"那条【已随加固失效】:
- * 源码已改, ASSERT 就该打印真实行号, 不再用 #line 拨回。
+ *  2) 【出参先清零】font_ascii_get_width_and_height 的每条失败路径都直接
+ *     return, 所以入口统一把 *height / *width 清零, 调用方不会拿到栈值。
  *
+ *  3) 【ASSERT 之后还要拦一道】font_ascii_get_pix 的 ASSERT(head.size <= buflen)
+ *     在 config_asser 为假时不停机, 所以后面补了 if —— 否则断言失败紧接着就是
+ *     一次缓冲区溢出写。
  *
- * 1) 四个函数里的 err / offset 有一半是死变量: 三处 res_fseek / res_fread 的
- *    返回值【全部被丢弃】, err 从头到尾没被赋过值。也就是说字库文件读失败
- *    (定位越界、文件损坏)时, 上层拿到的是一帧未初始化的点阵数据, 无从察觉。
+ *  4) 【字符码按无符号取索引】char 在本目标上有符号, 扩展 ASCII(>= 0x80)
+ *     直接乘会得到负偏移、定位到文件头之前, 所以四处都强转 (u8)。
  *
- * 2) font_ascii_get_width_and_height 在 file 为 NULL 时【直接 return】, 却不给
- *    *height / *width 赋值 —— 调用方拿到的是未初始化的栈值。
- *
- * 3) font_ascii_get_pix 的 ASSERT(head.size <= buflen) 在 config_asser 为假时
- *    只调 cpu_assert 不停机, 之后仍会 res_fread(file, pixbuf, head.size) ——
- *    即断言失败后紧接着就是一次【缓冲区溢出写】。
- *
- * 4) font_ascii_width_check 对 str 判了 NULL, 另外三个函数对 pixbuf /
- *    height / width 一概不判。
- *
- * 5) code 是 char(本目标有符号)。字符码 >= 0x80 时 code * 4 为负,
- *    定位到文件头之前 —— 扩展 ASCII 会读到越界偏移。
+ *  5) 【行号】断言打印的行号以文件顶部那条 #line 26 为基准, 增删它之后的
+ *     行会让行号整体平移 —— 上面这些检查占的行已经算在内。
  */

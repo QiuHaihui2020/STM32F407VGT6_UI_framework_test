@@ -2,15 +2,14 @@
  * @file    system_action.c
  * @brief   SYSTEM 页面(PAGE_2)的事件响应
  *
- * 对应 703 SDK 的 apps/soundbox/ui/lcd/STYLE_SOUNDBOX/system_action.c。
  * 本文件【只做事件骨架】—— 按键分发、弹层显示/隐藏、控件生命周期钩子;
  * 背光/语言/自动关机/恢复出厂/升级这些业务动作一律留 TODO。
  *
- * ┌─ 与 703 原版的两处差异(与 music/bt_action.c 相同) ─────────────────┐
+ * ┌─ 本工程的两处约定(与 music/bt_action.c 相同) ──────────────────────┐
  * │ 1. 注册方式: 文末直接定义 ui_handlers_system, 再到                 │
  * │    config/ui_port_registry.c 的 g_ui_handler_table 里登记一行。    │
  * │ 2. 键值: 只有 KEY_PAGE_ENTER / BACK / PREV / NEXT 四个。           │
- * │    原版的 ID_WINDOW_SYS 在本工程叫 ID_WINDOW_MAIN(都是 PAGE_2)。   │
+ * │    本页窗口 ID 用 ID_WINDOW_MAIN(即 PAGE_2)。                      │
  * └────────────────────────────────────────────────────────────────────┘
  *
  * 页面结构(由 tools/JL/JL.sty 解析得到)。这页是"一个主列表 + 一堆二级弹层",
@@ -36,7 +35,7 @@
 
 
 /* ====================================================================== *
- *  一、窗口: ID_WINDOW_MAIN (PAGE_2, 703 里叫 ID_WINDOW_SYS)
+ *  一、窗口: ID_WINDOW_MAIN (PAGE_2, 即设置页)
  * ====================================================================== */
 
 static int sys_win_onchange(void *ctrl, enum element_change_event event, void *arg)
@@ -68,8 +67,8 @@ static int sys_win_onchange(void *ctrl, enum element_change_event event, void *a
 /* ====================================================================== *
  *  二、二级弹层的公共 onchange
  *
- *  703 原版所有二级弹层(SYSTEM_M_LAYOUT / SYS_LANGUAGE / SYS_POWEROFF /
- *  SYS_BACKLIGHT*)都挂同一个 common_layout_onchange, 只做两件事:
+ *  所有二级弹层(SYSTEM_M_LAYOUT / SYS_LANGUAGE / SYS_POWEROFF /
+ *  SYS_BACKLIGHT*)都挂同一个 onchange, 只做两件事:
  *      ON_CHANGE_INIT    -> layout_on_focus(layout)
  *      ON_CHANGE_RELEASE -> layout_lose_focus(layout)
  *
@@ -138,7 +137,7 @@ static int sys_set_list_onkey(void *ctrl, struct element_key_event *e)
             ui_show(SYS_BACKLIGHT);
             break;
         case SYS_SET_ITEM_BACK:
-            /* 703 原版: UI_HIDE_CURR_WINDOW() + ui_show_main(-1) 回上一页。
+            /* 常规做法是 UI_HIDE_CURR_WINDOW() + ui_show_main(-1) 回上一页。
              * 本工程目前只在开机时 UI_SHOW_WINDOW(ID_WINDOW_MUSIC), 没有
              * "上一页"的概念, 先直接切回音乐页。 */
             UI_HIDE_CURR_WINDOW();
@@ -187,7 +186,7 @@ static int sys_menu_list_onkey(void *ctrl, struct element_key_event *e)
             break;
 
         case SYS_MENU_ITEM_RESET:
-            /* TODO: 恢复出厂 —— 703 只重置背光时间/亮度/自动关机时间,
+            /* TODO: 恢复出厂 —— 只需重置背光时间/亮度/自动关机时间,
              *       并且重置后要把背光时间再设一次, 否则按键处理里会
              *       立刻按"背光时间 0"去关背光。 */
             ui_hide(SYSTEM_M_LAYOUT);
@@ -222,7 +221,7 @@ static int sys_menu_list_onkey(void *ctrl, struct element_key_event *e)
  *  五、语言: SYS_LANGUAGE_LIST (4 项)
  *
  *  子布局 SYSTEM_55 / SYS_8 / SYS_9 / SYS_10 —— 名字看不出语种,
- *  703 那边是 简体/繁体/英文/返回。
+ *  按资源里的排布是 简体/繁体/英文/返回。
  * ====================================================================== */
 
 #define SYS_LANGUAGE_ITEM_NUM   4
@@ -300,7 +299,7 @@ static int sys_poweroff_list_onkey(void *ctrl, struct element_key_event *e)
 /* ====================================================================== *
  *  七、背光: SYS_BACKLIGHT_LIST (3 项)
  *
- *  703 那边这一层是入口菜单: 亮度 / 时间 / 返回, 选中后再进二级层。
+ *  这一层是入口菜单: 亮度 / 时间 / 返回, 选中后再进二级层。
  * ====================================================================== */
 
 enum {
@@ -426,7 +425,7 @@ static int sys_backlight_value_list_onkey(void *ctrl, struct element_key_event *
 /* ====================================================================== *
  *  十、本机信息: SYS_MSG_INFO_LIST (2 项)
  *
- *  703 那边这一层展示版本号/剩余空间, 由 SYSTEM_31(版本) 与 SYSTEM_35(空间)
+ *  这一层展示版本号/剩余空间, 由 SYSTEM_31(版本) 与 SYSTEM_35(空间)
  *  两个 text 的 onchange 去填内容。
  * ====================================================================== */
 

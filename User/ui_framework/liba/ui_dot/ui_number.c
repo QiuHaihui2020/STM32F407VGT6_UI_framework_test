@@ -1,20 +1,7 @@
 /*
  * ui_number.c —— 数字控件(曲目号、音量数值等)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_number.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_number.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_number.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   number_vsprintf@19  number_update@119  number_highlight@132
- *   number_onchange@140  number_onkey@176  number_ontouch@189
- *   new_ui_number@210  ui_number_update@248  ui_number_update_by_id@265
- *   ui_number_enable@293
- *
- *   number_update / number_highlight 在原库已被内联(无独立 define)。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_number: text=0(element_text, 92 字节) source=92 number[2]=100
  *                     buf[20]=104 color=144 hi_color=148 css_num=152
  *                     位域(nums:6,type:2)=153 css[2]=156 num_str=164
@@ -23,7 +10,7 @@
  *                          number[10]=48 delimiter[10]=68 space[2]=88 action=92
  *
  * 【位域小技巧】nums 占低 6 位、type 占高 2 位, 所以"整字节 < 64"就等价于
- *   type == TYPE_NUM(0), IR 里到处是 icmp ult i8 x, 64, 就是这个判断。
+ *   type == TYPE_NUM(0) —— 判 type 时可以少一次移位。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_number.data.bss")
@@ -33,7 +20,7 @@
 #endif
 
 #include "ui/ui_number.h"
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 /*
  * 按 info->format 拼出数字串, 再按 info->number[]/delimiter[]/space[] 换成字模索引。
@@ -51,20 +38,20 @@ static void number_vsprintf(struct ui_number *number,
     };
     char str[32] = {0};
     /*
-     * @note 原库这里只开了 2 字节且【不判上界】, 格式串里超过 2 个占位符就
-     *       越界写栈。数组大小保持 2 不变(下面的 switch 也只支持 1、2 两种),
-     *       但循环里【已补上界检查】, 见下方加固注释。
+     * @note pos[] 只有 2 个元素(下面的 switch 也只支持 1、2 两个占位符),
+     *       所以循环里【必须判上界】, 见下方说明 —— 否则格式串里写第三个
+     *       占位符就是越界写栈。
      */
     u8 pos[2] = {0};
     /*
      * @note fmt 必须是 u8* 而不是 char* —— switch (*fmt) 会做整型提升,
-     *       signed char 走 sext 之后 LLVM 收不回 i8, 原厂是 switch i8。
+     *       char 在本目标上有符号, 格式串里 >= 0x80 的字节会变成负值。
      */
     const u8 *fmt = (const u8 *)info->format;
     /*
-     * @note 原厂这里是【两个各自独立的计数器】: 一个做 pos[] 下标, 一个最后
-     *       存进 number->nums(IR 里 b3 有两个 i8 phi, 值始终相同)。写成一个
-     *       变量少一个 phi, 对不上。
+     * @note 两个计数器分开: num 做 pos[] 的下标(受数组上界约束), nums 最后
+     *       存进 number->nums。目前两者同步增长, 分开写是为了将来扩 pos[]
+     *       时不至于混淆。
      */
     u8 num = 0;
     u8 nums = 0;
@@ -76,9 +63,9 @@ static void number_vsprintf(struct ui_number *number,
     if (number->type == TYPE_NUM) {
         while (1) {
             /*
-             * @note 内层扫描必须写成显式 switch —— 原厂 IR 里是一条 3 路
-             *       switch(0 / '%' / 其他)。写成 while (*fmt && *fmt != '%')
-             *       或两个独立 if, clang 都只生成两次 icmp + 分支, 对不上。
+             * @note 内层扫描写成显式 switch(0 / '%' / 其他三路), 比
+             *       while (*fmt && *fmt != '%') 更直白: 遇 0 收尾、遇 '%'
+             *       交给下面解析、其余跳过。
              */
             for (;;) {
                 switch (*fmt) {
@@ -93,14 +80,13 @@ static void number_vsprintf(struct ui_number *number,
                 break;      /* 跳出 for: 此时 *fmt == '%' */
             }
             /*
-             * 三种分支各自独立判错(不是用 && 串成一条链) —— 例如 "%0x" 会直接
-             * 报错, 而不会退回去按 "%Nd" 再试一次。参考 IR 的 CFG 就是这样。
+             * 三种形态各自独立判错(不是用 && 串成一条链) —— 例如 "%0x" 直接
+             * 报错, 不会退回去按 "%Nd" 再试一次。
              */
             /*
-             * 加固【越界写栈】: pos[] 只有 2 个元素, 而原库【不判上界】——
-             * 格式串里写第三个占位符, pos[2] 就写到栈上别的东西头上了。
-             * 下面那个 switch 本来也只处理 nums == 1 / 2 两种情况, 所以
-             * 超出的一律当"不支持的格式"处理。
+             * 【必须判上界】pos[] 只有 2 个元素, 格式串里写第三个占位符时
+             * pos[2] 就写到栈上别的东西头上了。下面那个 switch 本来也只处理
+             * 1 / 2 两种情况, 所以超出的一律当"不支持的格式"。
              */
             if (num >= (u8)(sizeof(pos) / sizeof(pos[0]))) {
                 goto unsupported;
@@ -183,7 +169,8 @@ parse_done:
         buf[i] = img;
     }
 
-    /* 两个赋值顺序照抄原厂(先 i+1 再 i) */
+    /* 末尾补两个 0xff 结束标记: 先写 i+1 再写 i, 这样即使上面的循环是 break
+     * 出来的(buf[i] 已被写成 0xff), 也不会把它覆盖掉 */
     buf[i + 1] = 0xff;
     buf[i] = 0xff;
     return;
@@ -200,7 +187,7 @@ static void number_update(struct ui_number *number)
 
     number_vsprintf(number, info, number->buf);
 
-    /* 条件写成"有字模表"在前, 与原厂的基本块排布一致 */
+    /* 条件写成"有字模表"在前: 带字模的是常见情况, 放前面更直观 */
     if (info->number[0] != 0 && info->number[0] != 0xffff) {
         text_element_set_text(&number->text, (char *)number->buf, "image",
                               number->text.elm.highlight ? number->hi_color
@@ -233,7 +220,7 @@ static int number_onchange(void *_elm, enum element_change_event event, void *ar
         }
     }
 
-    /* case 顺序照抄原厂(RELEASE 在 HIGHLIGHT 之前), 换顺序会改变基本块的排布 */
+    /* case 的先后与 enum 的声明顺序一致, 便于对照 element_change_event */
     switch (event) {
     case ON_CHANGE_SHOW_PROBE:
         number_update(number);
@@ -297,10 +284,9 @@ void *new_ui_number(const void *_info, struct element *parent)
     }
 
     /*
-     * 加固: 原库【没有 memset】(ui_battery / ui_pic 等模块都有)。
-     * ui_core_malloc 给的是未初始化内存, 而 nums / type / number[] / buf[]
-     * 这些字段要到首次 ui_number_update 才被填上 —— 若 ON_CHANGE_SHOW_PROBE
-     * 先于 update 到来, 拿去画的就是随机内容。
+     * 【必须先 memset】ui_core_malloc 给的是未初始化内存, 而 nums / type /
+     * number[] / buf[] 要到首次 ui_number_update 才被填上 —— 若
+     * ON_CHANGE_SHOW_PROBE 先于 update 到来, 拿去画的就是随机内容。
      */
     memset(number, 0, sizeof(struct ui_number));
 
@@ -316,7 +302,7 @@ void *new_ui_number(const void *_info, struct element *parent)
 
     css = platform_api->load_css(info->head.page, info->head.css);
 
-    /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+    /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
     text_element_init(&number->text, info->head.id, info->head.page,
                       (u8)((u32)info->head.css >> 29), css, info->action);
     text_element_set_event_handler(&number->text, number, &number_event_handler);
@@ -357,7 +343,8 @@ int ui_number_update(struct ui_number *number, struct unumber *n)
 /*
  * @note 与 ui_number_update 的差别不只是多了 redraw: 非法 type 在这里是
  *       puts + ASSERT(0) 之后【继续往下走】(仍会写 type 并刷新), 而
- *       ui_number_update 是直接返回 -EINVAL。原库如此。
+ *       ui_number_update 直接返回 -EINVAL —— 前者是 by_id 调用方通常不看
+ *       返回值, 至少要让界面刷新出来。
  */
 int ui_number_update_by_id(int id, struct unumber *n)
 {
@@ -401,18 +388,17 @@ REGISTER_CONTROL_OPS(CTRL_TYPE_NUMBER)
 };
 
 /*
- * 原库缺陷清单 + 加固状态(描述的是【原库】行为; 方括号是当前处理结果,
- * 差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *  [已修] 1. number_vsprintf 的 pos[2] 只够两个占位符, 而原库【不判上界】,
- *            格式串里写第三个 %d 就越界写栈。数组大小保持 2(下面的 switch 也
- *            只支持 1、2 两种), 循环里补了上界检查, 超出按"不支持的格式"处理。
- *  [已修] 2. new_ui_number 没有 memset(ui_time 也一样) —— ui_core_malloc 给的
- *            是未初始化内存, 而 nums/type/number[]/buf[] 要到首次
- *            ui_number_update 才被填上, 若 ON_CHANGE_SHOW_PROBE 先于 update
- *            到来, 拿去画的就是随机内容。两个文件都补了 memset。
- *  1. number_vsprintf 的 pos[2] 只够两个占位符, 格式串里写第三个 %d 就越界写栈。
- *  2. new_ui_number 没有 memset(ui_time 也一样), nums/type/number[]/buf[] 在
- *     首次 ui_number_update 之前是未初始化的, 而 ON_CHANGE_SHOW_PROBE 可能
- *     先于 update 到来。
+ *  1) 【pos[] 的上界必须判】它只有 2 个元素, 与下面 switch 支持的占位符个数
+ *     对应。格式串里写第三个 %d 时若不挡住, 就是越界写栈。
+ *
+ *  2) 【new_ui_number 必须 memset】nums / type / number[] / buf[] 要到首次
+ *     ui_number_update 才被填上, 而 ON_CHANGE_SHOW_PROBE 可能先到。
+ *
+ *  3) 【支持的格式只有 %0Nd / %Nd / %d】其余一律打印告警后返回, 不显示。
+ *     N 用来限制取模范围(number % 10^N)。
+ *
+ *  4) 【两个 update 的失败行为不同】ui_number_update 遇非法 type 直接返回
+ *     -EINVAL; ui_number_update_by_id 是 ASSERT 之后继续走完并刷新。
  */

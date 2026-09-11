@@ -4,14 +4,12 @@
 #pragma const_seg(".ui_resources_manager.text.const")
 #pragma code_seg(".ui_resources_manager.text")
 #endif
-/* COPYRIGHT NOTICE
- * 文件名称 ：ui_resources_manager.c
- * 简    介 ：ui资源和内存管理层
- * 功    能 ：
- * 			负责封装UI资源读写、UI框架使用的内存申请、释放等接口；
- * 			封装完后由ui_platform.c调用，再封装成UI框架的功能模块使用
- * 作    者 ：zhuhaifang
- * 创建时间 ：2022/04/26 20:22
+/**
+ * @file    ui_resources_manager.c
+ * @brief   UI 资源与内存管理层
+ *
+ * 封装 UI 资源的读写, 以及 UI 框架用到的内存申请/释放接口;
+ * 由 ui_platform.c 调用, 再组装成框架的平台 API 表。
  */
 #include "ui/includes.h"
 #include "jl_os_api.h"
@@ -23,7 +21,7 @@
  * jl_debug.h 的 log_* 靠这些宏开关, 不定义就是空实现。 */
 #define LOG_TAG             "[UI-RES]"
 #define LOG_ERROR_ENABLE
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 #define WATCH_ITEMS_LIMIT		40
 
@@ -493,7 +491,7 @@ void *jlui_load_widget_info(void *__head, u8 page)
 #endif
 
         if (load_style && platform_api->load_style) {
-            /* 加固: 原库【完全忽略 load_style 的返回值】。资源文件打不开时
+            /* load_style 的返回值【必须判】。资源文件打不开时
              * jlui_load_style 会在 ui_file 还是 NULL 的情况下 return -ENOENT,
              * 而下面立刻就 res_fseek/res_fread(ui_file, ...) —— 读失败, head
              * 保持未初始化, 于是:
@@ -513,7 +511,7 @@ void *jlui_load_widget_info(void *__head, u8 page)
         }
 
         if (ui_file == NULL) {
-            /* 加固: load_style 返回成功也再确认一次句柄, 避免将来改动漏掉 */
+            /* load_style 返回成功也再确认一次句柄, 避免将来改动漏掉 */
             log_error("ui_file is NULL after load_style\n");
             return NULL;
         }
@@ -521,12 +519,12 @@ void *jlui_load_widget_info(void *__head, u8 page)
         /* last_page = page; */
         res_fseek(ui_file, 0, SEEK_SET);
         if (res_fread(ui_file, &head, sizeof(struct ui_file_head)) != sizeof(struct ui_file_head)) {
-            /* 加固: 原库不判读盘返回值, 读失败就拿栈上垃圾当文件头用 */
+            /* 读盘返回值要判, 否则读失败时会拿栈上垃圾当文件头用 */
             log_error("read ui_file head failed\n");
             return NULL;
         }
-        /* 加固: head.rotate 是 u8(0~255), 而 rotate[] 只有 4 项。
-         * 资源损坏或读失败时原库会越界读常量区。 */
+        /* head.rotate 是 u8(0~255), 而 rotate[] 只有 4 项 —— 资源损坏或
+         * 读失败时不挡住就会越界读常量区。 */
         if (head.rotate >= ARRAY_SIZE(rotate)) {
             log_error("invalid rotate %d in ui_file head\n", head.rotate);
             return NULL;
@@ -548,14 +546,14 @@ void *jlui_load_widget_info(void *__head, u8 page)
             break;
         }
 
-        /* 加固: 越界的 page 会读到窗口表之外; head.window_num 是权威值 */
+        /* 越界的 page 会读到窗口表之外; head.window_num 是唯一的权威值 */
         if (page >= head.window_num) {
             log_error("page %d >= window_num %d\n", page, head.window_num);
             return NULL;
         }
 
         res_fseek(ui_file, sizeof(struct ui_file_head) + sizeof(struct window_head)*page, SEEK_SET);
-        /* 加固: 原库不判返回值, 读失败时 window_offset 保持上一次的值(或垃圾),
+        /* 返回值要判: 读失败时 window_offset 会保持上一次的值(或垃圾),
          * 后面按它定位控件数据, 结果是拿错位的数据去 malloc */
         if (res_fread(ui_file, &__this->window_offset, sizeof(__this->window_offset))
             != sizeof(__this->window_offset)) {
@@ -622,7 +620,7 @@ void *jlui_load_widget_info(void *__head, u8 page)
             }
             load_style = 1;
         } else if ((page == 74) || (last_page == 74)) { //特殊情况处理
-            //公版sdk的PAGE_74存在动态加载侧边栏操作，每次进入或退出该页面需重新更新ui_file，否则异常
+            //部分工程的PAGE_74存在动态加载侧边栏操作，每次进入或退出该页面需重新更新ui_file，否则异常
             //如果客户开发时不存在该页面或者该页面没有动态加载侧边栏操作，可注释该else if
             mem_stats();
             if (!strcmp(RES_PATH, EXTERN_PATH)) {

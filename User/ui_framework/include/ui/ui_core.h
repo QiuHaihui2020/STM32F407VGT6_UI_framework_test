@@ -5,8 +5,8 @@
 #include "jl_rect.h"
 #include "jl_os_api.h"
 /* 本头直接用了 struct list_head(279/280 行) 与 struct vfs_attr(305 行),
- * 原厂靠 .c 里先 include system/includes.h 才凑巧能编过。
- * 移植后改为自包含, 避免头文件顺序一变就崩 */
+ * 所以把定义它们的头直接包进来, 做到自包含 —— 指望 .c 里先 include
+ * 别的总头才凑巧编得过, 头文件顺序一变就崩 */
 #include "jl_list.h"
 #include "jl_fs.h"
 #include "res/resfile.h"
@@ -431,26 +431,27 @@ struct janimation {
 /* ====================================================================
  * 事件回调注册表 —— (窗口/控件 id -> ontouch/onkey/onchange) 的映射
  *
- * 【与原厂的差异】
- * 原厂是每个 handler 一个 sec(.elm_event_handler_<style>) 对象, 靠链接
- * 脚本(sdk.ld 的 KEEP(*(.elm_event_handler_JL)))拼成连续一段, 并给出
+ * 【与段收集做法的差异】
+ * 段收集的做法是每个 handler 一个 sec(.elm_event_handler_<style>) 对象,
+ * 靠链接脚本(KEEP(*(.elm_event_handler_JL)))拼成连续一段, 并给出
  * elm_event_handler_begin_JL / _end_JL 两个边界符号; 再由
  * REGISTER_UI_STYLE 把这对边界包成 ui_style_info 扔进 .ui_style 段,
  * ui_core_set_style() 按名字选中其中一套。
  *
- * 本移植 sec() 是空宏(jl_typedef.h), armlink 也没有那类段边界符号, 所以
- * 照抄原厂宏会"编译过、链接过、就是注册不上" —— 界面画得出来但一个按键
- * 都不响应, 是最难查的那类静默故障。因此 REGISTER_UI_EVENT_HANDLER /
- * REGISTER_UI_STYLE 已删除, 改成下面这套显式表。
+ * 本工程 sec() 是空宏(jl_typedef.h), armlink 也没有那类段边界符号 ——
+ * 真照那套宏写会"编译过、链接过、就是注册不上": 界面画得出来但一个按键
+ * 都不响应, 是最难查的那类静默故障。所以这里不提供
+ * REGISTER_UI_EVENT_HANDLER / REGISTER_UI_STYLE 这类宏, 改用下面这套
+ * 显式表。
  *
- * 【本移植的做法】一页一张表, 表本体在 config/ui_port_registry.c
+ * 【本工程的做法】一页一张表, 表本体在 config/ui_port_registry.c
  *   ui_action/<页面>_action.c   定义本页的 ui_handlers_<页面>
  *   config/ui_port_registry.c   g_ui_handler_table 登记所有页面的表
  *
  * 与 control.h 的 g_control_ops_table 同构: 漏登记是【编译期未定义符号】,
  * 不是运行期静默失效。
  *
- * 【"风格"概念已去掉】原厂靠风格名在多套表里选一套, 本工程只有一套资源,
+ * 【"风格"概念已去掉】风格名的用途是在多套表里选一套, 本工程只有一套资源,
  * 所有页面的表全部生效, 所以 ui_core_set_style() 退化成一句日志 ——
  * 顺带消掉了"资源文件名与 STYLE_NAME 对不上导致整屏无响应"那类 bug。
  * ==================================================================== */
@@ -484,8 +485,8 @@ extern const struct ui_handler_group *const g_ui_handler_table[];
 /**
  * @brief 按 id 找事件回调
  * @return 找到返回回调表项; 没有为该 id 注册回调则返回 NULL(调用方判空)
- * @note 实现在 liba/ui_dot/ui_core_dot.c。原为头文件里的 static inline,
- *       改成真函数是因为现在是双层遍历, 19 个调用点各内联一份不划算。
+ * @note 实现在 liba/ui_dot/ui_core_dot.c, 是真函数而不是头文件里的
+ *       static inline —— 查表要走两层遍历, 19 个调用点各内联一份不划算。
  */
 const struct element_event_handler *element_event_handler_for_id(u32 id);
 

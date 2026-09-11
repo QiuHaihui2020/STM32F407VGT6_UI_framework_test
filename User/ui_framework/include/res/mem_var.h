@@ -6,17 +6,16 @@
 
 struct mem_var_element {
     /*
-     * 加固: 原库【不保存原始键】, 只存下面的 crc + checksum, 命中判断就是
-     * "两个校验值都相等"。两组不同的 (index,type,id,page,prj) 一旦撞上同一对
-     * 校验值, 就会返回错误的资源, 且调用方无从察觉。
+     * 缓存键原样存在表项里, 供 mem_var_search 逐个确认 —— 【不能只靠下面的
+     * crc + checksum 判命中】: 两组不同的 (index,type,id,page,prj) 一旦撞上
+     * 同一对校验值, 就会返回错误的资源, 且调用方无从察觉。
      *
      * 风险比看上去大: checksum 是逐字节累加, 【对字节顺序不敏感】—— index /
-     * page / prj 这类小整数字段互换位置时 checksum 必然相同, 实际防线只剩
-     * CRC16 那 16 位。
+     * page / prj 这类小整数字段互换位置时 checksum 必然相同, 只剩 CRC16 那
+     * 16 位防线。
      *
-     * 这五个字段就是为了让 mem_var_search 能逐键确认而加的, 每项多 20 字节
-     * (sizeof(struct mem_var) 16 -> 36)。crc / checksum 保留作粗筛(比 5 个
-     * u32 的比较快), 不再是唯一判据。
+     * 代价是每项多 20 字节(sizeof(struct mem_var) 36)。crc / checksum 留作
+     * 粗筛(比 5 个 u32 的比较快), 不作为唯一判据。
      */
     u32 index;
     u32 type;

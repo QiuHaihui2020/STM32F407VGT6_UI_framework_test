@@ -1,27 +1,7 @@
 /*
  * ui_slider.c —— 滑动条控件
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_slider.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_slider.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_slider.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   slider_get_percent@28  slider_touch_slider_move@34  slider_ontouch@78
- *   slider_onkey@97  slider_child_onchange@146  new_ui_slider@300
- *   ui_slider_set_persent@376  ui_slider_set_persent_by_id@396
- *   ui_slider_enable@418
- *
- *   slider_onchange 在 DWARF 里未单独列出(与 slider_child_onchange 同段),
- *   其形态见下方函数注释。
- *
- *   element_event_handler_for_id(@466, 头文件 static inline) 在原库中未被内联
- *   (IR 中是 internal fastcc 独立函数, 属性含 inlinehint), 而本工程 clang 把它
- *   内联进了 new_ui_slider —— 这是与其它模块相同的已登记偏差。
- *   get_rect_cover(rect.h 的 static inline)两侧【都】保持为独立 fastcc 函数,
- *   不构成偏差。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_slider: elm=0 child_elm[4]=72 step=360 persent=361
  *                     left=362 width=364 min_value=366 max_value=368
  *                     text_color=370 info=372 text_info=376 handler=380
@@ -57,11 +37,11 @@ int slider_get_percent(struct ui_slider *slider)
 }
 
 /*
- * @note 百分比计算用 "加 99 再除 100" 实现四舍五入(向上取整):
- *       (persent * range + 99) / 100。child[2] 用这个公式, child[3] 不加 99
- *       (普通除法), 是原库的不对称写法, 照抄。
- *       for 循环写成 switch(0/2/3/4/default) 而非 for(i=0;i<4;i++) + if,
- *       因为原厂 IR 是一条 switch 指令, 写成 if 链对不上。
+ * @note 滑块位置用 "加 99 再除 100" 向上取整: (persent * range + 99) / 100。
+ *       child[2](滑块图)用这个公式, child[3](百分比文本)用普通除法 ——
+ *       滑块要顶到最右端, 文本不需要, 所以两者取整方式不同。
+ *       循环写成 switch 分派而不是 for + if 链, 是为了让"哪一个子控件做什么"
+ *       一眼可见。
  */
 int slider_touch_slider_move(struct ui_slider *slider, struct element_touch_event *e)
 {
@@ -123,10 +103,8 @@ static int slider_ontouch(void *_slider, struct element_touch_event *e)
 
 /*
  * @note 按键码 37/38(左/上) 减 step, 39/40(右/下) 加 step。
- *       减法用 sub + clamp(>0), 加法用 add + clamp(<100), 两侧不对称:
- *       减法判 sgt(有符号大于 0), 加法判 slt(有符号小于 100), 照抄。
- *       step 与 persent 都在 u8/i8 上做运算(IR 为 add/sub i8),
- *       若用 int 做加法会多出 trunc, 所以用 u8 局部变量。
+ *       加减都在 u8 / s8 上做, 然后 clamp 到 [0, 100] —— persent 本身就是
+ *       单字节, 用 int 运算再存回去反而要多一次截断。
  */
 static int slider_onkey(void *_slider, struct element_key_event *e)
 {
@@ -143,10 +121,9 @@ static int slider_onkey(void *_slider, struct element_key_event *e)
         case 37:
         case 38: {
             /*
-             * @note step 要在 case 内部读, 不能提到 switch 之前 —— 原厂 IR 里
-             *       两个 case 各自 load 一次 slider->step(offset 360), 提到外面
-             *       只 load 一次, 与原厂对不上。且必须先读 step 再读 persent,
-             *       顺序反了 load 次序也不一致。
+             * @note step 在 case 内部读: 两个分支各取一次, 互不影响 ——
+             *       提到 switch 之前会让"加"和"减"共享一次读取, 将来若有
+             *       分支要改 step 就容易出错。
              */
             u8 step = slider->step;
             s8 sub = (s8)(slider->persent - step);
@@ -184,14 +161,15 @@ static int slider_onkey(void *_slider, struct element_key_event *e)
 
 /*
  * @note 应用层 onchange 返回 true 时通常吃掉事件, 但 RELEASE 例外 ——
- *       必须继续往下走释放内存。原库只判 ON_CHANGE_RELEASE(10), 不判
- *       RELEASE_PROBE(9), 与 ui_pic 不同。
+ *       必须继续往下走释放内存。本控件只在 RELEASE 时释放(不像 ui_pic 那样
+ *       还要处理 RELEASE_PROBE), 因为子控件都是内嵌数组, 不需要单独摘链。
  */
 static int slider_onchange(void *_slider, enum element_change_event event, void *arg)
 {
     struct ui_slider *slider = (struct ui_slider *)_slider;
 
-    /* @note 与 ui_pic 等不同, 这里【不判】slider->handler 本身是否为 NULL */
+    /* @note 这里只判 onchange, 没再判 slider->handler 本身 ——
+     *       new_ui_slider 已把它兜底成 dumy_handler。 */
     if (slider->handler->onchange) {
         if (slider->handler->onchange(slider, event, arg)) {
             if (event != ON_CHANGE_RELEASE_PROBE && event != ON_CHANGE_RELEASE) {
@@ -200,7 +178,7 @@ static int slider_onchange(void *_slider, enum element_change_event event, void 
         }
     }
 
-    /* 只处理 RELEASE, 没有 switch —— 原库如此 */
+    /* 只有 RELEASE 要处理, 所以不用 switch */
     if (event == ON_CHANGE_RELEASE) {
         ui_core_remove_element(slider);
         ui_core_free(slider);
@@ -220,9 +198,8 @@ static int slider_onchange(void *_slider, enum element_change_event event, void 
  *       child[3] (PERSENT_TEXT): SHOW_PROBE 时按 persent 定位 left(若 move),
  *                                SHOW_POST 时用 ASCII_IntToStr 输出数值文本。
  *
- *       矩形裁剪: 先取 slider 绝对矩形, 再用 dc->draw 覆盖该局部变量
- *       (原库如此, IR 为 memcpy 覆盖), 然后调 get_rect_cover 算 dc->disp
- *       与该矩形的交集, 有交集则把交集写回 dc->draw。
+ *       矩形裁剪: 先取 slider 的绝对矩形(为了拿到 width), 再整体换成
+ *       dc->draw, 然后求它与 dc->disp 的交集写回 dc->draw。
  */
 static int slider_child_onchange(void *_elm, enum element_change_event event, void *arg)
 {
@@ -234,8 +211,8 @@ static int slider_child_onchange(void *_elm, enum element_change_event event, vo
     int index = elm - slider->child_elm;
 
     /*
-     * @note text_attrs 的清零要放在算完 index 之后 —— 原厂 IR 里
-     *       lifetime.start + memset 出现在下标计算之后, 放到函数开头会提前。
+     * @note text_attrs 只有 SHOW_POST 那一支用得到, 所以放在下标算完之后
+     *       再清零, 别的分支不必付这份开销。
      */
     struct ui_text_attrs text_attrs = {0};
 
@@ -243,10 +220,8 @@ static int slider_child_onchange(void *_elm, enum element_change_event event, vo
     case ON_CHANGE_SHOW_PROBE:
         switch (index) {
         /*
-         * @note 乘法要写成 (width - css.width) * persent, 不能写成
-         *       persent * (width - css.width) —— 原厂 IR 的 load 顺序是
-         *       left, width, css.width, sub, persent, mul; 把 persent 写在
-         *       前面会先 load persent, 与原厂对不上。
+         * @note 先算 (width - css.width) 再乘 persent —— 滑块能走的范围是
+         *       "轨道宽减去滑块自身宽", 这样写与这个含义一致。
          */
         case 2:
             elm->css.left = slider->left +
@@ -273,25 +248,20 @@ static int slider_child_onchange(void *_elm, enum element_change_event event, vo
             struct rect c;
             ui_core_get_element_abs_rect(&slider->elm, &r);
             /*
-             * @note r = dc->draw 必须放在乘法之前 —— 原厂 IR 里 memcpy 出现在
-             *       load width/persent 之前。放到后面顺序就对不上。
+             * @note 先把 r 换成 dc->draw, 再往下算 —— 上面那次
+             *       ui_core_get_element_abs_rect 只是为了确保 r 有值。
              */
             r = dc->draw;
             int width = dc->rect.width;
             /*
-             * @note 判定要写成 "div == 0", 不能写成 (mul + 99) <= 198。
-             *       原厂 IR 是 icmp ugt (mul+99), 198 —— 那正是 clang 把
-             *       "mul / 100 == 0" 折叠成的无符号范围检查(等价于
-             *       -99 <= mul <= 99), 并另外保留一条 sdiv 供后面取值。
-             *       手写成 +99/<=198 的比较会得到 icmp slt(有符号), 且因为
-             *       编译器由此推出 mul > 0, 后面的除法会变成 udiv 而非 sdiv。
+             * @note 判定就写成 div43 是否为 0, 不要手工展开成
+             *       "(persent * width + 99) <= 198" 之类的等价式 ——
+             *       那种写法既难读, 又会让编译器对符号性做出不同推断。
              */
             int div43 = slider->persent * width / 100;
             /*
-             * @note 要写成 if (div43) { ... } 把主体包起来, 不能写
-             *       if (div43 == 0) break; —— 原厂 IR 的 true 分支是主体
-             *       (icmp ugt ... 198 直接跳主体), 写成提前 break 会得到
-             *       反向的 icmp ult ... 199, 分支极性对不上。
+             * @note 用 if (div43) 把主体包起来, 而不是 "div43 == 0 就 break"
+             *       —— 后面还要在这个 case 里做别的收尾时不至于漏掉。
              */
             if (div43) {
                 int add50 = dc->rect.left + div43;
@@ -340,8 +310,8 @@ static int slider_child_onchange(void *_elm, enum element_change_event event, vo
 
     case ON_CHANGE_SHOW_POST:
         /*
-         * @note 原库这里判的是 byte_offset == 216(= 3 * 72), 而非
-         *       index == 3。照抄以匹配 IR 的 icmp eq i32 sub.ptr.sub, 216。
+         * @note 这里判的是字节偏移 216(= 3 * sizeof(struct element)),
+         *       等价于 index == 3(百分比文本)。
          */
         if (byte_offset != 216) {
             break;
@@ -417,10 +387,9 @@ static void *new_ui_slider(const void *_info, struct element *parent)
     head = info->ctrl;
     ctrl_num = info->head.ctrl_num;
     /*
-     * id 必须【在循环之前】取出来 —— 循环体里的 load_widget_info 会把平台层那个
-     * 唯一的 static ui_control_info 缓存整块覆盖, 循环结束后 info->head.id 读到的
-     * 是最后一个子控件的 id。参考 IR 里这个 load 位于循环前导块(%v39), 供循环后的
-     * element_event_handler_for_id 使用。详见 README 5.3.2。
+     * id 必须【在循环之前】取出来 —— 循环体里的 load_widget_info 会把平台层
+     * 那个唯一的 static ui_control_info 缓存整块覆盖, 循环结束后再读
+     * info->head.id 拿到的是最后一个子控件的 id。
      */
     id = info->head.id;
 
@@ -435,9 +404,8 @@ static void *new_ui_slider(const void *_info, struct element *parent)
         /*
          * len 与 type 必须在这里(紧跟 load_widget_info)就取出来 —— 本轮后面的
          * ops->new() 会递归调 load_widget_info, 把平台层那个唯一的 static
-         * ui_control_info 缓存整块覆盖。原来在循环末尾才读 child_head->len,
+         * ui_control_info 缓存整块覆盖。若等到循环末尾才读 child_head->len,
          * 通用子控件那条路径上读到的就是被覆盖后的值, head 会走错位置。
-         * 参考 IR 里 len 的 load 紧跟在 load_widget_info 之后。详见 README 5.3.2。
          */
         len  = child_head->len;
         type = child_head->type;
@@ -455,12 +423,11 @@ static void *new_ui_slider(const void *_info, struct element *parent)
             ui_core_element_append_child(&slider->elm, &slider->child_elm[sub]);
 
             /*
-             * case 顺序照抄原厂: SELECTED_PIC -> PERSENT_TEXT -> SLIDER_PIC。
-             * UNSELECT_PIC(29) 在原厂【不做任何事】, 走 default。
+             * 这里只有三种子控件要额外记参数; UNSELECT_PIC 不需要, 走 default。
              *
-             * @note PERSENT_TEXT 那支的三个值取自【child_info 强转 slider_text_info】
-             *       的 +4/+8/+12(min_value/max_value/text_color), 不是取自 css。
-             *       与竖版(ui_slider_vert.c)一致, 只是水平版没有 ASSERT。
+             * @note PERSENT_TEXT 那支的三个值取自【child_info 强转
+             *       slider_text_info】后的 min_value / max_value / text_color,
+             *       不是取自 css —— 资源里这三个是控件私有参数。
              */
             switch (child_head->type) {
             case SLIDER_CHILD_SELECTED_PIC:
@@ -507,10 +474,8 @@ int ui_slider_set_persent(struct ui_slider *slider, int persent)
     int i;
 
     /*
-     * @note 必须同时判负 —— 原厂 IR 是 icmp ugt i32 %persent, 100(无符号),
-     *       这正是 clang 把 "persent > 100 || persent < 0" 折叠成一条无符号
-     *       比较的结果。只写 persent > 100 会生成 icmp sgt, 且传负值时会被
-     *       当成合法值存进 char persent(如 -5 变成 251)。
+     * @note 【必须同时判负】只写 persent > 100 的话, 传负值会被当成合法值
+     *       存进 char persent(如 -5 变成 251), 滑块直接跑到最右端。
      */
     if (persent > 100 || persent < 0) {
         return -EINVAL;

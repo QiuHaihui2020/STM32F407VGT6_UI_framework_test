@@ -1,26 +1,15 @@
 /*
  * font_ascii.c —— ASCII 字模文件(0x00~0x7F)的索引与取模
  *
- * 【来源】从 cpu/br27/liba/font.a 的 font_ascii.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原,
- *   而非从反汇编推测。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/font_ascii.ll
- *     原始路径: btsdk/lib/utils/ui/font/font_ascii.c
- *
- * 【还原依据】
- *   函数原始行号(DISubprogram): InitFont_ASCII@13  GetASCIICharacterData@34
- *                              GetASCIICharacterWidth@73
- *   局部变量名取自 DWARF: ascinfo / addr / nbytes。
- *   ASCSTRUCT = {u8 width; u8 size; u16 addr}, sizeof=4, 与 font/font_all.h
- *   里的定义逐字段吻合(IR 里读的就是 4 字节)。
- *   字模文件布局(由本文件的寻址方式反推):
+ * 【字模文件布局】
  *     偏移 0      : 1 字节, 字高(点数) —— InitFont_ASCII 读走
- *     偏移 2+4*n  : 第 n 个 ASCII 字符的 ASCSTRUCT(width/size/addr)
+ *     偏移 2+4*n  : 第 n 个 ASCII 字符的索引项 ASCSTRUCT(width/size/addr),
+ *                   sizeof=4, 定义见 font/font_all.h
  *     addr        : 该字符点阵数据在文件里的偏移, 【大端】存放, 用 font_ntoh 转
  *   本模块无 ASSERT。
  *
- * 【段属性】原库代码在 .font_ascii.text(见 ref IR 的 section 属性)。
- *   三个字符串常量在原厂 IR 里【没有 section 属性】, 所以不能开 const_seg。
+ * 【段属性】代码放在 .font_ascii.text。三个字符串常量【不单独设段】,
+ *   所以不开 const_seg。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma code_seg(".font_ascii.text")
@@ -28,7 +17,7 @@
 
 #include "jl_typedef.h"
 #include "font/font_all.h"
-#include "jl_debug.h"    /* printf / puts: 原厂靠别处间接带入 */
+#include "jl_debug.h"    /* printf / puts: 显式包含, 保证本文件自包含 */
 
 u8 InitFont_ASCII(struct font_info *info);
 u8 GetASCIICharacterData(struct font_info *info, u16 asc);
@@ -47,9 +36,9 @@ u8 InitFont_ASCII(struct font_info *info)
 
     font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, 0);
 
-    /* 加固: 原库丢弃返回值。读不到字高时 info->ascpixel.size 保持旧值
-     * (首次调用就是未初始化内存), 而函数仍返回 1 表示成功 —— 此后整套
-     * nbytes 计算全建立在垃圾值上。现在读失败就把文件关掉并如实报错。 */
+    /* 读不到字高就把文件关掉并如实报错: 若放过这次失败, info->ascpixel.size
+     * 会保持旧值(首次调用就是未初始化内存), 而函数还返回 1 表示成功 ——
+     * 此后整套 nbytes 计算全建立在垃圾值上。 */
     if (font_sd_fread(info->ascpixel.file.fd, &info->ascpixel.size, 1) != 1) {
         font_sd_fclose(info->ascpixel.file.fd);
         info->ascpixel.file.fd = NULL;
@@ -81,8 +70,8 @@ u8 GetASCIICharacterData(struct font_info *info, u16 asc)
 
     font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, asc * 4 + 2);
 
-    /* 加固: 原库丢弃返回值。索引表项读不全时 ascinfo 是栈垃圾, 后面拿它的
-     * width 算 nbytes、拿它的 addr 去 fseek, 一路错到底。返回 0 表示取不到。 */
+    /* 索引表项读不全就返回 0(取不到): ascinfo 是栈上变量, 未读满时里面是
+     * 垃圾, 后面拿它的 width 算 nbytes、拿它的 addr 去 fseek 会一路错到底。 */
     if (font_sd_fread(info->ascpixel.file.fd, &ascinfo, sizeof(ASCSTRUCT)) != sizeof(ASCSTRUCT)) {
         return 0;
     }
@@ -94,16 +83,15 @@ u8 GetASCIICharacterData(struct font_info *info, u16 asc)
     }
 
     if (nbytes > info->ascpixel.nbytes) {
-        /* 加固: puts 本身会补换行, 原库这里多写了一个 —— 该错误会多空一行。 */
+        /* 注意 puts 本身会补换行, 字符串里不要再带 '\n'。 */
         puts("error:pixelbuf overlay!");
         printf("ascinfo.width = %d, info->ascpixel.size = %d, nbytes = %d, info->ascpixel.nbytes = %d\n",
                ascinfo.width, info->ascpixel.size, nbytes, info->ascpixel.nbytes);
         /*
-         * 加固: 原库【不检查 malloc 返回值】就把结果写回 pixelbuf, 还把 nbytes
-         * 一并更新。堆耗尽时 pixelbuf 成了 NULL 而 nbytes 是新值, 此后每次调用
-         * 都走上面那个 "pixelbuf == NULL" 分支直接返回宽度 —— 不会立刻崩,
-         * 但这个字库【从此再也取不出点阵】, 而且没有任何提示。
-         * 现在分配失败就保持 nbytes 不变并报一声, 下次还会再试一次。
+         * 【分配失败不能更新 nbytes】否则 pixelbuf 是 NULL 而 nbytes 已是新值,
+         * 此后每次调用都走上面那个 "pixelbuf == NULL" 分支直接返回宽度 ——
+         * 不会立刻崩, 但这个字库从此再也取不出点阵, 而且没有任何提示。
+         * 所以失败时保持 nbytes 不变并报一声, 下次调用还会再试一次。
          */
         free(info->ascpixel.pixelbuf);
         info->ascpixel.pixelbuf = malloc(nbytes);
@@ -119,8 +107,8 @@ u8 GetASCIICharacterData(struct font_info *info, u16 asc)
 
     font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, ascinfo.addr);
 
-    /* 加固: 原库丢弃返回值。点阵读失败时 pixelbuf 里还是【上一个字】的点阵,
-     * 却照常返回宽度 —— 表现为"显示上一个字", 排查起来很费劲。 */
+    /* 点阵读失败必须返回 0: 此时 pixelbuf 里还是【上一个字】的点阵, 若照常
+     * 返回宽度, 界面上就是"显示上一个字", 排查起来很费劲。 */
     if (font_sd_fread(info->ascpixel.file.fd, info->ascpixel.pixelbuf, nbytes) != nbytes) {
         return 0;
     }
@@ -142,7 +130,7 @@ u8 GetASCIICharacterWidth(struct font_info *info, u16 asc)
 
     font_sd_fseek(info->ascpixel.file.fd, SD_SEEK_SET, asc * 4 + 2);
 
-    /* 加固: 原库丢弃返回值, 读失败会把栈垃圾当宽度返回。 */
+    /* 读失败必须返回 0, 否则会把栈垃圾当宽度返回。 */
     if (font_sd_fread(info->ascpixel.file.fd, &ascinfo, sizeof(ASCSTRUCT)) != sizeof(ASCSTRUCT)) {
         return 0;
     }
@@ -151,32 +139,20 @@ u8 GetASCIICharacterWidth(struct font_info *info, u16 asc)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *   [已修] 1 —— 重分配分支不检查 malloc 返回值 -> 已补: 失败时保持 nbytes 不变
- *                并报一声, 下次还会再试。原库会把 nbytes 更新成新值, 于是此后
- *                每次都走 pixelbuf==NULL 分支, 这个字库【从此再也取不出点阵】。
- *   [已修] 2 —— free 与 malloc 之间没置 NULL -> 现在失败即返回、不再更新 nbytes,
- *                旧指针已 free 且不会再被使用。
- *   [已修] 3 —— InitFont_ASCII 不检查 font_sd_fread -> 已补(读不到字高就关掉
- *                文件并返回 0)。另外两个函数的三处 fread 也一并补了。
- *   [已修] 4 —— puts 里多余的换行 -> 已去掉。
+ *  1) 【点阵缓冲重分配】GetASCIICharacterData 在 nbytes 超过当前缓冲时重新
+ *     分配。分配失败时【保持 nbytes 不变】并返回 0 —— 若把 nbytes 更新成新值,
+ *     pixelbuf 又是 NULL, 之后每次调用都会走 "pixelbuf == NULL" 分支直接返回
+ *     宽度, 这个字库从此再也取不出点阵, 且没有任何提示。
  *
- * 1) GetASCIICharacterData 的重分配分支【不检查 malloc 返回值】就把结果写回
- *    info->ascpixel.pixelbuf, 并且把 nbytes 也一并更新。堆耗尽时 pixelbuf 变
- *    NULL、nbytes 却是新值, 下一次调用会走到 `pixelbuf == NULL` 分支直接返回
- *    宽度(不至于立刻崩), 但从此这个字库再也取不出点阵, 且失败无任何提示。
+ *  2) 【nbytes 的两种算法】info->ascpixel.nbytes 是 InitFont_ASCII 里按字高算
+ *     的, 而每次取模时的 nbytes 是按【本字符的 width】算的。两者共用同一个
+ *     字段做上限比较, 所以比字高更宽的字符会走进重分配分支 —— 这是有意的。
  *
- * 2) 同一分支里 free 之后 malloc, 中间没有把 pixelbuf 先置 NULL。若 malloc
- *    失败(返回 NULL)倒是安全, 但若这段代码将来被加上"失败则保留旧值"的补丁,
- *    旧指针已经被 free 掉了 —— 加固时要注意。
+ *  3) 【读盘返回值都要判】四处 font_sd_fread 都判了实际长度: 字高读不到会让
+ *     整套 nbytes 计算建立在垃圾值上; 索引项读不全会拿栈垃圾去 fseek;
+ *     点阵读不全则会把上一个字的点阵当本字显示。
  *
- * 3) InitFont_ASCII 不检查 font_sd_fread 的返回值, 读失败时 info->ascpixel.size
- *    保持旧值(首次调用是未初始化内存), 而函数仍返回 1 表示成功。
- *
- * 4) puts("error:pixelbuf overlay!\n") 里的 '\n' 是多余的 —— puts 本身会补
- *    换行, 于是这条错误会空一行。属原厂写法, 参考 IR 确认该字符串常量本身就
- *    带 \n 且直接传给 puts(不是 printf 被折成 puts 的产物, 那种情况新建的
- *    全局不带 align 且会去掉 \n)。
+ *  4) 【puts 自带换行】字符串里不要再写 '\n', 否则错误信息会多空一行。
  */

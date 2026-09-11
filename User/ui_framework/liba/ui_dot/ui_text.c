@@ -1,26 +1,10 @@
 /*
  * ui_text.c —— 文本控件(歌名、歌词、菜单项文字都走它, 含滚动显示)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_text.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_text.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_text.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   text_highlight@21  text_ontouch@30  do_scroll@43  text_onchange@94
- *   text_release@167  new_ui_text@174  ui_text_set_index@239
- *   ui_text_set_combine_index@291  ui_text_show_index_by_id@315
- *   ui_text_set_str@346  ui_text_set_wstr@367  ui_text_set_utf8_str@384
- *   ui_text_set_str_by_id@399  ui_text_set_text_by_id@412
- *   ui_text_set_textw_by_id@426  ui_text_set_textu_by_id@440
- *   ui_text_set_text_attrs@457  ui_text_set_hide_by_id@466  ui_text_enable@479
- *
- *   text_highlight 在原库已被内联进 text_onchange(无独立 define)。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_text: elm=0 attrs=72 source=92 timer=100 _str[3]=102
- *   (注: timer 已由 u16 加固为 void *, 于是 _str 之后的偏移比上面这行大 2 ——
- *    上面记的是【原库】布局, 留着是为了对照 IR 时不迷路)
+ *   (注: 偏移表是按 timer 占 2 字节列的; 本实现的 timer 是 void *, 32 位平台上
+ *    占 4 字节, 所以 _str 及其后的字段实际都再往后挪 2)
  *                   _format[7]=108 str_num=115 index=116 info=120 handler=124
  *                   sizeof=128
  *   struct ui_text_attrs: str=72 format=76 color=80 strlen=84 offset=86
@@ -30,8 +14,8 @@
  *   struct ui_text_list: num=0, str=2 (声明是 char str[0], 实际按 u16 用)
  *
  * 【位域小技巧】attrs 的位域整字节里 encode 占低 2 位、endian 第 2 位、
- *   flags 占高 5 位。所以 "整字节 < 0"(bit7) 就等价于 flags & 16,
- *   IR 里的 icmp slt i8 x, 0 就是这个判断。
+ *   flags 占高 5 位。所以把整字节当 signed char 判 "< 0"(即 bit7), 就等价于
+ *   判 flags & 16, 省掉一次移位取位域。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_text.data.bss")
@@ -97,10 +81,10 @@ static void do_scroll(void *_elm)
                 break;
             case 2: {
                 /*
-                 * @note 掩码结果要显式截回 char —— 原厂的掩码运算全在 i8 上做
-                 *       (and i8 c, -8 / icmp eq i8 -16)。不加转换的话 c 会先
-                 *       提升到 int, 变成 and i32 248, 与原厂对不上。
-                 *       末档写 c > -1 对应原厂的 icmp sgt i8 c, -1。
+                 * @note 掩码两边都显式截回 char: c & 0xf8 会先做整型提升, 在
+                 *       char 有符号的平台上 c 为负时符号扩展成 0xffffffxx,
+                 *       与右边的 240 永远不相等, UTF-8 四字节字符就判不出来。
+                 *       截回 char 之后两种符号性下都成立。
                  */
                 char c = text->attrs.str[text->attrs.offset];
 
@@ -111,12 +95,11 @@ static void do_scroll(void *_elm)
                 } else if ((char)(c & 0xe0) == (char)0xc0) {
                     text->attrs.offset += 2;
                 } else {
-                    /* 原为 (c > -1), 即"signed char 为正 = ASCII 单字节"。
-                     * ARM 上 char 无符号, 该判断恒为真, 编译器也会告警。
-                     * 直接写成 else: 行为与 ARM 上原式的编译结果一致, 且
-                     * 保证任何字节都会推进 offset —— 若照 pi32 的有符号语义,
-                     * 遇到落单的 UTF-8 续字节(0x80~0xBF)会一步都不前进,
-                     * 外层循环就死住了。 */
+                    /* 剩下的是 ASCII 单字节。这一档写成 else 而不是再判一次
+                     * "c > -1": ARM 上 char 无符号, 那个式子恒为真, 编译器还会
+                     * 告警; 而按 char 有符号的语义去判, 遇到落单的 UTF-8 续
+                     * 字节(0x80~0xBF)会一步都不前进, 滚动就死在原地。
+                     * 写成 else 能保证任何字节都把 offset 往前推。 */
                     text->attrs.offset += 1;
                 }
                 break;
@@ -134,7 +117,8 @@ static void do_scroll(void *_elm)
 
 /*
  * @note 1. load_widget_info 是【无条件先调】的, 在应用层 onchange 之前。
- *       2. 与 ui_pic 等不同, 这里【不判】text->handler 本身是否为 NULL。
+ *       2. 这里只判 onchange, 没再判 text->handler 本身 —— new_ui_text
+ *          已把它兜底成 dumy_handler。
  *       3. flags 的 bit3(&8) 控制"显示后自动起滚动定时器",
  *          bit4(&16) 控制"高亮时才滚动"; 二者互斥地决定定时器的开关时机。
  */
@@ -181,12 +165,10 @@ static int text_onchange(void *_elm, enum element_change_event event, void *arg)
         break;
 
     case ON_CHANGE_HIGHLIGHT:
-        /* text_highlight@21 被内联到这里 */
         /*
-         * @note 两侧的判断【顺序不对称】, 照抄原厂:
-         *   取消高亮(arg==NULL): 先判 timer 再判 flags;
-         *   进入高亮(arg!=NULL): 先判 flags 再判 timer。
-         *   而且 if 写的是 !arg 在前 —— 换成 arg 在前会把两个块的排布调换。
+         * @note 两侧的判断【顺序不对称】, 是按各自的短路条件排的:
+         *   取消高亮(arg == NULL): 没有定时器就无事可做, 所以先判 timer;
+         *   进入高亮(arg != NULL): flags 不带 bit4 就根本不该滚, 所以先判 flags。
          */
         if (!arg) {
             if (text->timer) {
@@ -256,7 +238,6 @@ void *new_ui_text(const void *_info, struct element *parent)
     /*
      * @note 这里必须用 info->head.page, 不能用 text->elm.page ——
      *       此时 ui_core_element_init 还没调用, elm 里的 page 是未初始化的。
-     *       原厂 IR 正是 load info->head.page。
      */
     list = platform_api->load_text_list(info->head.page, info->str);
     if (!list) {
@@ -280,7 +261,7 @@ void *new_ui_text(const void *_info, struct element *parent)
 
     css = platform_api->load_css(info->head.page, info->head.css);
 
-    /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+    /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
     ui_core_element_init(&text->elm, info->head.id, info->head.page,
                          (u8)((u32)info->head.css >> 29),
                          css, &text_event_handler, info->action);
@@ -309,8 +290,9 @@ int ui_text_set_index(struct ui_text *text, int index)
     u16 *p;
     int i;
     /*
-     * @note 前一个循环的计数器是【无符号】的 —— 原厂 IR 为 icmp ult i32 n, 2;
-     *       用 int 会得到 icmp slt。后一个循环用的是有符号 i(原厂为 slt)。
+     * @note 两个循环的计数器类型不同是有意的: 前一个只在 [0, 2) 上数, 用 u32;
+     *       后一个要和 text->str_num 比, 跟着用 int, 免得有符号/无符号混比
+     *       把边界判错。
      */
     u32 n;
 
@@ -404,7 +386,8 @@ int ui_text_show_index_by_id(int id, int index)
  * @note 下面三个 set_*str 的差别只在 attrs 的位域怎么写:
  *   set_str      encode=0 endian=0 flags=flags  (整字节覆盖)
  *   set_wstr     encode=1 endian=endian flags=flags
- *   set_utf8_str encode=2 flags=flags, endian【保留原值】(IR 为读-改-写)
+ *   set_utf8_str encode=2 flags=flags, endian【保留原值】
+ *                (UTF-8 是字节流, 没有字节序可言, 所以不去动它)
  */
 int ui_text_set_str(struct ui_text *text, const char *format, const char *str,
                     int strlen, u32 flags)
@@ -562,16 +545,11 @@ REGISTER_CONTROL_OPS(CTRL_TYPE_TEXT)
 };
 
 /*
- * 原库缺陷清单 + 加固状态(描述的是【原库】行为; 方括号是当前处理结果,
- * 差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *  [已修] struct ui_text 的 timer 字段是 u16, 存的却是 set_timer 返回的
- *         【指针】(IR 为 ptrtoint 后 trunc 到 i16, del_timer 时再 zext 回去)。
- *         目前碰巧安全 —— platform 层的 jlui_set_timer 返回的其实是
- *         sys_timer_add() 的定时器 ID 转成的伪指针, 而那是个小整数。但这等于
- *         依赖"ID 永远不超过 16 位"这个未文档化的假设。字段已改为 void *,
- *         三处收发也不再做 trunc / zext。
- *  struct ui_text 的 timer 字段是 u16, 但存的是 set_timer 返回的【指针】
- *  (IR 为 ptrtoint 后 trunc 到 i16, del_timer 时再 zext 回指针)。
- *  指针被截断成 16 位, 只在定时器句柄恰好落在低 16 位时才正确。
+ *  struct ui_text 的 timer 字段用 void * 存 set_timer 返回的句柄, 不要为了
+ *  省两个字节改成 u16。平台层的 set_timer 眼下返回的是 sys_timer_add() 的
+ *  定时器 ID 转成的伪指针, 数值很小, 截成 16 位碰巧也能用; 但那等于依赖
+ *  "ID 永远不超过 16 位"这个没人保证的前提, 一旦超出, del_timer 拿到的就是
+ *  个野句柄, 定时器删不掉还会继续回调已释放的控件。
  */

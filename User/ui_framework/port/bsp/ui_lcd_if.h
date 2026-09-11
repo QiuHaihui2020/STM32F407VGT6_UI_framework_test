@@ -18,7 +18,7 @@
  *
  * 本文件里不允许出现芯片厂商符号(GPIOB / DMA1_Stream5 / hspi3 之类)。
  *
- * 移植到新 MCU:
+ * 换到新 MCU:
  *   1. 复制 lcd/ui_lcd_stm32f4.c 为 lcd/ui_lcd_<你的芯片>.c, 实现下面全部函数
  *   2. 复制 board/ui_board_stm32f4.h 为 board/ui_board_<你的芯片>.h, 填外设实例
  *   3. 在 board/ui_board_pins.h 里改接线

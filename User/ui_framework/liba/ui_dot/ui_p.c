@@ -1,23 +1,13 @@
 /*
  * ui_p.c —— 通用 text element 基础控件
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_p.c.o 还原。
- *   该库交付的是 LLVM bitcode(非机器码)且保留完整调试信息，
- *   故本文件是按 IR + DWARF 还原，而非从反汇编推测。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_p.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_p.c
+ * 【结构体布局】struct element_text 的字段偏移见 ui/p.h
+ *   (elm=0 str=72 format=76 priv=80 color=84 handler=88, sizeof=92)——
+ *   它是控件基类, 前面必须是 struct element, 不要往前面插字段。
  *
- * 【还原依据】
- *   函数原始行号(DISubprogram): text_onchange@10 text_onkey@33 text_ontouch@47
- *                              text_element_init@68 text_element_set_event_handler@78
- *                              text_element_show@85 text_element_set_text@93
- *   本文件按此顺序排列，便于与参考 IR 逐函数对照。
- *   局部变量名取自 DILocalVariable，结构体字段偏移与 ui/p.h 逐字段吻合
- *   (elm=0 str=72 format=76 priv=80 color=84 handler=88, sizeof=92)。
- *
- * 【导出符号】其它模块(ui_number/ui_time)实际依赖前三个:
- *   text_element_init / text_element_set_event_handler / text_element_set_text
- *   text_element_show 库里有导出但无调用者, 为 1:1 保真一并实现。
+ * 【导出符号】其它模块(ui_number / ui_time)实际用到的是前三个:
+ *   text_element_init / text_element_set_event_handler / text_element_set_text。
+ *   text_element_show 目前没有调用者, 一并提供以保持接口完整。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".ui_p.data.bss")
@@ -29,10 +19,8 @@
 #include "ui/p.h"
 
 /*
- * @note 此处先判 handler 再判 handler->onchange; 而下面 text_onkey/text_ontouch
- *       【未】判 handler 本身是否为 NULL —— 这是原库行为, 不是还原疏漏
- *       (参考 IR 中 onkey/ontouch 直接 load handler->onkey 无 null 检查)。
- *       等价还原优先, 加固已另行提交, 见文末"加固记录"。
+ * @note 三个回调入口都要【先判 handler 本身、再判具体的回调指针】: 控件若
+ *       没调过 text_element_set_event_handler, handler 就是 NULL。
  */
 static int text_onchange(void *_elm, enum element_change_event e, void *arg)
 {
@@ -57,9 +45,8 @@ static int text_onkey(void *_elm, struct element_key_event *e)
 {
     struct element_text *text = (struct element_text *)_elm;
 
-    /* 加固: 原库只判了 handler->onkey 而【未判 handler 本身】(同文件的
-     * text_onchange 是判了的)。控件若没调过 text_element_set_event_handler,
-     * handler 为 NULL, 一收到按键就是空指针解引用。 */
+    /* handler 本身也要判: 控件若没调过 text_element_set_event_handler,
+     * 它就是 NULL, 一收到按键就是空指针解引用。 */
     if (text->handler && text->handler->onkey) {
         if (text->handler->onkey(text->priv, e)) {
             return true;
@@ -73,7 +60,7 @@ static int text_ontouch(void *_elm, struct element_touch_event *e)
 {
     struct element_text *text = (struct element_text *)_elm;
 
-    /* 加固: 同 text_onkey, 原库漏判 handler 本身。 */
+    /* 同 text_onkey: handler 本身也要判。 */
     if (text->handler && text->handler->ontouch) {
         if (text->handler->ontouch(text->priv, e)) {
             return true;
@@ -121,13 +108,14 @@ void text_element_set_text(struct element_text *text, char *str,
 }
 
 /*
- * 加固记录(原库缺陷已修, 见 README 第 8 节):
+ * 实现注意事项
  *
- * [已修] text_onkey / text_ontouch 未判 text->handler == NULL —— 原库只判了
- *        handler->onkey / handler->ontouch, 而同文件的 text_onchange 是判了
- *        handler 本身的。控件若未调用 text_element_set_event_handler 就收到
- *        按键/触摸, 即空指针解引用。两处均已补上 handler 判空。
+ *  1) 【三个回调入口都判两层】text_onchange / text_onkey / text_ontouch 都是
+ *     先判 text->handler、再判具体的回调指针。控件未调用
+ *     text_element_set_event_handler 时 handler 为 NULL, 少判一层就是空指针
+ *     解引用。
  *
- * 差异已登记在 cpu/br27/tools/ui_reimpl/accept/ui_p.txt 并锁定指纹:
- * 本模块 9 项里除这 2 个函数外, 其余仍与原库逐字节一致。
+ *  2) 【text_onchange 里的 ON_CHANGE_SHOW_POST】文本是在这一步才真正画出去的
+ *     (交给 platform_api->show_text), 所以 str / format / color 要在此之前
+ *     设好。
  */

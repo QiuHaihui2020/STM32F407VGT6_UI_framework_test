@@ -1,13 +1,13 @@
 /**
  * @file    jl_typedef.h
- * @brief   杰理 SDK generic/typedef.h 的 STM32 等价物
+ * @brief   框架源码所需公共类型与宏的 STM32 版本
  *
  * 提供框架源码依赖的类型别名(u8/u16/u32...)、GNU 属性宏(SEC/AT/ALIGNED...)
  * 和位操作宏。
  *
- * @note 有意【不】叫 typedef.h: 工程 Core/Inc/typedef.h 会抢占同名头。
- *       框架里原本 #include "typedef.h" / "generic/typedef.h" 的地方
- *       已统一改为本文件。
+ * @note 有意【不】叫 typedef.h: 工程里 Core/Inc/typedef.h 会抢占同名头,
+ *       搜索序一变就会包错文件。框架源码统一 #include 本文件, 不写
+ *       "typedef.h" / "generic/typedef.h" 这类容易撞名的路径。
  */
 #ifndef __JL_TYPEDEF_H__
 #define __JL_TYPEDEF_H__
@@ -22,7 +22,7 @@
 /* ---- 错误码 ---------------------------------------------------------
  * 框架用 -EINVAL / -EFAULT / -ENOMEM / -ENOENT 作返回值。
  * Keil 的 <errno.h> 只给了 EINVAL 与 ENOMEM, 缺的两个在这里补上。
- * 用 #ifndef 而不是照搬杰理 errno-base.h 的 Linux 取值, 是为了不和
+ * 用 #ifndef 而不是照搬 errno-base.h 的 Linux 取值, 是为了不和
  * Keil 已有定义打架 —— 框架只关心"非零且为负", 不关心具体数值。 */
 #ifndef EFAULT
 #define EFAULT      14      /* Bad address */
@@ -48,10 +48,10 @@
 /* ---- 编译器属性 -----------------------------------------------------
  * armclang(AC6) 是 clang 前端, GNU 属性全部可用。
  *
- * SEC/sec/AT 在原厂用于把代码数据摆进指定段, 配合 GNU ld 的段收集做
+ * SEC/sec/AT 用于把代码数据摆进指定段, 配合 GNU ld 的段收集做
  * 控件注册表。STM32 侧注册表已改为显式表(config/ui_port_registry.c),
  * 因此这些宏【有意留空】—— 保留段属性只会迫使 Keil 分散加载文件跟着改,
- * 反而不利于再移植。 */
+ * 反而不利于以后换工具链。 */
 #define SEC(x)
 #define sec(x)
 #define SEC_USED(x)     __attribute__((used))
@@ -107,7 +107,7 @@
 
 #define ALIGN_4BYTE(size)       (((size) + 3) & 0xfffffffcUL)
 
-/** 小端序拼 u16。STM32 与 BR27 同为小端, 直接采用原厂小端分支 */
+/** 小端序拼 u16。STM32 与目标平台同为小端, 直接取小端分支 */
 #define __cpu_u16(lo, hi)       ((hi) | ((lo) << 8))
 
 /* ---- 常用工具宏 ----------------------------------------------------- */

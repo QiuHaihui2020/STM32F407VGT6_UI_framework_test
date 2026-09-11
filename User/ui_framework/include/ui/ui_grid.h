@@ -59,13 +59,11 @@ struct ui_grid_dynamic {
 struct ui_grid {
     struct element elm;
     // char hi_num;
-    /* 这三个都用 -1 当"无效"哨兵值, 必须是有符号的。
-     * 原为裸 char —— 在 pi32 上 char 有符号所以能工作, 但 ARM ABI 下
-     * char 是无符号的, -1 会存成 255, 于是:
-     *   ui_grid.c:2880 if (hi_index >= 0)   恒为真 -> item[255] 数组越界
-     *   ui_grid.c:2884 if (onfocus != -1)   恒为真 -> 高亮逻辑反了
-     * 改成 s8(已在 Core/Inc/typedef.h 修正为 signed char)。
-     * 宽度仍是 1 字节, 结构体布局不变(布局与资源文件绑定, 见本文件顶部)。 */
+    /* 这三个都用 -1 当"无效"哨兵值, 所以类型必须写明 s8, 不能写裸 char:
+     * ARM ABI 下 char 是无符号的, -1 会存成 255, 于是
+     *   if (hi_index >= 0)  恒为真 -> 拿 item[255] 去索引, 直接越界;
+     *   if (onfocus != -1)  恒为真 -> 高亮逻辑整个反过来。
+     * s8 宽度仍是 1 字节, 结构体布局不变(布局与资源文件绑定)。 */
     s8   hi_index;
     s8   touch_index;
     s8   onfocus;

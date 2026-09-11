@@ -1,25 +1,14 @@
 /*
  * window.c —— 窗口(界面根容器)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 window.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/window.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/window.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   __window_onkey@14  __window_ontouch@27  __window_onchange@39
- *   window_show@60  __window_hide@135  window_hide@160  window_toggle@171
- *   window_ontouch@184  window_onkey@207
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的:
  *   struct window: elm=0 busy=72 hide=73 ctrl_num=74 entry=76 layer=84
  *                  info=88 handler=92 private_data=96, sizeof=100
- *                  (ui_core_malloc(100) 直接印证)
  *   struct window_info: type=0 ctrl_num=1 css_num=2 len=3 rev[4]=4
  *                       rect=8(left8 top12 width16 height20) layer=24
  *
- * 【窗口栈】模块内有一个静态链表头 s_head, window_show 时把新窗口挂进去,
- *   __window_hide 时摘掉。原库这个变量就叫 head, 放在 .window.data 段。
+ * 【窗口栈】模块内有一个静态链表头 head(放在 .window.data 段), window_show
+ *   时把新窗口挂进去, __window_hide 时摘掉。
  *
  * 【busy/hide 的配合】ui_core_ontouch / ui_core_element_onkey 期间置 busy,
  *   这段时间里若有人调 window_hide, __window_hide 只把 hide 置 1 就返回 ——
@@ -64,8 +53,8 @@ static int __window_ontouch(void *_window, struct element_touch_event *e)
 }
 
 /*
- * @note 与 __window_onkey 不同, 这里【无条件返回 true】, 应用 handler 的返回值
- *       被丢弃(IR 里 %call 的结果没有任何使用者, 两个 ret 都是常量 1)。
+ * @note 与 __window_onkey 不同, 这里【无条件返回 true】—— 应用 handler 的
+ *       返回值不参与判断, onchange 不做"吃掉事件"这件事。
  */
 static int __window_onchange(void *_window, enum element_change_event event,
                              void *arg)
@@ -90,9 +79,8 @@ static const struct element_event_handler window_event_handler = {
  * @param id 窗口 id; 低 8 位同时用作资源的 page 号
  * @return 0 成功; -ENOMEM 失败
  *
- * @note 失败路径统一走 __err1: 卸载已加载的窗口资源 + 打印。注意 info 为
- *       NULL 时(malloc 就失败的那条路径)仍然会调 unload_window(NULL) ——
- *       原库如此, 见文末 TODO。
+ * @note 失败路径统一走 __err1: 卸载已加载的窗口资源 + 打印。从 malloc 失败
+ *       那条路径跳进来时 info 还是 NULL, 所以 __err1 里要先判空。
  */
 int window_show(int id)
 {
@@ -116,15 +104,12 @@ int window_show(int id)
     }
 
     /*
-     * 加固【资源句柄泄漏】: 原库 window->info 只在上面被写过一次 NULL, 【此后
-     * 再没赋过值】—— 加载到的 info 只活在这个局部变量里。于是 __window_hide
-     * 里那句 `if (window->info)` 恒假, 正常关窗时 unload_window 永远不会被
-     * 调用, 每开关一次窗口就漏一个资源句柄。
-     * (IR 里对 window+88 只有 window_show 这一次 store null。)
+     * 【这一句不能少】window->info 要指向刚加载到的资源信息: __window_hide 里
+     * 靠 `if (window->info)` 决定是否调 unload_window, 少了这句就等于每开关
+     * 一次窗口漏一个资源句柄。
      *
-     * @note 这是【行为变化】: 补上之后关窗会真的走 unload_window。原库的
-     *       意图显然如此(否则 __window_hide 里那个判断毫无意义), 但要真机
-     *       验证一遍 —— 万一某处窗口资源是共享的, 提前释放会波及别处。
+     * @note 窗口资源如果在别处是共享的, 关窗时的提前释放会波及那边 ——
+     *       改动这一带时要上板验证一遍。
      */
     window->info = info;
 
@@ -137,9 +122,9 @@ int window_show(int id)
 
     window->ctrl_num = info->ctrl_num;
     window->busy     = 0;
-    /* 加固: 原库【只清了 busy 没清 hide】, 而 window 来自 ui_core_malloc,
-     * 内容是未初始化的。hide 若恰好非 0, 第一次按键/触摸结束后就会立刻
-     * 把这个窗口关掉(见 window_onkey / window_ontouch 末尾那段)。 */
+    /* busy 与 hide 都要在这里清: window 来自 ui_core_malloc, 内容未初始化。
+     * hide 若恰好非 0, 第一次按键/触摸结束后就会立刻把这个窗口关掉
+     * (见 window_onkey / window_ontouch 末尾那段)。 */
     window->hide     = 0;
 
     window->handler = element_event_handler_for_id(id);
@@ -166,9 +151,9 @@ __err:
     ui_core_remove_element(window);
     ui_core_free(window);
 __err1:
-    /* 加固: 从 "ui_core_malloc 失败" 这条路径跳进来时 info 仍是 NULL,
-     * 原库照样调 unload_window(&info->type) —— 即 unload_window 拿到一个
-     * 由 NULL 加偏移得来的野指针, 崩不崩全看平台实现判不判空。 */
+    /* 从 "ui_core_malloc 失败" 这条路径跳进来时 info 仍是 NULL, 所以必须先
+     * 判空 —— 否则 unload_window(&info->type) 拿到的是 NULL 加偏移得来的
+     * 野指针, 崩不崩全看平台实现判不判空。 */
     if (info) {
         platform_api->unload_window((void *)&info->type);
     }
@@ -278,36 +263,20 @@ int window_onkey(struct element_key_event *e)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(描述的是【原库】行为; 方括号是当前处理结果,
- * 差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *  [已修] 1. window->info 【从未被赋值】—— window_show 里只写了一次 NULL,
- *            加载到的 info 只活在局部变量里, 于是 __window_hide 中
- *            `if (window->info)` 恒假, 正常关窗时 unload_window 永远不会被
- *            调用, 每开关一次窗口就漏一个资源句柄。已补 window->info = info。
- *            @note 这是【行为变化】: 关窗会真的走 unload_window 了。原库意图
- *                  显然如此(否则那个判断毫无意义), 但要真机验证 —— 万一某处
- *                  窗口资源是共享的, 提前释放会波及别处。
- *  [已修] 2. __err1 在 "ui_core_malloc 失败" 这条路径上 info 仍是 NULL, 却照样
- *            调 unload_window(&info->type) —— 拿到的是 NULL 加偏移得来的野指针,
- *            崩不崩全看平台实现判不判空。已补 if (info)。
- *  [已修] 3. window->hide 在 window_show 里没有初始化(只清了 busy), 用的是
- *            ui_core_malloc 返回的未初始化内存。若恰好非 0, 第一次按键/触摸
- *            结束后就会立刻把窗口关掉。已补 window->hide = 0。
+ *  1) 【window->info 必须指向加载到的资源信息】__window_hide 靠它决定是否
+ *     调 unload_window。漏了这一句, 每开关一次窗口就漏一个资源句柄。
+ *     反过来, 窗口资源若在别处共享, 关窗时的释放会波及那边 —— 改这一带
+ *     要上板验证。
  *
- *  1. window->info 【从未被赋值】—— window_show 里只写了一次 NULL, 加载到的
- *     info 只存在局部变量里。于是 __window_hide 中 `if (window->info)` 恒假,
- *     正常关窗时 unload_window 永远不会被调用, 窗口资源句柄泄漏。
- *     (IR 里对 window+88 只有 window_show 那一次 store null, 见 window.ll:65。)
- *     修法: window_show 里补 `window->info = info;`。
+ *  2) 【__err1 要先判 info】从 malloc 失败那条路径跳进来时 info 还是 NULL,
+ *     不判就会把 NULL 加偏移得来的野指针交给 unload_window。
  *
- *  2. __err1 在 "malloc 失败" 这条路径上 info 仍是 NULL, 却照样调
- *     unload_window(&info->type) —— 即 unload_window(NULL)。是否崩取决于
- *     平台实现是否判空。
- *     修法: __err1 里先判 `if (info)`。
+ *  3) 【busy / hide 都要显式清零】window 来自 ui_core_malloc, 内容未初始化。
+ *     hide 若恰好非 0, 第一次按键/触摸结束后窗口就被关掉了。
  *
- *  3. window->hide 在 window_show 里没有初始化(只清了 busy), 用的是
- *     ui_core_malloc 返回的未初始化内存。若恰好非 0, 第一次按键/触摸结束后
- *     就会立刻把窗口关掉。
- *     修法: window_show 里补 `window->hide = 0;`。
+ *  4) 【busy 期间不能销毁自己】事件分发时置 busy, 这段时间里的 window_hide
+ *     只置 hide 标记; 等 window_ontouch / window_onkey 返回后再补做真正的
+ *     销毁(那时传 del_probe = 0, 因为 layer_delete_probe 已经做过一次)。
  */

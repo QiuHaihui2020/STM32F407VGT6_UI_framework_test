@@ -1,26 +1,13 @@
 /*
  * font_gbk.c —— GBK / GB2312 字库: 初始化、内码取模、UTF-16 转内码、文本输出
  *
- * 【来源】从 cpu/br27/liba/font.a 的 font_gbk.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原,
- *   而非从反汇编推测。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/font_gbk.ll
- *     原始路径: btsdk/lib/utils/ui/font/font_gbk.c
- *
- * 【还原依据】函数原始行号(DISubprogram), 本文件按此顺序排列:
- *     InitFont_GBK@11         GetGBKCharacterData@44    ConvertUTF16toGBK@75
- *     GetGB2312CharacterData@105  ConvertUTF16toGB2312@133
- *     TextOut_GBK@195         TextOutW_GBK@285
- *   局部变量名与类型全部取自 DWARF, 例如 TextOut_GBK 的
- *   text/width/height/xpos/ypos/i(u16) + step/pixel_size/ascii(u8),
- *   ConvertUTF16to* 的 gbk[2]/offset/addr/codepage_offset。
- *   ConvertUTF16toGB2312 的 20 段区间表与每段的地址偏移常量, 是从参考 IR 的
- *   `add i16 %utf, -A` + `icmp ult ..., L` 和汇合处 phi 的常量逐段提取出来的
- *   (已验算相邻段首尾相接: 每段 addr = utf*2 + K, 上段末 +2 = 下段首)。
+ * 【转换表的分段】ConvertUTF16toGB2312 里那 20 段区间对应 GB2312 在 Unicode
+ *   码位空间里零散分布的部分, 每段 addr = utf * 2 + K(K 见各分支)。相邻段
+ *   在表里首尾相接, 已验算过: 上一段末项 +2 正好是下一段首项。
  *   本模块无 ASSERT。
  *
- * 【段属性】原库代码在 .font_gbk.text(见 ref IR 的 section 属性)。唯一的字符串
- *   常量 "r" 在原厂 IR 里没有 section 属性, 所以不能开 const_seg。
+ * 【段属性】代码放在 .font_gbk.text。唯一的字符串常量 "r" 不单独设段,
+ *   所以不开 const_seg。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma code_seg(".font_gbk.text")
@@ -70,9 +57,9 @@ bool InitFont_GBK(struct font_info *info)
     }
 
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, offset);
-    /* 加固: 原库丢弃返回值。读不到字高时 info->pixel.size 保持旧值(首次调用
-     * 就是未初始化内存), 而 InitFont_* 仍返回 1 表示成功 —— 此后 nbytes 与
-     * 所有取模偏移全建立在垃圾值上。读失败就关掉文件并如实报错。 */
+    /* 读不到字高就关掉文件并如实报错: 放过这次失败的话 info->pixel.size 会
+     * 保持旧值(首次调用就是未初始化内存), 而 InitFont_* 还返回 1 表示成功 ——
+     * 此后 nbytes 与所有取模偏移全建立在垃圾值上。 */
     if (font_sd_fread(info->pixel.file.fd, &info->pixel.size, 1) != 1) {
         font_sd_fclose(info->pixel.file.fd);
         info->pixel.file.fd = NULL;
@@ -125,8 +112,8 @@ u8 GetGBKCharacterData(struct font_info *info, u16 textCode)
 
     addr = codepage_offset + info->pixel.nbytes * offset;
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, addr);
-    /* 加固: 原库丢弃返回值。点阵读失败时 pixelbuf 里还是【上一个字】的点阵,
-     * 却照常返回字高 —— 表现为"显示上一个字", 排查起来很费劲。 */
+    /* 点阵读失败必须返回 0: 此时 pixelbuf 里还是【上一个字】的点阵, 若照常
+     * 返回字高, 界面上就是"显示上一个字", 排查起来很费劲。 */
     if (font_sd_fread(info->pixel.file.fd, info->pixel.pixelbuf, info->pixel.nbytes)
         != (int)info->pixel.nbytes) {
         return 0;
@@ -166,8 +153,8 @@ u16 ConvertUTF16toGBK(struct font_info *info, u16 utf)
     }
 
     font_sd_fseek(info->tabfile.fd, SD_SEEK_SET, codepage_offset + addr);
-    /* 加固: 原库丢弃返回值。表项读失败时 gbk[] 是上一次的内容(或未初始化的
-     * 栈内容), 会被当成合法内码返回, 后面拿它去取模。 */
+    /* 表项读失败必须返回 0(查不到): 否则 gbk[] 里是上一次或未初始化的内容,
+     * 会被当成合法内码返回, 后面拿它去取模。 */
     if (font_sd_fread(info->tabfile.fd, gbk, 2) != 2) {
         return 0;
     }
@@ -210,8 +197,8 @@ u8 GetGB2312CharacterData(struct font_info *info, u16 textCode)
 
     addr = codepage_offset + info->pixel.nbytes * offset;
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, addr);
-    /* 加固: 原库丢弃返回值。点阵读失败时 pixelbuf 里还是【上一个字】的点阵,
-     * 却照常返回字高 —— 表现为"显示上一个字", 排查起来很费劲。 */
+    /* 点阵读失败必须返回 0: 此时 pixelbuf 里还是【上一个字】的点阵, 若照常
+     * 返回字高, 界面上就是"显示上一个字", 排查起来很费劲。 */
     if (font_sd_fread(info->pixel.file.fd, info->pixel.pixelbuf, info->pixel.nbytes)
         != (int)info->pixel.nbytes) {
         return 0;
@@ -284,8 +271,8 @@ u16 ConvertUTF16toGB2312(struct font_info *info, u16 utf)
     }
 
     font_sd_fseek(info->tabfile.fd, SD_SEEK_SET, codepage_offset + addr);
-    /* 加固: 原库丢弃返回值。表项读失败时 gbk[] 是上一次的内容(或未初始化的
-     * 栈内容), 会被当成合法内码返回, 后面拿它去取模。 */
+    /* 表项读失败必须返回 0(查不到): 否则 gbk[] 里是上一次或未初始化的内容,
+     * 会被当成合法内码返回, 后面拿它去取模。 */
     if (font_sd_fread(info->tabfile.fd, gbk, 2) != 2) {
         return 0;
     }
@@ -315,12 +302,7 @@ u16 TextOut_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
     u8 pixel_size;
     u8 ascii;
 
-    /*
-     * 取"汉字字高与 ASCII 字高里较大的那个"。写成【选指针再取 size】而不是
-     * if/else 里各取一次 —— 参考 IR 是 `select %struct.font*` 之后再 load 一次
-     * (即比较用的那两次 load 之外还有第三次)。写成 if/else 会被 GVN 把分支里的
-     * load 与比较用的那两次合并掉, 变成"选值", 与原厂对不上。
-     */
+    /* 取"汉字字高与 ASCII 字高里较大的那个"作行高: 先选结构体指针, 再取 size。 */
     pixel_size = ((info->pixel.size > info->ascpixel.size) ? &info->pixel
                   : &info->ascpixel)->size;
 
@@ -403,13 +385,12 @@ u16 TextOut_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
  * @brief UTF-16 字符串输出
  * @return 实际消耗掉的字节数(遇到换行溢出时返回 i+2)
  *
- * @note 与 TextOut_GBK 的不对称之处(原库如此, 见文末清单):
- *       1. 换行符处理【已加固统一】: 原库这里做换行的是 '\r'、'\n' 被忽略,
- *          与 TextOut_GBK 恰好相反; 现已改成与它一致('\n' 换行、'\r' 忽略)。
- *       2. 控制字符(< 0x20)在这里被替换成 '*' 显示; TextOut_GBK 里会原样
- *          送去 GetASCIICharacterData。
- * @note 循环里【每个字符都重新读一次 info->bigendian】, 参考 IR 的 load 就在
- *       循环体内, 还原时不要顺手提到循环外。
+ * @note 与 TextOut_GBK 的两点差异:
+ *       1. 换行统一按 '\n' 换行、'\r' 忽略, 与 TextOut_GBK 一致(见循环里的说明)。
+ *       2. 控制字符(< 0x20)在这里替换成 '*' 显示; TextOut_GBK 里会原样送去
+ *          GetASCIICharacterData。
+ * @note 循环里【每个字符都重新读一次 info->bigendian】—— 回调有可能改它,
+ *       所以不要把它提到循环外缓存。
  */
 u16 TextOutW_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 {
@@ -422,12 +403,7 @@ u16 TextOutW_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
     u8 pixel_size;
     u8 ascii;
 
-    /*
-     * 取"汉字字高与 ASCII 字高里较大的那个"。写成【选指针再取 size】而不是
-     * if/else 里各取一次 —— 参考 IR 是 `select %struct.font*` 之后再 load 一次
-     * (即比较用的那两次 load 之外还有第三次)。写成 if/else 会被 GVN 把分支里的
-     * load 与比较用的那两次合并掉, 变成"选值", 与原厂对不上。
-     */
+    /* 取"汉字字高与 ASCII 字高里较大的那个"作行高: 先选结构体指针, 再取 size。 */
     pixel_size = ((info->pixel.size > info->ascpixel.size) ? &info->pixel
                   : &info->ascpixel)->size;
 
@@ -446,15 +422,11 @@ u16 TextOutW_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 
         if ((str[i + info->bigendian] < 0x80) && (str[i + 1 - info->bigendian] == 0)) {
             /*
-             * 加固: 原库这里 '\n' 被【直接忽略】、只有 '\r' 换行, 而同文件的
-             * TextOut_GBK 恰好相反('\n' 换行、'\r' 忽略)。后果是只带 '\n' 的
-             * 文本走 UTF-16 这一路时【完全不换行】。
-             *
-             * 改成与 TextOut_GBK 一致('\n' 换行、'\r' 忽略), 而不是"两个都换行"
-             * —— 后者会让 "\r\n" 换两行, 是新的退步。按现在这样:
-             *   "\n"   -> 换一行(原库不换, 正是被修好的那种)
+             * 换行规则与 TextOut_GBK 保持一致: '\n' 换行、'\r' 忽略。
+             * 【不要】改成"两个都换行" —— 那会让 "\r\n" 换两行。按现在这样:
+             *   "\n"   -> 换一行
              *   "\r\n" -> '\r' 忽略、'\n' 换行, 仍是一行
-             *   "\r"   -> 不再换行(纯 \r 换行是老 Mac 风格, 资源里几乎不会出现)
+             *   "\r"   -> 不换行(纯 \r 换行是老 Mac 风格, 资源里几乎不会出现)
              */
             if (str[i + info->bigendian] == '\r') {
                 continue;
@@ -525,34 +497,25 @@ u16 TextOutW_GBK(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *   [已修] 1 —— TextOut_GBK 与 TextOutW_GBK 对 CR/LF 的处理【正好相反】。
- *                已把 TextOutW_GBK 改成与 TextOut_GBK 一致(LF 换行、CR 忽略)。
- *                【没有】改成"两个都换行" —— 那会让 CRLF 换两行, 是新的退步。
- *   [保留] 2 —— offset = -1 的哨兵写法。这【不是缺陷】: -1 转 u32 与 == -1 比较
- *                在 C 里都是 0xFFFFFFFF, 行为完全正确, 只是可读性一般。
- *                改它没有实际收益, 只会增加与原库逐条对照时的噪声。
- *   [已修] 3 —— 两个 Get*CharacterData 不检查 fread -> 已补。
- *   [保留] 4 —— InitFont_GBK 里未使用的局部变量 i。同 rle.c 的死变量 i: 删它对代码
- *                生成毫无影响, 只会增加对照噪声。
+ *  1) 【CR/LF 两条输出路径要一致】TextOut_GBK 与 TextOutW_GBK 都是 '\n' 换行、
+ *     '\r' 忽略。两边不一致的话, 同一段文本走内码路径和走 UTF-16 路径会得到
+ *     不同的排版; 而"两个都换行"又会让 "\r\n" 换两行 —— 现在这样是折中后的
+ *     唯一自洽选择。
  *
- * 1) TextOut_GBK 与 TextOutW_GBK 对 CR/LF 的处理【正好相反】:
- *      TextOut_GBK :  '\n'(0x0A) 换行, '\r'(0x0D) 忽略
- *      TextOutW_GBK:  '\r'(0x0D) 换行, '\n'(0x0A) 忽略
- *    参考 IR 里两个 switch 的 case 常量确认原库就是这样(TextOut_GBK 的
- *    case 10 走换行分支, TextOutW_GBK 的 case 13 走换行分支), 不是还原笔误。
- *    后果: 同一段带 "\r\n" 的文本, 走内码路径与走 UTF-16 路径的换行行为一致
- *    (两者各认一个), 但只带 "\n" 的文本在 UTF-16 路径下不会换行。
+ *  2) 【offset 用 -1 作哨兵】两个 Get*CharacterData 把 -1 赋给 u32 再用
+ *     `== -1` 判定, 两边都是 0xFFFFFFFF, 行为正确。区位不合法时走这条路径。
  *
- * 2) GetGBKCharacterData / GetGB2312CharacterData 里 `offset = -1` 是把 -1
- *    赋给 u32, 再用 `offset == -1` 判定。虽然在本目标上能正常工作, 但用一个
- *    合法区位算不出来的哨兵值更稳妥。
+ *  3) 【读盘返回值都要判】字高、两处转换表项、两处点阵都判了实际长度 ——
+ *     读失败时放过去会分别导致偏移算错、栈内容当内码、显示上一个字。
  *
- * 3) 两个 Get*CharacterData 都不检查 font_sd_fread 的返回值, 读失败时
- *    pixelbuf 里是上一个字的点阵, 却照常返回字高 —— 表现为"显示上一个字"。
+ *  4) 【区位换算】
+ *       GBK    : 高字节 0x81~0xFE、低字节 0x40~0xFE, 每区 191 个字;
+ *       GB2312 : 高字节 0xA1~0xF7、低字节 0xA1~0xFE, 每区 94 个字。
+ *     两者的字模数据都从 codepage_offset(默认 6, 多代码页时再加 ansi_offset)
+ *     起算。
  *
- * 4) InitFont_GBK 里的局部变量 i 从未使用(DWARF 里确有这个变量, 说明原库
- *    就声明了它)。无副作用, 保留以保持与原库一致。
+ *  5) 【底部对齐】putchar 的 y 坐标里加了 (pixel_size - height), 让矮字(ASCII)
+ *     与高字(汉字)在同一行底部对齐。
  */

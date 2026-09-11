@@ -1,27 +1,10 @@
 /*
  * ui_slider_vert.c —— 垂直滑动条控件
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_slider_vert.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_slider_vert.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_slider_vert.c
+ * 【与水平版 ui_slider.c 的关系】两者结构对称, 差异集中在: 方向(top/height
+ *   而不是 left/width)、进度反向(用 100 - persent)、以及本文件多两条越界告警。
  *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   vslider_get_percent@28  vslider_touch_slider_move@34  vslider_ontouch@78
- *   vslider_onkey@97  vslider_child_onchange@146  new_ui_vslider@300
- *   ui_vslider_set_persent@376  ui_vslider_set_persent_by_id@396
- *   ui_vslider_enable@418
- *
- *   vslider_onchange 在 DWARF 里未单独列出(与 vslider_child_onchange 同段),
- *   其形态见下方函数注释。
- *
- *   element_event_handler_for_id(@466, 头文件 static inline) 在原库中未被内联
- *   (IR 中是 internal fastcc 独立函数, 属性含 inlinehint), 而本工程 clang 把它
- *   内联进了 new_ui_vslider —— 这是与其它模块相同的已登记偏差。
- *   get_rect_cover(rect.h 的 static inline)两侧【都】保持为独立 fastcc 函数,
- *   不构成偏差。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_vslider: elm=0 child_elm[4]=72 step=360 persent=361
  *                     top=362 height=364 min_value=366 max_value=368
  *                     text_color=370 info=372 text_info=376 handler=380
@@ -50,7 +33,7 @@
 #include "ui/ui_slider_vert.h"
 #include "ui/control.h"
 #include "jl_ascii.h"
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 int vslider_get_percent(struct ui_vslider *vslider)
 {
@@ -58,11 +41,11 @@ int vslider_get_percent(struct ui_vslider *vslider)
 }
 
 /*
- * @note 百分比计算用 "加 99 再除 100" 实现四舍五入(向上取整):
- *       (persent * range + 99) / 100。child[2] 用这个公式, child[3] 不加 99
- *       (普通除法), 是原库的不对称写法, 照抄。
- *       for 循环写成 switch(0/2/3/4/default) 而非 for(i=0;i<4;i++) + if,
- *       因为原厂 IR 是一条 switch 指令, 写成 if 链对不上。
+ * @note 滑块位置用 "加 99 再除 100" 向上取整: (persent * range + 99) / 100。
+ *       child[2](滑块图)用这个公式, child[3](百分比文本)用普通除法 ——
+ *       滑块要顶到端点, 文本不需要。
+ *       循环写成 switch 分派而不是 for + if 链, 是为了让"哪一个子控件做什么"
+ *       一眼可见。
  */
 int vslider_touch_slider_move(struct ui_vslider *vslider, struct element_touch_event *e)
 {
@@ -130,9 +113,8 @@ static int vslider_ontouch(void *_vslider, struct element_touch_event *e)
 /*
  * @note 按键码 37/38(左/上) 减 step, 39/40(右/下) 加 step。
  *       减法用 sub + clamp(>0), 加法用 add + clamp(<100), 两侧不对称:
- *       减法判 sgt(有符号大于 0), 加法判 slt(有符号小于 100), 照抄。
- *       step 与 persent 都在 u8/i8 上做运算(IR 为 add/sub i8),
- *       若用 int 做加法会多出 trunc, 所以用 u8 局部变量。
+ *       加减都在 u8 / s8 上做, 然后 clamp 到 [0, 100] —— persent 本身就是
+ *       单字节, 用 int 运算再存回去反而要多一次截断。
  */
 static int vslider_onkey(void *_vslider, struct element_key_event *e)
 {
@@ -149,10 +131,9 @@ static int vslider_onkey(void *_vslider, struct element_key_event *e)
         case 37:
         case 38: {
             /*
-             * @note step 要在 case 内部读, 不能提到 switch 之前 —— 原厂 IR 里
-             *       两个 case 各自 load 一次 vslider->step(offset 360), 提到外面
-             *       只 load 一次, 与原厂对不上。且必须先读 step 再读 persent,
-             *       顺序反了 load 次序也不一致。
+             * @note step 在 case 内部读: 两个分支各取一次, 互不影响 ——
+             *       提到 switch 之前会让"加"和"减"共享一次读取, 将来若有
+             *       分支要改 step 就容易出错。
              */
             u8 step = vslider->step;
             s8 sub = (s8)(vslider->persent - step);
@@ -190,8 +171,8 @@ static int vslider_onkey(void *_vslider, struct element_key_event *e)
 
 /*
  * @note 应用层 onchange 返回 true 时通常吃掉事件, 但 RELEASE 例外 ——
- *       必须继续往下走释放内存。原库只判 ON_CHANGE_RELEASE(10), 不判
- *       RELEASE_PROBE(9), 与 ui_pic 不同。
+ *       必须继续往下走释放内存。本控件只在 RELEASE 时释放(不像 ui_pic 那样
+ *       还要处理 RELEASE_PROBE), 因为子控件都是内嵌数组, 不需要单独摘链。
  */
 static int vslider_onchange(void *_vslider, enum element_change_event event, void *arg)
 {
@@ -206,7 +187,7 @@ static int vslider_onchange(void *_vslider, enum element_change_event event, voi
         }
     }
 
-    /* 只处理 RELEASE, 没有 switch —— 原库如此 */
+    /* 只有 RELEASE 要处理, 所以不用 switch */
     if (event == ON_CHANGE_RELEASE) {
         ui_core_remove_element(vslider);
         ui_core_free(vslider);
@@ -229,8 +210,7 @@ static int vslider_onchange(void *_vslider, enum element_change_event event, voi
  *       垂直方向一律用 (100 - persent) —— 见各处 @note。
  *
  *       矩形裁剪: 先取 vslider 绝对矩形, 再用 dc->draw 覆盖该局部变量
- *       (原库如此, IR 为 memcpy 覆盖), 然后调 get_rect_cover 算 dc->disp
- *       与该矩形的交集, 有交集则把交集写回 dc->draw。
+ *       然后求它与 dc->disp 的交集, 有交集则把交集写回 dc->draw。
  */
 static int vslider_child_onchange(void *_elm, enum element_change_event event, void *arg)
 {
@@ -242,8 +222,8 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
     int index = elm - vslider->child_elm;
 
     /*
-     * @note text_attrs 的清零要放在算完 index 之后 —— 原厂 IR 里
-     *       lifetime.start + memset 出现在下标计算之后, 放到函数开头会提前。
+     * @note text_attrs 只有 SHOW_POST 那一支用得到, 所以放在下标算完之后
+     *       再清零, 别的分支不必付这份开销。
      */
     struct ui_text_attrs text_attrs = {0};
 
@@ -251,10 +231,9 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
     case ON_CHANGE_SHOW_PROBE:
         switch (index) {
         /*
-         * @note 乘法要写成 (width - css.height) * persent, 不能写成
-         *       persent * (width - css.height) —— 原厂 IR 的 load 顺序是
-         *       left, width, css.height, sub, persent, mul; 把 persent 写在
-         *       前面会先 load persent, 与原厂对不上。
+         * @note 先算 (height - css.height) 再乘 (100 - persent) —— 滑块能走的
+         *       范围是"轨道高减去滑块自身高", 按这个含义来写更直观;
+         *       垂直方向进度反向, 所以乘的是 100 - persent。
          */
         case 2:
             elm->css.top = vslider->top +
@@ -292,9 +271,8 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
             /* 垂直方向反向: 用 (100 - persent) */
             int div43 = (100 - vslider->persent) * dc->rect.height / 100;
             /*
-             * @note r.top 要先取到局部变量里复用 —— 原厂只 load 一次并在三处
-             *       用它(比较、加、减); 分散写成 r.top 会先 load dc->rect.top,
-             *       load 次序与原厂相反。
+             * @note r.top 先取到局部变量里复用 —— 下面比较、加、减都用它,
+             *       中间 r.height 会被改写, 分散读容易读到改过的值。
              */
             int top = r.top;
             int add50 = div43 + dc->rect.top;
@@ -306,7 +284,8 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
             }
             if (get_rect_cover(&dc->disp, &r, &c)) {
                 dc->draw = c;
-                /* @note 水平版没有这一句 —— 原厂在这里还回写了 disp.height */
+                /* @note 垂直版独有: 交集的高度要回写 disp.height, 否则下一条
+                 *       带的起点会算错(水平方向不需要, 条带本来就是按行切的) */
                 dc->disp.height = c.height;
             }
             break;
@@ -320,16 +299,15 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
             struct rect c85;
             ui_core_get_element_abs_rect(&vslider->elm, &r84);
             /*
-             * @note 这条告警原先漏了。它比的是 top(而 case 1 那条比的是
-             *       height), 原厂如此 —— 两条警告字符串也不同:
-             *       UNSELECTED_PIC 对 SELECTED_PIC。
+             * @note 这条告警比的是 top(case 1 那条比的是 height), 对应的
+             *       子控件也不同(UNSELECTED_PIC / SELECTED_PIC), 两条都要留。
              */
             if (dc->rect.top > r84.top) {
                 puts("VSLIDER_CHILD_UNSELECTED_PIC is large than VSLIDER,Please check it!");
             }
             /*
-             * @note 这里是 (100 - persent), 不是 persent —— 原先写错了。
-             *       IR: sub nsw 100, sext(persent) -> mul -> sdiv 100。
+             * @note 垂直方向是【反向】的: 用 (100 - persent) 而不是 persent。
+             *       0% 在底部, 所以进度越大, 未选中区的起点越往上。
              */
             int height = dc->rect.height;
             int div100 = (100 - vslider->persent) * height / 100;
@@ -357,8 +335,8 @@ static int vslider_child_onchange(void *_elm, enum element_change_event event, v
 
     case ON_CHANGE_SHOW_POST:
         /*
-         * @note 原库这里判的是 byte_offset == 216(= 3 * 72), 而非
-         *       index == 3。照抄以匹配 IR 的 icmp eq i32 sub.ptr.sub, 216。
+         * @note 这里判的是字节偏移 216(= 3 * sizeof(struct element)),
+         *       等价于 index == 3(百分比文本)。
          */
         if (byte_offset != 216) {
             break;
@@ -434,17 +412,17 @@ static void *new_ui_vslider(const void *_info, struct element *parent)
     head = info->ctrl;
     ctrl_num = info->head.ctrl_num;
     /*
-     * id 必须【在循环之前】取出来 —— 循环体里的 load_widget_info 会把平台层那个
-     * 唯一的 static ui_control_info 缓存整块覆盖, 循环结束后 info->head.id 读到的
-     * 是最后一个子控件的 id。参考 IR 里这个 load 位于循环前导块(%v39), 供循环后的
-     * element_event_handler_for_id 使用。详见 README 5.3.2。
+     * id 必须【在循环之前】取出来 —— 循环体里的 load_widget_info 会把平台层
+     * 那个唯一的 static ui_control_info 缓存整块覆盖, 循环结束后再读
+     * info->head.id 拿到的是最后一个子控件的 id。
      */
     id = info->head.id;
 
     for (i = 0; i < ctrl_num; i++) {
         /*
-         * @note 变量名必须叫 _head —— 下面 ASSERT 会把条件表达式字符串化,
-         *       原厂的字符串是 "((struct vslider_text_info *)_head)->min_value"。
+         * @note 变量名叫 _head 是因为下面的 ASSERT 会把条件表达式字符串化,
+         *       打印出来就是 "((struct vslider_text_info *)_head)->min_value" ——
+         *       改名会让断言输出跟着变。
          */
         struct ui_slider_info *_head;
         struct ui_ctrl_info_head *child_head;
@@ -456,9 +434,8 @@ static void *new_ui_vslider(const void *_info, struct element *parent)
         /*
          * len 与 type 必须在这里(紧跟 load_widget_info)就取出来 —— 本轮后面的
          * ops->new() 会递归调 load_widget_info, 把平台层那个唯一的 static
-         * ui_control_info 缓存整块覆盖。原来在循环末尾才读 child_head->len,
+         * ui_control_info 缓存整块覆盖。若等到循环末尾才读 child_head->len,
          * 通用子控件那条路径上读到的就是被覆盖后的值, head 会走错位置。
-         * 参考 IR 里 len 的 load 紧跟在 load_widget_info 之后。详见 README 5.3.2。
          */
         len  = child_head->len;
         type = child_head->type;
@@ -480,8 +457,7 @@ static void *new_ui_vslider(const void *_info, struct element *parent)
              *   1. top/height 取自 SELECTED_PIC 的 css(水平版取自 UNSELECT_PIC);
              *   2. min_value/max_value/text_color 取自把 _head 转成
              *      vslider_text_info* 后的字段(水平版取自 css 的 left/width/height),
-             *      并且 min/max 各带一个 ASSERT。
-             * case 顺序照抄原厂: SELECTED_PIC -> PERSENT_TEXT -> SLIDER_PIC。
+             *      并且 min/max 各带一个 ASSERT(资源里必须填, 填 0 说明漏配)。
              */
             switch (child_head->type) {
             case VSLIDER_CHILD_SELECTED_PIC:
@@ -527,10 +503,8 @@ int ui_vslider_set_persent(struct ui_vslider *vslider, int persent)
     int i;
 
     /*
-     * @note 必须同时判负 —— 原厂 IR 是 icmp ugt i32 %persent, 100(无符号),
-     *       这正是 clang 把 "persent > 100 || persent < 0" 折叠成一条无符号
-     *       比较的结果。只写 persent > 100 会生成 icmp sgt, 且传负值时会被
-     *       当成合法值存进 char persent(如 -5 变成 251)。
+     * @note 【必须同时判负】只写 persent > 100 的话, 传负值会被当成合法值
+     *       存进 char persent(如 -5 变成 251), 滑块直接跑到另一端。
      */
     if (persent > 100 || persent < 0) {
         return -EINVAL;

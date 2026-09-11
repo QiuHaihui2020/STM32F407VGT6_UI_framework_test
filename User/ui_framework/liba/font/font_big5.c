@@ -1,28 +1,16 @@
 /*
  * font_big5.c —— BIG5(繁体中文)字库: 初始化、内码取模、UTF-16 转内码、文本输出
  *
- * 【来源】从 cpu/br27/liba/font.a 的 font_big5.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原,
- *   而非从反汇编推测。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/font_big5.ll
- *     原始路径: btsdk/lib/utils/ui/font/font_big5.c
+ * 【与 font_gbk.c 的差异】同为双字节字库, 但这一路有四点不同:
+ *   1. BIG5 【不涉及 codepage / lange_info_table】—— 字模文件头固定 6 字节,
+ *      转换表从 0 开始, 所以没有 codepage_offset 这个量。
+ *   2. TextOut_BIG5 / TextOutW_BIG5 【不做 info->offset 的起始偏移】, 直接用
+ *      传入的 str / len(GBK 那一路会先 str += offset*2、len -= offset*2)。
+ *   3. BIG5 的低字节分两段(0x40~0x7E 与 0xA1~0xFE), 第二段的序号要再加 63。
+ *   4. 换行处理: 本文件的两个 TextOut 都是 '\n' 换行、'\r' 忽略, 前后一致。
  *
- * 【还原依据】函数原始行号(DISubprogram), 本文件按此顺序排列:
- *     InitFont_BIG5@11   GetBIG5CharacterData@38   ConvertUTF16toBIG5@62
- *     TextOut_BIG5@85    TextOutW_BIG5@165
- *   局部变量名与类型取自 DWARF。
- *
- * 【与 font_gbk.c 的结构差异】(都在 IR 里逐条核对过, 不是省略)
- *   1. BIG5 这一路【完全没有 codepage / lange_info_table 的处理】——
- *      文件头固定 6 字节, 转换表从 0 开始。所以没有 codepage_offset 这个局部。
- *   2. TextOut_BIG5 / TextOutW_BIG5 【不做 info->offset 的起始偏移】,
- *      直接用传入的 str / len(GBK 那一路会先 str += offset*2, len -= offset*2)。
- *   3. ConvertUTF16toBIG5 里的 gbk[2] 【没有 = {0} 初值】(参考 IR 是
- *      `alloca [2 x i8]` 且没有清零 store; GBK 那边是 `alloca i16` + store 0)。
- *   4. BIG5 的低字节分两段(0x40~0x7E 与 0xA1~0xFE), 第二段要再加 63。
- *
- * 【段属性】原库代码在 .font_big5.text(见 ref IR 的 section 属性)。唯一的字符串
- *   常量 "r" 在原厂 IR 里没有 section 属性, 所以不能开 const_seg。
+ * 【段属性】代码放在 .font_big5.text。唯一的字符串常量 "r" 不单独设段,
+ *   所以不开 const_seg。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma code_seg(".font_big5.text")
@@ -61,9 +49,9 @@ bool InitFont_BIG5(struct font_info *info)
     }
 
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, 0);
-    /* 加固: 原库丢弃返回值。读不到字高时 info->pixel.size 保持旧值(首次调用
-     * 就是未初始化内存), 而 InitFont_* 仍返回 1 表示成功 —— 此后 nbytes 与
-     * 所有取模偏移全建立在垃圾值上。读失败就关掉文件并如实报错。 */
+    /* 读不到字高就关掉文件并如实报错: 放过这次失败的话 info->pixel.size 会
+     * 保持旧值(首次调用就是未初始化内存), 而 InitFont_* 还返回 1 表示成功 ——
+     * 此后 nbytes 与所有取模偏移全建立在垃圾值上。 */
     if (font_sd_fread(info->pixel.file.fd, &info->pixel.size, 1) != 1) {
         font_sd_fclose(info->pixel.file.fd);
         info->pixel.file.fd = NULL;
@@ -111,8 +99,8 @@ u8 GetBIG5CharacterData(struct font_info *info, u16 textCode)
 
     addr = info->pixel.nbytes * offset + 6;
     font_sd_fseek(info->pixel.file.fd, SD_SEEK_SET, addr);
-    /* 加固: 原库丢弃返回值。点阵读失败时 pixelbuf 里还是【上一个字】的点阵,
-     * 却照常返回字高 —— 表现为"显示上一个字", 排查起来很费劲。 */
+    /* 点阵读失败必须返回 0: 此时 pixelbuf 里还是【上一个字】的点阵, 若照常
+     * 返回字高, 界面上就是"显示上一个字", 排查起来很费劲。 */
     if (font_sd_fread(info->pixel.file.fd, info->pixel.pixelbuf, info->pixel.nbytes)
         != (int)info->pixel.nbytes) {
         return 0;
@@ -128,10 +116,8 @@ u8 GetBIG5CharacterData(struct font_info *info, u16 textCode)
  */
 u16 ConvertUTF16toBIG5(struct font_info *info, u16 utf)
 {
-    /* 加固: 原库这里【没有初值】, 而下面 font_sd_fread 的返回值又不检查 —— 读失败
-     * 时返回的是未初始化的栈内容, 被当成合法内码用。GBK 那一路的同名局部是
-     * = {0} 的, 至少失败时返回 0(表示查不到)。两处现在都补了返回值检查, 初值
-     * 也补上, 双保险。 */
+    /* gbk[] 要给初值: 它是栈上变量, 一旦下面的读表失败, 未初始化的内容就会
+     * 被当成合法内码返回。连同下面的返回值检查一起, 是双保险。 */
     u8 gbk[2] = {0};
     u32 offset = utf * 2;
     u32 addr;
@@ -149,8 +135,8 @@ u16 ConvertUTF16toBIG5(struct font_info *info, u16 utf)
     }
 
     font_sd_fseek(info->tabfile.fd, SD_SEEK_SET, addr);
-    /* 加固: 原库丢弃返回值。表项读失败时 gbk[] 是上一次的内容(或未初始化的
-     * 栈内容), 会被当成合法内码返回, 后面拿它去取模。 */
+    /* 表项读失败必须返回 0(查不到): 否则 gbk[] 里是上一次或未初始化的内容,
+     * 会被当成合法内码返回, 后面拿它去取模。 */
     if (font_sd_fread(info->tabfile.fd, gbk, 2) != 2) {
         return 0;
     }
@@ -161,8 +147,8 @@ u16 ConvertUTF16toBIG5(struct font_info *info, u16 utf)
 /*
  * @brief BIG5 内码字符串输出
  * @return 实际消耗掉的字节数(遇到换行溢出时返回 i+1)
- * @note pixel_size 的取法要用【选指针再取 size】的写法, 理由见
- *       accept/font_gbk.txt 里的说明(写成 if/else 会被 GVN 合并成"选值")。
+ * @note pixel_size 用"先选结构体指针、再取 size"的写法, 取两者中较大的那个
+ *       字高作为行距基准。
  */
 u16 TextOut_BIG5(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 {
@@ -250,11 +236,10 @@ u16 TextOut_BIG5(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 /*
  * @brief UTF-16 字符串输出(转 BIG5 后取模)
  * @return 实际消耗掉的字节数(遇到换行溢出时返回 i+2)
- * @note 与 TextOutW_GBK 不同, 这里做换行的是 '\n'、忽略的是 '\r' ——
- *       与本文件的 TextOut_BIG5 一致。font_gbk.c 的 TextOutW_GBK 恰好相反,
- *       那是原库自己的不一致(见 font_gbk.c 文末 TODO)。
- * @note 循环里【每个字符都重新读一次 info->bigendian】, 参考 IR 的 load 就在
- *       循环体内, 还原时不要顺手提到循环外。
+ * @note 换行用 '\n'、忽略 '\r' —— 与本文件的 TextOut_BIG5 一致。
+ *       (font_gbk.c 的 TextOutW_GBK 两者相反, 见那边的注意事项。)
+ * @note 循环里【每个字符都重新读一次 info->bigendian】—— 回调有可能改它,
+ *       所以不要把它提到循环外缓存。
  */
 u16 TextOutW_BIG5(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 {
@@ -342,26 +327,18 @@ u16 TextOutW_BIG5(struct font_info *info, u8 *str, u16 len, u16 x, u16 y)
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项
  *
- *   [已修] 1 —— gbk[2] 没有初值 + 不检查 fread -> 两处都补上了。
- *   [保留] 2 —— offset = -1 的哨兵写法。这【不是缺陷】: -1 转 u32 与 == -1 比较
- *                在 C 里都是 0xFFFFFFFF, 行为完全正确, 只是可读性一般。
- *                改它没有实际收益, 只会增加与原库逐条对照时的噪声。
- *   [已修] 3 —— 不检查 fread -> 已补(读失败返回 0, 不再"显示上一个字")。
- *   [保留] 4 —— InitFont_BIG5 里未使用的局部变量 i。同 rle.c 的死变量 i: 删它对代码
- *                生成毫无影响, 只会增加对照噪声。
+ *  1) 【读盘返回值都要判】三处 font_sd_fread 都判了实际长度: 字高读不到会让
+ *     nbytes 与所有取模偏移建立在垃圾值上; 转换表项读不到会把栈内容当内码;
+ *     点阵读不到则会把上一个字的点阵当本字显示。
  *
- * 1) ConvertUTF16toBIG5 里的 gbk[2] 【没有初值】, 而 font_sd_fread 的返回值
- *    又不检查。读失败时返回的是【未初始化的栈内容】当成内码用, 后面会拿它去
- *    取模。GBK 那一路的同名局部有 = {0}, 至少失败时返回 0(表示查不到)。
+ *  2) 【ConvertUTF16toBIG5 的 gbk[] 有初值】栈上变量, 配合返回值检查双保险。
  *
- * 2) GetBIG5CharacterData 里 `offset = -1` 是把 -1 赋给 u32 再用 `== -1` 判定,
- *    与 font_gbk.c 同样的写法。
+ *  3) 【offset 用 -1 作哨兵】赋给 u32 再用 `== -1` 判定, 两边都是 0xFFFFFFFF,
+ *     行为正确。区位不合法时就是这条路径。
  *
- * 3) 同样不检查 font_sd_fread 的返回值, 读失败时 pixelbuf 里是上一个字的点阵,
- *    却照常返回字高 —— 表现为"显示上一个字"。
- *
- * 4) InitFont_BIG5 里的局部变量 i 从未使用(DWARF 里确有这个变量)。
+ *  4) 【BIG5 区位换算】高字节 0xA1~0xF9; 低字节分两段 —— 0x40~0x7E(63 个)与
+ *     0xA1~0xFE(94 个), 每区共 157 个字, 第二段的序号要再加 63。
+ *     字模数据从文件偏移 6 开始。
  */

@@ -2,19 +2,18 @@
  * @file    music_action.c
  * @brief   MUSIC 页面(PAGE_1)的事件响应
  *
- * 对应 703 SDK 的 apps/soundbox/ui/lcd/STYLE_SOUNDBOX/music_action.c。
  * 本文件【只做事件骨架】—— 按键分发、弹层显示/隐藏、控件生命周期钩子;
  * 播放器 / EQ / 音量 / 电量这些业务动作一律留 TODO, 由上层接。
  *
- * ┌─ 与 703 原版的两处差异 ────────────────────────────────────────────┐
- * │ 1. 注册方式: 原版用 REGISTER_UI_EVENT_HANDLER(id), 靠链接脚本收集   │
- * │    .elm_event_handler_<style> 段。本移植 sec() 是空宏, 留着就是      │
- * │    "编译过但注册不上"的静默故障, 改成一页一张表:                 │
+ * ┌─ 本工程的两处约定 ─────────────────────────────────────────────────┐
+ * │ 1. 注册方式: 段收集的写法(REGISTER_UI_EVENT_HANDLER(id) 收集        │
+ * │    .elm_event_handler_<style> 段)在本工程下不可用(sec() 是空宏),    │
+ * │    留着就是"编译过但注册不上"的静默故障, 改成一页一张表:           │
  * │    文末直接定义 ui_handlers_music, 再到                            │
  * │    config/ui_port_registry.c 的 g_ui_handler_table 里登记一行。      │
  * │                                                                    │
- * │ 2. 键值: 原版用 UI_KEY_OK/MENU/UP/DOWN/VOLUME_*, 那是 703 按键驱动 │
- * │    的语义键。本工程 User/apps/app_core.c 只投递四个键:             │
+ * │ 2. 键值: 完整键盘会用到 UI_KEY_OK/MENU/UP/DOWN/VOLUME_* 这些语义键, │
+ * │    本工程 User/apps/app_core.c 只投递四个键:                       │
  * │    KEY_PAGE_ENTER / KEY_PAGE_BACK / KEY_PAGE_PREV / KEY_PAGE_NEXT, │
  * │    所以这里按这四个键分发。框架本身不解释键值, 只原样透传。        │
  * └────────────────────────────────────────────────────────────────────┘
@@ -122,7 +121,7 @@ static int music_layout_onkey(void *ctrl, struct element_key_event *e)
 
     case KEY_PAGE_BACK:
         /* 主界面按返回 = 打开主菜单。
-         * 703 原版这里是独立的 UI_KEY_MENU, 本工程按键不够, 复用 BACK。 */
+         * 完整键盘上这是独立的 UI_KEY_MENU, 本工程按键不够, 复用 BACK。 */
         ui_show(MUSIC_MENU_LAYOUT);
         break;
 
@@ -131,7 +130,7 @@ static int music_layout_onkey(void *ctrl, struct element_key_event *e)
     }
 
     /*
-     * @note 与 703 原版一致: 处理完仍返回 FALSE。
+     * @note 处理完仍返回 FALSE, 这是有意的。
      *       返回 TRUE 会让框架把焦点(root.focus)设到这个 layout 上, 之后
      *       按键改走"焦点优先 + 向父节点冒泡"那条路(ui_core_element_onkey),
      *       弹层就再也拿不到按键了。
@@ -143,7 +142,7 @@ static int music_layout_onkey(void *ctrl, struct element_key_event *e)
 /* ====================================================================== *
  *  三、主菜单列表: MUSIC_MENU_LIST (4 项)
  *
- *  项含义要在 UI 工具里核对。参考 703 的排布是 EQ / 循环模式 / 文件浏览 /
+ *  项含义要在 UI 工具里核对。常见排布是 EQ / 循环模式 / 文件浏览 /
  *  返回, 本工程的 .sty 里子布局顺序是
  *  MUSIC_MENU_0 / MUSIC_22 / MUSIC_MENU_1 / MUSIC_MENU_2。
  * ====================================================================== */
@@ -357,7 +356,7 @@ static int music_file_list_onkey(void *ctrl, struct element_key_event *e)
 /* ====================================================================== *
  *  七、音量弹层: MUSIC_VOL_LAYOUT
  *
- *  703 原版在 ON_CHANGE_INIT 里挂一个 3 秒定时器自动收起, 按键时 modify
+ *  常规做法是在 ON_CHANGE_INIT 里挂一个 3 秒定时器自动收起, 按键时 modify
  *  续期。本工程没接 sys_timeout_*, 先留钩子。
  * ====================================================================== */
 

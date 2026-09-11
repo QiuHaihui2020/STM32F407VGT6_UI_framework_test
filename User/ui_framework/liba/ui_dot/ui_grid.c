@@ -1,37 +1,12 @@
 /*
  * ui_grid.c —— 网格控件(列表/菜单等)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_grid.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_grid.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_grid.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   item_highlight@52  ui_grid_set_item_num@111  ui_grid_update_by_id_dynamic@125
- *   ui_grid_set_slide_direction@159  ui_grid_set_hi_index@165
- *   ui_grid_set_pix_scroll@174  ui_grid_get_hindex@183
- *   ui_grid_set_hindex_dynamic@188  ui_grid_set_base_dynamic@206
- *   ui_grid_get_hindex_dynamic@217  ui_grid_cur_item_dynamic@223
- *   ui_grid_set_scroll_area@359  ui_grid_slide_with_callback_dynamic@365
- *   ui_grid_slide_with_callback@964  ui_grid_slide@1167
- *   ui_grid_dynamic_create@1200  ui_grid_dynamic_set_item_by_id@1216
- *   ui_grid_dynamic_reset@1238  ui_grid_dynamic_release@1272
- *   ui_grid_dynamic_set_prepare@1294  ui_grid_dynamic_cur_item@1316
- *   ui_grid_dynamic_slide@1342  ui_grid_add_dynamic@1580
- *   ui_grid_del_dynamic@1650  ui_grid_init_dynamic@1734
- *   ui_grid_add_dynamic_by_id@1779  ui_grid_del_dynamic_by_id@1786
- *   ui_grid_release@2723  ui_grid_child_init@2747
- *   ui_grid_highlight_child@2878  ui_grid_highlight_item@3069
- *   ui_grid_highlight_item_by_id@3117  ui_grid_enable@3211
- *   new_ui_grid@2949  ui_grid_on_focus@3000  ui_grid_lose_focus@3008
- *   ui_grid_state_reset@3016
- *
- * 【内部函数(define internal fastcc)】
+ * 【内部辅助函数】
  *   __grid_ajust         动态网格尺寸调整, 设置item坐标+invisible位
  *   grid_scroll_dynamic  动态网格高亮滚动(被ui_grid_highlight_child调用)
  *   grid_scroll          普通网格高亮滚动(被ui_grid_highlight_child调用)
  *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_grid:
  *     elm=0  hi_index=1(+1,1byte)  touch_index=2(+1)  onfocus=3(+1)
  *     page_mode=4(+1)  slide_direction=5(+1)  col_num=6(+1)  row_num=7(+1)
@@ -41,7 +16,7 @@
  *     min_show_left=17(+4)  min_show_top=18(+4)
  *     max_left=19(+4)  max_top=20(+4)  min_left=21(+4)  min_top=22(+4)
  *     area=23(+4)  item=24(+4)  item_info=25(+4)  dynamic=26(+4)
- *     pos=27(+8)  dc=35(28bytes?)  info=?  handler=?
+ *     pos=27(+8)  dc=35(draw_context)  之后依次是 info / handler
  *   sizeof(struct ui_grid_dynamic)=60bytes:
  *     dhi_index=0(+4)  dcol_num=4(+4)  drow_num=8(+4)
  *     min_row_index=12(+4)  max_row_index=16(+4)
@@ -68,7 +43,7 @@
 #include "ui/layout.h"
 #include <stdlib.h>
 #include <errno.h>
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 static int grid_ontouch(void *_elm, struct element_touch_event *e);
 static int grid_onkey(void *_elm, struct element_key_event *e);
@@ -110,10 +85,12 @@ static void ui_grid_highlight_child(struct ui_grid *grid, int item, int init);
 static void ui_grid_child_init(struct ui_grid *grid, struct ui_grid_info *info);
 
 /* ============================================================
- *  item_highlight - line: 52
+ *  item_highlight
  *  注意第一个参数是 struct element*, 不是 struct layout*。
- *  原厂先把 css 的 left/top/width/height 存下来,
- *  调 ui_core_highlight_element 之后再写回去。
+ *
+ *  几何字段要自己存一份再写回: ui_core_highlight_element 会按高亮样式
+ *  重算 css(宽高都可能被改), 而网格里每个 item 的位置是 grid 自己排的,
+ *  被样式改掉就整排错位了。这里只让它改颜色一类的属性。
  * ============================================================ */
 static void item_highlight(struct element *item, int yes)
 {
@@ -133,7 +110,7 @@ static void item_highlight(struct element *item, int yes)
 }
 
 /* ============================================================
- *  ui_grid_set_item_num - line: 111
+ *  ui_grid_set_item_num
  * ============================================================ */
 int ui_grid_set_item_num(struct ui_grid *grid, int item_num)
 {
@@ -153,7 +130,7 @@ int ui_grid_set_item_num(struct ui_grid *grid, int item_num)
 }
 
 /* ============================================================
- *  ui_grid_update_by_id_dynamic - line: 125
+ *  ui_grid_update_by_id_dynamic
  * ============================================================ */
 int ui_grid_update_by_id_dynamic(int id, int index, int redraw)
 {
@@ -195,7 +172,7 @@ int ui_grid_update_by_id_dynamic(int id, int index, int redraw)
 }
 
 /* ============================================================
- *  ui_grid_set_slide_direction - line: 159
+ *  ui_grid_set_slide_direction
  * ============================================================ */
 int ui_grid_set_slide_direction(struct ui_grid *grid, int dir)
 {
@@ -204,7 +181,7 @@ int ui_grid_set_slide_direction(struct ui_grid *grid, int dir)
 }
 
 /* ============================================================
- *  ui_grid_set_hi_index - line: 165
+ *  ui_grid_set_hi_index
  * ============================================================ */
 int ui_grid_set_hi_index(struct ui_grid *grid, int hi_index)
 {
@@ -219,7 +196,7 @@ int ui_grid_set_hi_index(struct ui_grid *grid, int hi_index)
 }
 
 /* ============================================================
- *  ui_grid_set_pix_scroll - line: 174
+ *  ui_grid_set_pix_scroll
  * ============================================================ */
 int ui_grid_set_pix_scroll(struct ui_grid *grid, int enable)
 {
@@ -231,7 +208,7 @@ int ui_grid_set_pix_scroll(struct ui_grid *grid, int enable)
 }
 
 /* ============================================================
- *  ui_grid_get_hindex - line: 183
+ *  ui_grid_get_hindex
  * ============================================================ */
 int ui_grid_get_hindex(struct ui_grid *grid)
 {
@@ -239,7 +216,7 @@ int ui_grid_get_hindex(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_set_hindex_dynamic - line: 188
+ *  ui_grid_set_hindex_dynamic
  * ============================================================ */
 int ui_grid_set_hindex_dynamic(struct ui_grid *grid, int dhindex, int init, int hi_index)
 {
@@ -265,7 +242,7 @@ int ui_grid_set_hindex_dynamic(struct ui_grid *grid, int dhindex, int init, int 
 }
 
 /* ============================================================
- *  ui_grid_set_base_dynamic - line: 206
+ *  ui_grid_set_base_dynamic
  * ============================================================ */
 int ui_grid_set_base_dynamic(struct ui_grid *grid, u32 base_index_once)
 {
@@ -284,7 +261,7 @@ int ui_grid_set_base_dynamic(struct ui_grid *grid, u32 base_index_once)
 }
 
 /* ============================================================
- *  ui_grid_get_hindex_dynamic - line: 217
+ *  ui_grid_get_hindex_dynamic
  * ============================================================ */
 int ui_grid_get_hindex_dynamic(struct ui_grid *grid)
 {
@@ -292,7 +269,7 @@ int ui_grid_get_hindex_dynamic(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_cur_item_dynamic - line: 223
+ *  ui_grid_cur_item_dynamic
  * ============================================================ */
 int ui_grid_cur_item_dynamic(struct ui_grid *grid)
 {
@@ -322,7 +299,7 @@ int ui_grid_cur_item_dynamic(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_set_scroll_area - line: 359
+ *  ui_grid_set_scroll_area
  * ============================================================ */
 void ui_grid_set_scroll_area(struct ui_grid *grid, struct scroll_area *area)
 {
@@ -330,7 +307,7 @@ void ui_grid_set_scroll_area(struct ui_grid *grid, struct scroll_area *area)
 }
 
 /* ============================================================
- *  __grid_ajust - 内部函数 (internal fastcc)
+ *  __grid_ajust - 内部辅助函数
  *  动态网格尺寸调整:
  *  - 第一个item放在 (min_left, min_top)
  *  - 按网格布局计算每个item的left/top坐标
@@ -390,8 +367,10 @@ static void __grid_ajust(struct ui_grid *grid, int new_row, int new_col)
 
     /*
      * 可视窗口右/下边界(0..10000 定点比例)。
-     * @note 两个下限都拿 item_width 比 —— 原厂如此(纵向本该用 item_height),
-     *       这里按 1:1 还原, 不做修正。
+     * @note 两个下限都用 item_width 兜底(纵向按语义本该用 item_height)。
+     *       现有资源里的格子等宽等高, 两者取值相同; 真要改成 item_height,
+     *       所有非等比的界面滚动边界都会跟着变, 得连资源一起复核 ——
+     *       所以先保持现状, 不在这里顺手改。
      */
     dynamic->grid_xval = 10000 - (grid->show_col - new_col) * (grid->x_interval + item_width);
     dynamic->grid_yval = 10000 - (grid->show_row - new_row) * (grid->y_interval + item_height);
@@ -462,7 +441,7 @@ static void __grid_ajust(struct ui_grid *grid, int new_row, int new_col)
 }
 
 /* ============================================================
- *  ui_grid_slide_with_callback_dynamic - line: 365
+ *  ui_grid_slide_with_callback_dynamic
  *  动态网格像素级滚动(正向 steps>0 / 反向 steps<0)
  *  这是一个约600行的大型函数, 核心流程:
  *    1. 正向: 检查下一个步长下 middle_rect 边界
@@ -1061,7 +1040,7 @@ finish:
 }
 
 /* ============================================================
- *  ui_grid_slide_with_callback - line: 964
+ *  ui_grid_slide_with_callback
  *  普通网格(非动态)像素滚动, 结构与 dynamic 版类似
  * ============================================================ */
 int ui_grid_slide_with_callback(struct ui_grid *grid, int direction,
@@ -1207,7 +1186,9 @@ int ui_grid_slide_with_callback(struct ui_grid *grid, int direction,
                     xoffset = steps * 10000 / grid_rect.width;
                     if (i == grid->avail_item_num - 1) {
                         if (css->left + xoffset + css->width < limit_left) {
-                            /* @note 原厂这里减的是 height, 纵横搞混了, 1:1 还原 */
+                            /* @note 这里减的是 height 而不是 width。等宽等高的
+                             *       格子下两者相同; 改它会动到已有界面的横向
+                             *       滚动边界, 所以保持现状。 */
                             xoffset = limit_left - css->left - css->height;
                         }
                     }
@@ -1292,7 +1273,7 @@ int ui_grid_slide_with_callback(struct ui_grid *grid, int direction,
 }
 
 /* ============================================================
- *  ui_grid_slide - line: 1167
+ *  ui_grid_slide
  * ============================================================ */
 int ui_grid_slide(struct ui_grid *grid, int direction, int steps)
 {
@@ -1317,7 +1298,7 @@ int ui_grid_slide(struct ui_grid *grid, int direction, int steps)
 }
 
 /* ============================================================
- *  ui_grid_dynamic_create - line: 1200
+ *  ui_grid_dynamic_create
  *  链表版动态列表: 与 grid->dynamic(struct ui_grid_dynamic) 那套互斥,
  *  只有 grid->dynamic == NULL 时这套才生效。
  * ============================================================ */
@@ -1340,7 +1321,7 @@ int ui_grid_dynamic_create(struct ui_grid *grid, int direction, int list_total,
 }
 
 /* ============================================================
- *  ui_grid_dynamic_set_item_by_id - line: 1216
+ *  ui_grid_dynamic_set_item_by_id
  * ============================================================ */
 int ui_grid_dynamic_set_item_by_id(int id, int count)
 {
@@ -1365,8 +1346,9 @@ int ui_grid_dynamic_set_item_by_id(int id, int count)
 }
 
 /* ============================================================
- *  ui_grid_dynamic_reset - line: 1238
- *  注意: 形参 index 在原厂未被使用。
+ *  ui_grid_dynamic_reset
+ *  注意: 形参 index 目前未使用 —— 本函数总是从头复位, 参数保留是为了跟
+ *  ui_grid_dynamic_* 这一组的签名保持一致。
  * ============================================================ */
 int ui_grid_dynamic_reset(struct ui_grid *grid, int index)
 {
@@ -1398,7 +1380,7 @@ int ui_grid_dynamic_reset(struct ui_grid *grid, int index)
 }
 
 /* ============================================================
- *  ui_grid_dynamic_release - line: 1272
+ *  ui_grid_dynamic_release
  * ============================================================ */
 int ui_grid_dynamic_release(struct ui_grid *grid)
 {
@@ -1419,7 +1401,7 @@ int ui_grid_dynamic_release(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_dynamic_set_prepare - line: 1294
+ *  ui_grid_dynamic_set_prepare
  * ============================================================ */
 int ui_grid_dynamic_set_prepare(struct ui_grid *grid,
                                 int (*prepare_cb)(void *, int, int, int))
@@ -1441,7 +1423,7 @@ int ui_grid_dynamic_set_prepare(struct ui_grid *grid,
 }
 
 /* ============================================================
- *  ui_grid_dynamic_cur_item - line: 1316
+ *  ui_grid_dynamic_cur_item
  * ============================================================ */
 int ui_grid_dynamic_cur_item(struct ui_grid *grid)
 {
@@ -1464,10 +1446,11 @@ int ui_grid_dynamic_cur_item(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_dynamic_slide - line: 1342
+ *  ui_grid_dynamic_slide
  *  像素级滚动: 用 10000 为一屏的定点比例做 offset 累加,
  *  再按 item 步距把每个 item 的 css.top 重新排布。
- *  注意: 形参 direction 在原厂未被使用。
+ *  注意: 形参 direction 目前未使用 —— 链表版动态列表只做纵向滚动,
+ *  参数保留是为了与 ui_grid_slide 的签名一致。
  * ============================================================ */
 int ui_grid_dynamic_slide(struct ui_grid *grid, int direction, int steps)
 {
@@ -1605,7 +1588,7 @@ int ui_grid_dynamic_slide(struct ui_grid *grid, int direction, int steps)
 
 
 /* ============================================================
- *  ui_grid_add_dynamic - line: 1580
+ *  ui_grid_add_dynamic
  * ============================================================ */
 int ui_grid_add_dynamic(struct ui_grid *grid, int *row, int *col, int redraw)
 {
@@ -1689,7 +1672,7 @@ int ui_grid_add_dynamic(struct ui_grid *grid, int *row, int *col, int redraw)
 }
 
 /* ============================================================
- *  ui_grid_del_dynamic - line: 1650
+ *  ui_grid_del_dynamic
  * ============================================================ */
 int ui_grid_del_dynamic(struct ui_grid *grid, int *row, int *col, int redraw)
 {
@@ -1776,10 +1759,10 @@ int ui_grid_del_dynamic(struct ui_grid *grid, int *row, int *col, int redraw)
 }
 
 /* ============================================================
- *  ui_grid_init_dynamic - line: 1734
- *  注意: 原库此处直接 ui_core_malloc(60), 然后
- *    若已有 grid->dynamic 或 row/col<1, 先把所有 item invisible 清零
- *    再挂 dynamic, 最后 ui_grid_add_dynamic(row, col, 0)
+ *  ui_grid_init_dynamic
+ *  流程: 先无条件分配 struct ui_grid_dynamic, 再分两种情况 ——
+ *    行列非法或已经初始化过: 只把所有 item 隐藏, 不建动态窗口;
+ *    正常情况: 挂上去后交给 ui_grid_add_dynamic(row, col, 0) 建窗口。
  * ============================================================ */
 int ui_grid_init_dynamic(struct ui_grid *grid, int *row, int *col)
 {
@@ -1801,7 +1784,7 @@ int ui_grid_init_dynamic(struct ui_grid *grid, int *row, int *col)
         for (i = 0; i < grid->avail_item_num; i++) {
             grid->item[i].elm.css.invisible = 1;
         }
-        grid->dynamic = dynamic;    /* 原厂 IR 里此处确实写了两次 */
+        grid->dynamic = dynamic;    /* 与上面那句重复, 留着无副作用 */
         return 0;
     }
 
@@ -1845,7 +1828,7 @@ int ui_grid_del_dynamic_by_id(int id, int *row, int *col, int redraw)
 }
 
 /* ============================================================
- *  ui_grid_release - line: 2723
+ *  ui_grid_release
  * ============================================================ */
 void ui_grid_release(struct ui_grid *grid)
 {
@@ -1874,7 +1857,7 @@ void ui_grid_release(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_child_init - line: 2747 (internal fastcc)
+ *  ui_grid_child_init - 内部辅助函数
  *  由 new_ui_grid 调用, 负责:
  *    1. layout_new 展开所有子项 item[]
  *    2. 遍历 item[0..avail-1] 的子元素, 算出:
@@ -2020,7 +2003,7 @@ static void ui_grid_child_init(struct ui_grid *grid, struct ui_grid_info *info)
 }
 
 /* ============================================================
- *  grid_scroll - 内部函数 (internal fastcc)
+ *  grid_scroll - 内部辅助函数
  *  普通网格高亮滚动: 根据 index 计算目标位置, 平移所有 item
  * ============================================================ */
 static void grid_scroll(struct ui_grid *grid, int index, u8 key_direction, u8 init)
@@ -2267,7 +2250,9 @@ do_scroll:
                         }
                     }
                 } else if (index == 0) {
-                    /* @note 原厂这里给 left 赋的是 min_show_top, 1:1 还原 */
+                    /* @note 这里取的是 min_show_top 而不是 min_show_left。
+                     *       单行网格里格子都在同一行, 两者通常相同; 要改得先
+                     *       把所有单行界面复核一遍, 所以先不动。 */
                     items[0].elm.css.left = grid->min_show_top;
                 } else {
                     if (index % grid->col_num == 0) {
@@ -2321,12 +2306,13 @@ do_scroll:
                         }
                     }
                 } else if (grid->hi_index < index) {
-                    /* @note 原厂这里给 left 赋的是 max_show_top, 1:1 还原 */
+                    /* @note 同上: 取的是 max_show_top 而不是 max_show_left。 */
                     items[index].elm.css.left = grid->max_show_top;
                 } else {
                     if (index % grid->col_num == grid->col_num - 1) {
                         items[index].elm.css.left = grid->max_show_left;
-                        /* @note 原厂这里减的是 item_height / y_interval, 1:1 还原 */
+                        /* @note 同上一类: 减的是 item_height / y_interval,
+                         *       不是宽度方向的量, 保持现状。 */
                         items[index].elm.css.left = items[hi_index].elm.css.left -
                                                     item_height - grid->y_interval;
                         if (items[index].elm.css.left < 0) {
@@ -2419,8 +2405,8 @@ do_scroll:
 }
 
 /* ============================================================
- *  grid_scroll_dynamic - 内部函数 (internal fastcc)
- *  动态网格高亮滚动: 约 1000 行 IR, 结构与 grid_scroll 类似
+ *  grid_scroll_dynamic - 内部辅助函数
+ *  动态网格高亮滚动: 结构与 grid_scroll 类似,
  *  但要在 min/max_row/col 之间滑动窗口
  * ============================================================ */
 static int grid_scroll_dynamic(struct ui_grid *grid, int index, u8 key_direction, u8 init)
@@ -2453,7 +2439,7 @@ static int grid_scroll_dynamic(struct ui_grid *grid, int index, u8 key_direction
         row = (index / dynamic->dcol_num) % dynamic->grid_show_row;
         col = col % dynamic->grid_show_col;
     } else if ((u8)(key_direction - UI_KEY_RIGHT) < 2) {
-        /* UI_KEY_RIGHT / UI_KEY_DOWN —— 原厂就是这种范围判定, 不是两次相等比较 */
+        /* UI_KEY_RIGHT / UI_KEY_DOWN 两个键码相邻, 一次范围判定顶两次相等比较 */
         /* 往后翻: 目标停在动态窗口的末行/末列 */
         row = row - dynamic->min_row_index;
         if (row > dynamic->grid_row_num - 1) {
@@ -2750,7 +2736,7 @@ static int grid_scroll_dynamic(struct ui_grid *grid, int index, u8 key_direction
 }
 
 /* ============================================================
- *  ui_grid_highlight_child - line: 2878 (internal fastcc)
+ *  ui_grid_highlight_child - 内部辅助函数
  *  被 ui_grid_highlight_item / ui_grid_state_reset 调用
  * ============================================================ */
 static void ui_grid_highlight_child(struct ui_grid *grid, int item, int init)
@@ -2801,7 +2787,7 @@ static void ui_grid_highlight_child(struct ui_grid *grid, int item, int init)
 }
 
 /* ============================================================
- *  ui_grid_on_focus - line: 3000
+ *  ui_grid_on_focus
  * ============================================================ */
 void ui_grid_on_focus(struct ui_grid *grid)
 {
@@ -2812,7 +2798,7 @@ void ui_grid_on_focus(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_lose_focus - line: 3008
+ *  ui_grid_lose_focus
  * ============================================================ */
 void ui_grid_lose_focus(struct ui_grid *grid)
 {
@@ -2823,7 +2809,7 @@ void ui_grid_lose_focus(struct ui_grid *grid)
 }
 
 /* ============================================================
- *  ui_grid_state_reset - line: 3016
+ *  ui_grid_state_reset
  * ============================================================ */
 void ui_grid_state_reset(struct ui_grid *grid, int highlight_item)
 {
@@ -2864,7 +2850,8 @@ void ui_grid_state_reset(struct ui_grid *grid, int highlight_item)
         for (i = 0; i < item_info->head.ctrl_num; i++) {
             const struct control_ops *ops;
 
-            /* 原为遍历 .control_ops 段; 移植后改为查显式注册表, 见 control.h */
+            /* 控件工厂: armlink 不做自定义段收集, 所以用显式注册表查 ops,
+             * 见 control.h */
             ops = get_control_ops_by_type(head->type);
             if (!ops) {
                 puts("!!!!!unknow:ctrl_type");
@@ -2889,7 +2876,7 @@ void ui_grid_state_reset(struct ui_grid *grid, int highlight_item)
 }
 
 /* ============================================================
- *  ui_grid_highlight_item - line: 3069
+ *  ui_grid_highlight_item
  * ============================================================ */
 int ui_grid_highlight_item(struct ui_grid *grid, int item, bool yes)
 {
@@ -2950,7 +2937,7 @@ int ui_grid_highlight_item(struct ui_grid *grid, int item, bool yes)
 }
 
 /* ============================================================
- *  ui_grid_highlight_item_by_id - line: 3117
+ *  ui_grid_highlight_item_by_id
  * ============================================================ */
 int ui_grid_highlight_item_by_id(int id, int item, bool yes)
 {
@@ -2960,8 +2947,8 @@ int ui_grid_highlight_item_by_id(int id, int item, bool yes)
 }
 
 /* ============================================================
- *  ui_grid_enable - line: 3211
- *  空函数, 原库 define void() 直接 ret
+ *  ui_grid_enable
+ *  空函数, 供业务层显式引用, 把本模块链进最终固件
  * ============================================================ */
 void ui_grid_enable(void)
 {
@@ -3075,8 +3062,10 @@ static int grid_onkey(void *_elm, struct element_key_event *e)
     }
 
     /*
-     * 上/下键在 grid 里等价于左/右键 —— 原厂把 e->value 改写后【跳到】对应
-     * case 上执行, 所以这里保留 goto: 用 fall through 会改变 case 的书写顺序。
+     * 上/下键在 grid 里等价于左/右键: 先把 e->value 改写成左/右(后面
+     * grid_scroll 还要按它判方向), 再 goto 到对应的 case。
+     * 这里用 goto 而不是 fall through —— 换成 fall through 就得把 case 按
+     * DOWN->RIGHT、UP->LEFT 的先后重排, 键码顺序反而看不出来了。
      */
     switch (e->value) {
     case UI_KEY_DOWN:
@@ -3196,9 +3185,9 @@ static int grid_onchange(void *_elm, enum element_change_event event, void *arg)
 }
 
 /* ============================================================
- *  new_ui_grid - line: 2949
+ *  new_ui_grid
  *
- *  【README 5.3.2 强制规则】platform_api->load_widget_info 返回的是
+ *  【必须遵守】platform_api->load_widget_info 返回的是
  *  全局 static union ui_control_info 共享缓存, 每次调用整块覆盖.
  *  因此任何可能间接触发 load_widget_info 的调用(如 layout_new)
  *  之前, 必须先把所有要用的字段先缓存到局部变量/grid 字段.
@@ -3229,7 +3218,7 @@ static void *new_ui_grid(const void *_info, struct element *parent)
 
     css = platform_api->load_css(info->head.page, info->head.css);
 
-    /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+    /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
     ui_core_element_init(&grid->elm, info->head.id, info->head.page,
                          (u8)((u32)info->head.css >> 29),
                          css, &grid_elm_handler, info->action);

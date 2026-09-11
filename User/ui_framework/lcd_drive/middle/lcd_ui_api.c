@@ -6,7 +6,7 @@
 #endif
 #include "ui_port_config.h"
 #include "jl_debug.h"
-#include "jl_fs.h"       /* ui_fs_mount */    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_fs.h"       /* ui_fs_mount */    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 #include "jl_os_api.h"
 #include "jl_ui_api.h"
 #include "ui/ui.h"
@@ -153,8 +153,8 @@ static int post_ui_msg(int *msg, u8 len)
         return -1;
     }
 __retry:
-    /* 与 703 原样: type = msg[0](动作码), 参数从 msg[1] 开始, 返回错误码。
-     * task_manager 已改成杰理语义(0 = OS_NO_ERR = 成功), 所以下面的
+    /* 消息布局: type = msg[0](动作码), 参数从 msg[1] 开始, 返回错误码。
+     * task_manager 已统一成"0 = OS_NO_ERR = 成功"的语义, 所以下面的
      * `if (err)` 判失败直接成立, 不需要再转极性。 */
     err = os_taskq_post_type(UI_TASK_NAME, msg[0], len - 1, &msg[1]);
 
@@ -183,8 +183,8 @@ __retry:
 //=================================================================================//
 int ui_show_main(int id)
 {
-    /* 原为 pi32 内联汇编读 rets(返回地址寄存器), 用于调试打印调用来源。
-     * ARM 上用编译器内建函数取同样的信息, 且不依赖具体架构。 */
+    /* 取调用者地址用编译器内建函数, 不写内联汇编读返回地址寄存器 ——
+     * 汇编写法与具体架构绑死, 换个内核就得重写, 而这只是给调试打印看的。 */
     u32 rets = (u32)__builtin_return_address(0);
     printf("__func__ %s %x\n", __func__, rets);
 
@@ -256,8 +256,8 @@ int ui_show_main(int id)
 //=================================================================================//
 int ui_hide_main(int id)
 {
-    /* 原为 pi32 内联汇编读 rets(返回地址寄存器), 用于调试打印调用来源。
-     * ARM 上用编译器内建函数取同样的信息, 且不依赖具体架构。 */
+    /* 取调用者地址用编译器内建函数, 不写内联汇编读返回地址寄存器 ——
+     * 汇编写法与具体架构绑死, 换个内核就得重写, 而这只是给调试打印看的。 */
     u32 rets = (u32)__builtin_return_address(0);
     printf("__func__ %s %x\n", __func__, rets);
 
@@ -515,9 +515,9 @@ const char *str_substr_iter(const char *str, char delim, int *iter)
 }
 
 
-/* pargptr 原为 va_list*, 见 ui.h 里 ui_message_handler 的说明。
- * 这里改成"指向参数数组游标的指针": 取一个参数 = *argptr++,
- * 与原来的 va_arg(argptr, int) 逐字等价(参数都是 int 宽度)。 */
+/* pargptr 是"指向参数数组游标的指针", 不是 va_list* —— 为什么不用 va_list
+ * 见 ui.h 里 ui_message_handler 的说明。取一个参数就是 *argptr++;
+ * 参数都是 int 宽度, 拿到的东西与 va_arg(argptr, int) 一样。 */
 static int do_msg_handler(const char *msg, const int **pargptr, int (*handler)(const char *, u32))
 {
     int ret = 0;
@@ -752,8 +752,8 @@ void set_lcd_keep_open_flag(u8 flag)
 void ui_backlight_open(u8 recover_cur_page)
 {
 
-    /* 原为 pi32 内联汇编读 rets(返回地址寄存器), 用于调试打印调用来源。
-     * ARM 上用编译器内建函数取同样的信息, 且不依赖具体架构。 */
+    /* 取调用者地址用编译器内建函数, 不写内联汇编读返回地址寄存器 ——
+     * 汇编写法与具体架构绑死, 换个内核就得重写, 而这只是给调试打印看的。 */
     u32 rets = (u32)__builtin_return_address(0);
 
     lcd_bl_idle_flag = 0;
@@ -888,9 +888,9 @@ REGISTER_LP_TARGET(lcd_backlight_lp_target) = {
 //=================================================================================//
 
 /*
- * 卡片滑动翻页依赖新版UI库(ui_new.a)提供的 ui_page_* / get_direction 等接口。
- * 点阵屏(OLED)链接的是老版UI库(ui_dot.a)，不提供这些接口，且点阵屏无触摸屏，
- * 因此该模式仅在彩屏(新库)下编译，触摸事件退回 ui_event_ontouch 常规处理。
+ * 卡片滑动翻页依赖彩屏那套 UI 实现提供的 ui_page_* / get_direction 等接口。
+ * 点阵屏(OLED)这条通路不提供这些接口，且点阵屏无触摸屏，
+ * 因此该模式仅在彩屏下编译，触摸事件退回 ui_event_ontouch 常规处理。
  */
 #ifdef EXPORT_DOT_UI_ENABLE
 #define UI_CARD_SLIDE_ENABLE    0
@@ -1165,8 +1165,8 @@ static void ui_task(void *p)
                       1); // 滑动的间隔 n*10 ms
 #endif
 
-    /* 原为杰理 VFS 的多设备挂载 mount(NULL,"flash","sdfile",0,NULL)。
-     * 本移植只有一个 FATFS 卷, 直接调文件系统层的挂载入口, 少一层转发。 */
+    /* 本工程只有一个 FATFS 卷, 直接调文件系统层的挂载入口 —— 多设备 VFS
+     * 那种 mount(NULL, "flash", "sdfile", 0, NULL) 的转发这里用不上。 */
     ui_fs_mount();
 
     ui_framework_init(p);
@@ -1203,7 +1203,7 @@ static void ui_task(void *p)
 
     while (1) {
         /* 本工程 os_taskq_pend 的 argc 单位是【字节】, 且末位是超时时间;
-         * 返回时 msg[0] = 动作码, 参数从 msg[1] 开始, 与杰理布局一致。
+         * 返回时 msg[0] = 动作码, 参数从 msg[1] 开始, 与发送侧布局一致。
          * OS_TASKQ 就定义成 pdPASS(见 task_manager.h)。 */
         ret = os_taskq_pend(msg, sizeof(msg), portMAX_DELAY); //500ms_reflash
         if (ret != OS_TASKQ) {

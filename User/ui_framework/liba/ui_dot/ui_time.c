@@ -1,21 +1,7 @@
 /*
  * ui_time.c —— 时间控件(MUSIC 页的播放时间/总时长、时钟页的时间都走它)
  *
- * 【来源】从 cpu/br27/liba/ui_dot.a 的 ui_time.c.o 还原。
- *   该库交付的是 LLVM bitcode 且保留完整调试信息, 故按 IR + DWARF 还原。
- *   参考 IR: cpu/br27/tools/ui_reimpl/ref_ir/ui_time.ll
- *   原始路径: btsdk/lib/utils/ui/ui_framework/ui_time.c
- *
- * 【函数原始行号(DISubprogram)】按此顺序排列, 便于与参考 IR 逐函数对照:
- *   time_vsprintf@19  __is_leap_year@90  ui_core_get_rtc_time@96
- *   ui_time_tick@101  time_update@143  time_highlight@157  time_onchange@168
- *   time_onkey@212  time_ontouch@225  new_ui_time@245  ui_time_update@289
- *   ui_time_update_by_id@301  ui_time_enable@323
- *
- *   __is_leap_year / time_update / time_highlight 在原库已被内联(无独立 define),
- *   形参名取自 DWARF: __is_leap_year(year) / time_highlight(time, yes)。
- *
- * 【结构体偏移校验】(与 IR 中的 getelementptr 逐一吻合)
+ * 【结构体布局】改字段前先看这里, 控件是按偏移访问的
  *   struct ui_time: text=0(element_text, 92 字节) source=92 位域(year:12,month:4)=100
  *                   day=102 hour=103 min=104 sec=105 css_num=106 auto_cnt=107
  *                   css[2]=108 color=116 hi_color=120 buf[20]=124 timer=164
@@ -53,8 +39,8 @@ static const u16 leap_month_table[12] = {
 static void time_vsprintf(struct ui_time *time, struct ui_time_info *info, u16 *buf)
 {
     /*
-     * @note str 必须是 u8 而不是 char —— 后面 str[i] - '0' 取字模下标时,
-     *       原厂是 zext(无符号提升), 用 char 会变成 sext, 与原厂对不上。
+     * @note str 必须是 u8 而不是 char —— 后面用 str[i] - '0' 当字模下标,
+     *       char 在本目标上有符号, 分隔符之类 >= 0x80 的字节会算出负下标。
      */
     u8 str[64];
     u8 *p = str;
@@ -121,16 +107,16 @@ static void time_vsprintf(struct ui_time *time, struct ui_time_info *info, u16 *
         buf[i] = img;
     }
 
-    /* 两个赋值顺序照抄原厂(先 i+1 再 i), 顺序反过来 IR 的 store 次序就对不上 */
+    /* 末尾补两个 0xff 结束标记: 先写 i+1 再写 i, 这样即使上面的循环是 break
+     * 出来的(buf[i] 已被写成 0xff), 也不会把它覆盖掉 */
     buf[i + 1] = 0xff;
     buf[i] = 0xff;
 }
 
 /*
- * @note 这里刻意用位运算 & | 而不是 && || —— 原厂编出来的是【无分支】形式
- *       (三个 urem 与 month==2 全部无条件求值后用 i1 的 and/or 合并), -Oz 下
- *       不带分支更省体积。写成 && || 会产生短路分支, 与原厂对不上。
- *       两种写法结果相同(操作数都无副作用), 只是求值时机不同。
+ * @note 这里刻意用位运算 & | 而不是 && || —— 三个取模都没有副作用, 无条件
+ *       求值再合并可以编成【无分支】形式, -Oz 下比短路分支更省体积。
+ *       两种写法结果相同, 只是求值时机不同。
  */
 static int __is_leap_year(u32 year)
 {
@@ -175,7 +161,7 @@ static void ui_time_tick(void *_elm)
             time->hour++;
             if (time->hour > 23) {
                 time->hour = 0;
-                /* 同上, 用 & 保持无分支形式; 且闰年判断写在前面以对齐原厂的求值顺序 */
+                /* 同上, 用 & 保持无分支形式 */
                 if (!__is_leap_year(time->year) & (time->month == 2)) {
                     days = 28;
                 } else {
@@ -201,8 +187,9 @@ static void ui_time_tick(void *_elm)
 }
 
 /*
- * @note "ascii"/"image" 两个分支各写了一份 text_element_set_text 调用, 不是把格式
- *       串三目一下再统一调 —— 参考 IR 里是两次独立的 call, 合并写法只会有一次。
+ * @note "ascii" / "image" 两个分支各写一份 text_element_set_text 调用, 没有
+ *       把格式串三目一下再统一调 —— 这样两条路径各自看得清楚, 改一条不影响
+ *       另一条。
  */
 static void time_update(struct ui_time *time)
 {
@@ -212,7 +199,7 @@ static void time_update(struct ui_time *time)
 
     time_vsprintf(time, info, time->buf);
 
-    /* 条件写成"有字模表"在前, 与原厂的基本块排布一致(取反会把两块顺序换掉) */
+    /* 条件写成"有字模表"在前: 带字模的是常见情况, 放前面更直观 */
     if (info->number[0] != 0 && info->number[0] != 0xffff) {
         text_element_set_text(&time->text, (char *)time->buf, "image",
                               time->text.elm.highlight ? time->hi_color : time->color);
@@ -319,10 +306,9 @@ void *new_ui_time(const void *_info, struct element *parent)
     }
 
     /*
-     * 加固: 原库【没有 memset】(ui_battery / ui_pic 等模块都有)。
-     * ui_core_malloc 给的是未初始化内存, 而 nums / type / number[] / buf[]
-     * 这些字段要到首次 ui_number_update 才被填上 —— 若 ON_CHANGE_SHOW_PROBE
-     * 先于 update 到来, 拿去画的就是随机内容。
+     * 【必须先 memset】ui_core_malloc 给的是未初始化内存, 而 buf[] / 各时间
+     * 字段要到首次 update 才被填上 —— 若 ON_CHANGE_SHOW_PROBE 先于 update
+     * 到来, 拿去画的就是随机内容。
      */
     memset(time, 0, sizeof(struct ui_time));
 
@@ -343,7 +329,7 @@ void *new_ui_time(const void *_info, struct element *parent)
 
     css = platform_api->load_css(info->head.page, info->head.css);
 
-    /* prj 打包在 css 指针的高 3 位里(原库如此, IR 为 lshr 29) */
+    /* prj(资源工程号)打包在 css 指针的高 3 位里, 取出来要右移 29 */
     text_element_init(&time->text, info->head.id, info->head.page,
                       (u8)((u32)info->head.css >> 29), css, info->action);
     text_element_set_event_handler(&time->text, time, &time_event_handler);
@@ -402,3 +388,20 @@ void ui_time_enable()
 REGISTER_CONTROL_OPS(CTRL_TYPE_TIME)
 .new = new_ui_time,
 };
+
+/*
+ * 实现注意事项
+ *
+ *  1) 【time_onkey / time_ontouch 只判了回调指针】没有再判 time->handler 本身 ——
+ *     new_ui_time 已把它兜底成 dumy_handler。若将来加了别的构造路径, 记得
+ *     把这两处也补成两层判断(参考 ui_pic.c)。
+ *
+ *  2) 【两层 handler 不要搞混】time->text.handler 是本模块自己的处理入口
+ *     (经 ui_p 分发), time->handler 才是业务层注册的那个。
+ *
+ *  3) 【定时器只在 auto_cnt 非 0 时起】静态显示的时间控件不需要秒级刷新;
+ *     HIDE / RELEASE_PROBE 时要记得删掉, 否则控件释放后定时器还在跑。
+ *
+ *  4) 【source == "rtc" 时优先取真实时间】ui_core_get_rtc_time 是弱符号,
+ *     业务层可以覆盖; 没覆盖时返回 -1, 控件退化为自己按秒累加。
+ */

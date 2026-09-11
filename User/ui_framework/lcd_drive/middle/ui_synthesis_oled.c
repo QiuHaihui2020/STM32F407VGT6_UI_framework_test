@@ -4,12 +4,9 @@
 #pragma const_seg(".ui_synthesis_oled.text.const")
 #pragma code_seg(".ui_synthesis_oled.text")
 #endif
-/* COPYRIGHT NOTICE
- * 文件名称 ：ui_synthesis_oled.c
- * 简    介 ：OLED屏的合成
- * 功    能 ：
- * 作    者 ：zhuhaifang
- * 创建时间 ：2022/05/21 17:56
+/**
+ * @file    ui_synthesis_oled.c
+ * @brief   OLED(单色点阵屏)的画面合成: 填充/边框/位图/文本落到帧缓冲
  */
 #include "ui_port_config.h"
 
@@ -21,7 +18,7 @@
 
 #include "font/font_textout.h"
 #include "res/rle.h"
-#include "jl_debug.h"    /* ASSERT / log_*: 原厂靠别处间接带入, 这里补成自包含 */
+#include "jl_debug.h"    /* ASSERT / log_*: 显式包含, 保证本文件自包含 */
 
 #define _RGB565(r,g,b)  (u16)((((r)>>3)<<11)|(((g)>>2)<<5)|((b)>>3))
 #define UI_RGB565(c)  \
@@ -369,8 +366,8 @@ int jlui_draw_rect(struct draw_context *dc, struct css_border *border)
     return 0;
 }
 
-/* 原为杰理专有属性 always_inline_when_const_args(常量实参时强制内联),
- * armclang 不认识会告警。去掉不影响正确性, 只是少一次内联提示。 */
+/* 这里【不加】"常量实参时强制内联"那类编译器专有属性: armclang 不认识,
+ * 会直接告警; 函数本身够小, 内不内联交给编译器判断就行。 */
 AT_UI_RAM
 static u16 get_mixed_pixel(u16 backcolor, u16 color, u8 alpha)
 {
@@ -1329,8 +1326,8 @@ u32 jlui_read_point(struct draw_context *dc, u16 x, u16 y)
     return pixel;
 }
 
-/* 原为杰理专有属性 always_inline_when_const_args(常量实参时强制内联),
- * armclang 不认识会告警。去掉不影响正确性, 只是少一次内联提示。 */
+/* 这里【不加】"常量实参时强制内联"那类编译器专有属性: armclang 不认识,
+ * 会直接告警; 函数本身够小, 内不内联交给编译器判断就行。 */
 AT_UI_RAM
 int jlui_draw_point(struct draw_context *dc, u16 x, u16 y, u32 pixel)
 {

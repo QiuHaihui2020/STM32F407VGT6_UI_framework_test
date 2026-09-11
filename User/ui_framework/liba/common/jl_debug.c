@@ -34,7 +34,7 @@ void log_print(u32 level, const char *tag, const char *format, ...)
 
     (void)tag;      /* 框架恒传 NULL, 分级信息已在 format 里 */
 
-    /* 前缀(颜色 + 时间戳)照抄 log_debug.h 里那几个宏的展开结果 ——
+    /* 前缀(颜色 + 时间戳)沿用 log_debug.h 里那几个宏的展开结果 ——
      * 用它自己的 TIME_INFO_STR / TIME_INFO_ARGS, 这样
      * LOG_TIME_INFO_ENABLE 一关, UI 日志也跟着不带时间戳, 不会走样。 */
     switch (level) {

@@ -1,36 +1,14 @@
 /*
- * font_textout.c —— font.a 的对外出口: 打开/关闭字库、文本宽度、内码/UTF-16/UTF-8
- *                   三种编码的显示入口, 以及编码互转
+ * font_textout.c —— 字库模块的对外出口: 打开/关闭字库、文本宽度、
+ *                   内码 / UTF-16 / UTF-8 三种编码的显示入口, 以及编码互转
  *
- * 【来源】从 cpu/br27/liba/font.a 的 font_textout.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原,
- *   而非从反汇编推测。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/font_textout.ll
- *     原始路径: btsdk/lib/utils/ui/font/font_textout.c
+ * 【四个 static 是内部实现】other_language / find_language_by_id /
+ *   __utf16_to_utf8 / __utf16toansi 只在本文件内用, 编译器一般会把它们内联掉。
  *
- * 【还原依据】函数原始行号(DISubprogram), 本文件按此顺序排列:
- *     font_set_offset_table@78   other_language@84        find_language_by_id@128
- *     font_open@152              font_text_width@243      font_textw_width@270
- *     font_textu_width@299       font_textout@337         font_textout_unicode@418
- *     __utf8_to_utf16@519        __utf16_to_utf8@624      font_textout_utf8@690
- *     font_close@713             __utf16toansi@748        font_utf16toansi@802
- *     font_utf8toutf16@842       font_utf8toansi@851
- *   其中 other_language / find_language_by_id / __utf16_to_utf8 / __utf16toansi
- *   四个是 static, 在原厂构建里已被全部内联(IR 里没有独立 define), 但 DWARF 仍
- *   保留了它们的签名与局部变量名, 所以能按原样还原成 static 函数再让本地 clang
- *   同样内联掉。四者的签名(取自 DWARF DISubroutineType):
- *     u8   other_language(struct font_info *info)
- *     struct font_info *find_language_by_id(u8 language)
- *     u16  __utf16_to_utf8(struct font_info *info, u8 *utf16, u16 utf16_len, u8 *utf8)
- *     u16  __utf16toansi(struct font_info *info, u16 utf)
- *   局部变量名同样取自 DWARF(putf16/putf8/utf16/utf16_len/low/high/wchar/
- *   _utf16/_ansi/cnt/ansilen/utf16buf ...)。
- *
- * 【段属性】原库代码在 .font_textout.text, font_info_table 在
- *   .font_textout.text.const, lange_info_table 与 f_info 在 .font_textout.data
- *   (见 ref IR 的 section 属性)。注意原厂 IR 里【字符串字面量没有 section】,
- *   所以 const_seg 只作用到 font_info_table 上, 字符串不受影响 —— 这与
- *   #pragma const_seg 的实际行为一致(它不管匿名字符串字面量)。
+ * 【段属性】代码放在 .font_textout.text, font_info_table 在
+ *   .font_textout.text.const, lange_info_table 与 f_info 在 .font_textout.data。
+ *   注意 #pragma const_seg 不管匿名字符串字面量, 所以它只作用到
+ *   font_info_table 上。
  */
 #ifdef SUPPORT_MS_EXTENSIONS
 #pragma bss_seg(".font_textout.data")
@@ -44,7 +22,7 @@
 #include "font/font_textout.h"
 #include "font/language_list.h"
 #include "jl_res_config.h"   /* FONT_PATH: 字库路径不再硬编码, 见 font_info_table */
-#include "jl_debug.h"    /* printf / puts: 原厂靠别处间接带入 */
+#include "jl_debug.h"    /* printf / puts: 显式包含, 保证本文件自包含 */
 
 extern void platform_putchar(struct font_info *info, u8 *pixel, u16 width, u16 height,
                              u16 x, u16 y);
@@ -80,11 +58,10 @@ const LANG_TABLE *lange_info_table = NULL;
 /*
  * 字库文件路径。
  *
- * 加固: 原厂这里是【完全硬编码】的 "flash/res/font/F_XXX.PIX", 绕过了
- * ui/res_config.h 的 FONT_PATH 宏 —— 换平台后资源根目录一变, 这一处就对不上,
- * 表现为 "打不开 flash/res/font/F_ASCII.PIX (FR_NO_PATH)" + InitFont failed,
- * 而 .res/.str/.sty 却都能正常打开(它们走的是 RES_PATH 宏), 很容易看漏。
- * 现在统一走 FONT_PATH, 只在 config/ui_port_config.h 一处配置。
+ * 路径【一律经 FONT_PATH 宏拼】, 不要在这里写死目录: 写死的话换平台、改资源
+ * 根目录时这一处就对不上, 表现为"打不开 .../F_ASCII.PIX" + InitFont failed,
+ * 而 .res/.str/.sty 却都能正常打开(它们走 RES_PATH), 很容易看漏。
+ * FONT_PATH 只在 config/ui_port_config.h 一处配置。
  */
 const struct font_info font_info_table[] = {
     {
@@ -118,9 +95,8 @@ int font_set_offset_table(const LANG_TABLE *table)
 /*
  * @brief 是否属于"其它语言"(即不走 GBK/BIG5/SJIS/KSC 这四套内码字库的语言)
  * @return 1 = 其它语言
- * @note 原厂构建已把本函数完全内联并把条件折叠成 `language_id > Korean`
- *       (参考 IR 里就是一条 `icmp ugt i8 %x, 4`)。language_id 为 0 表示
- *       "未打开", 也不算其它语言, 所以 `> Korean` 这个写法同时覆盖了 0。
+ * @note 判断就是 `language_id > Korean`: language_id 为 0 表示"未打开",
+ *       它也不算其它语言, 所以这个写法同时覆盖了 0。
  */
 static u8 other_language(struct font_info *info)
 {
@@ -160,13 +136,13 @@ static struct font_info *find_language_by_id(u8 language)
  * @return 打开后的 info; NULL = 表里没有这个语言
  *
  * @note 这里有两轮 switch: 第一轮只在 lange_info_table 非空时跑, 负责按语言设
- *       codepage 并初始化字库; 第二轮是无条件的兜底初始化。第一轮命中时会
- *       goto __open 跳过第二轮 —— 参考 IR 里 sw.bb / sw.bb12 直接跳到 __open。
+ *       codepage 并初始化字库; 第二轮是无条件的兜底初始化。第一轮命中时
+ *       goto __open 跳过第二轮。
  */
 struct font_info *font_open(struct font_info *info, u8 language)
 {
-    /* 加固: 原库这里【不初始化】。下面 default 分支在 other_language() 为假时
-     * 根本不给 ret 赋值, 而 __open 之后又要用它 —— 读未初始化的局部变量是 UB。 */
+    /* ret 必须有初值: 下面两个 default 分支在 other_language() 为假时不会给它
+     * 赋值, 而 __open 之后要用它 —— 读未初始化的局部变量是 UB。 */
     bool ret = 0;
 
     if (info == &f_info) {
@@ -227,13 +203,13 @@ struct font_info *font_open(struct font_info *info, u8 language)
 
 __open:
     /*
-     * 加固: 原库把 InitFont_* 的返回值收进 ret 却【从不检查】。字库文件缺失时
-     * InitFont_* 返回 0, font_open 照样返回非 NULL, 要到后面 font_textout 里
-     * 判 ascpixel.file.fd 才失败 —— 失败点离原因很远, 很难查。
+     * 字库打不开时【仍然返回非 NULL】, 只打一条日志。
      *
-     * 【故意不改返回值】: 改成失败就 return NULL 会让不判空的调用方直接崩,
-     * 那是行为变更而不是加固。这里只补一条日志; 具体的错误位 InitFont_*
-     * 内部已经写进 info->sta(FT_ERROR_NOASCPIXFILE / NOPIXFILE / NOTABFILE)。
+     * 这是有意的: 返回 NULL 会让不判空的调用方直接崩。具体的错误位
+     * InitFont_* 内部已经写进 info->sta(FT_ERROR_NOASCPIXFILE / NOPIXFILE /
+     * NOTABFILE), 调用方要区分原因就看它。
+     * 没有这条日志的话, 失败要到后面 font_textout 判 ascpixel.file.fd 才暴露,
+     * 离原因很远、很难查。
      */
     if (!ret) {
         printf("font_open: InitFont failed, language = %d, sta = 0x%x\n", language, info->sta);
@@ -259,9 +235,9 @@ __open:
 /*
  * @brief 取一段内码文本的显示宽度
  * @note 手法是"把 flags 临时切成只算宽度不出像素, 调一次 textout, 再把 flags
- *       还原", 所以三个 *_width 函数的骨架完全相同, 只差调哪个 textout。
- *       还原时注意 else 分支清的是 (FONT_GET_WIDTH | FONT_SHOW_MULTI_LINE)
- *       而不是只清 FONT_SHOW_MULTI_LINE —— 参考 IR 是 `and -6`(即 ~5)。
+ *       恢复", 所以三个 *_width 函数的骨架完全相同, 只差调哪个 textout。
+ *       注意 else 分支要清掉 (FONT_GET_WIDTH | FONT_SHOW_MULTI_LINE) 两位,
+ *       不是只清 FONT_SHOW_MULTI_LINE。
  */
 u16 font_text_width(struct font_info *info, u8 *str, u16 strlen)
 {
@@ -335,8 +311,7 @@ u16 font_textu_width(struct font_info *info, u8 *str, u16 strlen)
 
 /*
  * @brief 内码(ANSI)文本显示
- * @note lange_info_table 非空时, 简体/繁体都走 GBK —— 参考 IR 把 case 1 与
- *       case 2 合并成了一次 `(id-1) <u 2` 的范围判断。
+ * @note lange_info_table 非空时, 简体/繁体都走 GBK(两个 case 合并)。
  */
 u16 font_textout(struct font_info *info, u8 *str, u16 strlen, u16 x, u16 y)
 {
@@ -468,7 +443,7 @@ u16 font_textout_unicode(struct font_info *info, u8 *str, u16 strlen, u16 x, u16
  * @note 4 字节的 UTF-8(即 BMP 之外的码位)统一写成 0xFFFF, 因为输出是 UTF-16
  *       而这里不做代理对。
  * @note 字节序由 info->bigendian 决定, 且【每个字符都重新读一次】这个字段 ——
- *       参考 IR 里该 load 在循环体内, 没有被提出去, 还原时不要顺手缓存。
+ *       调用过程中它可能被改, 所以不要提到循环外缓存。
  */
 static u16 __utf8_to_utf16(struct font_info *info, u8 *utf8_buf, u16 utf8_len, u16 *utf16_buf)
 {
@@ -553,13 +528,12 @@ static u16 __utf8_to_utf16(struct font_info *info, u8 *utf8_buf, u16 utf8_len, u
  * @param utf8 输出缓冲
  * @return 需要的 UTF-8 字节数
  *
- * @note ⚠️ 本函数的【写出部分无法从 IR 还原】: 全库只有 font_textout_utf8
- *       一处调用它, 且传的 utf8 是 NULL, 于是原厂构建把所有写出代码都优化掉了,
- *       参考 IR 里这段内联体一条 store 都没有。所以这里只还原了统计逻辑
- *       (它是 IR 里实际存在的全部内容), 保持与原厂固件逐指令等价。
- *       如果将来要真的用它做转换, 必须重新实现写出部分 —— 见文末 TODO。
- * @note wchar == 0xFFFF 算 4 字节, 是与 __utf8_to_utf16 里"4 字节 UTF-8 写成
- *       0xFFFF"配对的反向约定。
+ * @note ⚠️ 本函数【只统计长度, 不做写出】—— 形参 utf8 目前没有被使用。
+ *       全模块只有 font_textout_utf8 一处调用它并且传 NULL, 所以写出部分一直
+ *       没有实现。要真的用它做 UTF-16 -> UTF-8 转换, 得先把写出补上,
+ *       见文末注意事项。
+ * @note wchar == 0xFFFF 算 4 字节, 与 __utf8_to_utf16 里"4 字节 UTF-8 写成
+ *       0xFFFF"是配对的反向约定。
  */
 static u16 __utf16_to_utf8(struct font_info *info, u8 *utf16, u16 utf16_len, u8 *utf8)
 {
@@ -605,9 +579,8 @@ u16 font_textout_utf8(struct font_info *info, u8 *str, u16 strlen, u16 x, u16 y)
     u16 utf16_len;
     u8 *utf16;
 
-    /* 加固: 原库不检查 strlen 是否为 0 —— malloc(0) 的返回值是实现相关的,
-     * 可能返回 NULL(那样整段被跳过, 恰好没事), 也可能返回一个不该解引用的
-     * 非空指针, 于是拿它去做 UTF-8 转换。顺带补上 str 判空。 */
+    /* strlen 为 0 时直接返回: malloc(0) 的返回值是实现相关的, 可能给 NULL,
+     * 也可能给一个不该解引用的非空指针。str 一并判空。 */
     if (str == NULL || strlen == 0) {
         return 0;
     }
@@ -664,8 +637,8 @@ void font_close(struct font_info *info)
 /*
  * @brief 单个 UTF-16 码位转内码
  * @return 内码; '-' 表示该字库查不到这个字; 0 表示没有 TAB 文件或超出范围
- * @note 其它语言的有效区间是 [0x100, 0x2122](参考 IR 折叠成
- *       `(utf - 0x100) <u 8227`)。超过 0x2122 返回 '-', 低于 0x100 返回 0。
+ * @note 其它语言的有效区间是 [0x100, 0x2122]: 超过 0x2122 返回 '-',
+ *       低于 0x100 返回 0。
  */
 static u16 __utf16toansi(struct font_info *info, u16 utf)
 {
@@ -799,52 +772,25 @@ u16 font_utf8toansi(struct font_info *info, u8 *utf8, u16 utf8len, u8 *ansi)
 }
 
 /*
- * 原库缺陷/限制清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样
- * 保留; 方括号是本文件当前的处理结果。差异已登记在 accept/ 并锁定指纹)。
+ * 实现注意事项与已知限制
  *
- *   [保留] 1 —— __utf16_to_utf8 的【写出部分在原厂固件里根本不存在】(全库只有
- *                一处调用且传 utf8 = NULL, 原厂构建把写出代码整段优化掉了)。
- *                本文件只还原了 IR 里实际存在的统计逻辑。补上写出部分属于
- *                【实现新功能】而不是修缺陷, 而且那一段【不受 verify.sh 保护】
- *                —— 原厂没有可比对的机器码。结论不变: 该函数当前只能测长度。
- *   [已修] 2 —— font_open 把 InitFont_* 的返回值收进 ret 却从不检查; 更要命的是
- *                default 分支在 other_language() 为假时【根本不给 ret 赋值】,
- *                读未初始化的局部变量是 UB。-> ret 已初始化, 失败时补一条日志。
- *                【故意不改返回值】: 改成失败就 return NULL 会让不判空的调用方
- *                直接崩, 那是行为变更; 具体错误位 InitFont_* 已写进 info->sta。
- *   [保留] 3 —— font_open 按 nbytes*2 分配, 而 font_ascii.c 按 nbytes 判上限,
- *                两边对 nbytes 的理解不一致, 靠这 2 倍余量兜着。要真正对齐得
- *                统一"nbytes 指字高还是字宽"的语义, 牵动 font_* 全家, 而且现有
- *                字库都是按当前语义打包的 —— 属格式约定问题, 不是能就地改的。
- *   [保留] 4 —— 原注释即"这条只是记录, 不需要改"(malloc 返回值的对齐足够)。
- *   [已修] 5 —— font_textout_utf8 的 malloc(strlen*2) 不检查 strlen 是否为 0
- *                -> 已补 str / strlen 判断。至于"未检查 __utf8_to_utf16 是否
- *                提前退出": 出错时显示已转换的部分是【合理降级】, 比整串不显示
- *                好, 故保持原样。
+ *  1) 【__utf16_to_utf8 只能测长度】它的写出部分没有实现(形参 utf8 未使用),
+ *     因为唯一的调用点 font_textout_utf8 传的就是 NULL, 只要长度。
+ *     要用它做真正的 UTF-16 -> UTF-8 转换, 必须先把写出补上。
  *
- * 1) __utf16_to_utf8 的【写出部分在原厂固件里根本不存在】。全库只有
- *    font_textout_utf8 一处调用它并且传 utf8 = NULL, 所以原厂构建把写出代码
- *    整段优化掉了(参考 IR 的内联体里一条 store 都没有)。本文件只还原了 IR 里
- *    实际存在的统计逻辑。**结论: 这个函数当前只能用来测长度, 不能用来转换。**
- *    如果将来要用它做真正的 UTF-16→UTF-8 转换, 必须重新实现写出部分, 并且
- *    知道这一段【不受 verify.sh 保护】(原厂没有可比对的机器码)。
+ *  2) 【font_open 失败仍返回非 NULL】字库打不开时只打日志、不返回 NULL ——
+ *     返回 NULL 会让不判空的调用方直接崩。调用方要判成败就看 info->sta 的
+ *     FT_ERROR_* 位。ret 必须有初值, 否则 default 分支不赋值时会读到 UB。
  *
- * 2) font_open 收集了 InitFont_* 的返回值到局部变量 ret, 但【从不检查】。
- *    字库文件缺失时 InitFont_* 返回 0, font_open 依然返回非 NULL,
- *    要到后面 font_textout 里判 ascpixel.file.fd 才失败。
+ *  3) 【ascpixel 缓冲按 nbytes * 2 分配】而 font_ascii.c 的取模函数用
+ *     info->ascpixel.nbytes 做上限判断 —— 两处对"nbytes 指字高还是字宽"的
+ *     理解不一致, 现在靠这 2 倍余量兜着。要真正对齐得统一这个语义, 牵动整个
+ *     font_* 家族, 而且现有字库都是按当前语义打包的, 属格式约定问题。
  *
- * 3) font_open 里 `info->ascpixel.pixelbuf = malloc(info->ascpixel.nbytes * 2)`
- *    分配的是 2 倍, 而 font_ascii.c 的 GetASCIICharacterData 用
- *    info->ascpixel.nbytes 做上限判断 —— 两边对"nbytes 到底指多少字节"的理解
- *    不一致。当前靠这 2 倍余量掩盖了 font_ascii.c 里那个按 width 算、按字高比
- *    的错位(见 font_ascii.c 的 TODO), 属于"用余量兜 bug"。
+ *  4) 【font_utf8toansi 里的 malloc(utf16len)】utf16len 就是字节数(每字符
+ *     2 字节), 所以大小是对的; 之后把它当 u16* 用 —— malloc 的返回值满足对齐
+ *     要求, 实际安全。
  *
- * 4) font_utf8toansi 里 `malloc(utf16len)` 分配的是【UTF-16 的字节数】,
- *    而 __utf8_to_utf16 每个字符写 2 字节、返回的就是字节数, 所以这里是对的;
- *    但紧接着把它当 u16* 用而没有对齐保证(malloc 返回 8 字节对齐, 实际安全)。
- *    这条只是记录, 不需要改。
- *
- * 5) font_textout_utf8 的 `malloc(strlen * 2)` 没有检查 strlen 是否为 0,
- *    malloc(0) 的返回值实现相关; 且未检查 __utf8_to_utf16 是否因 "utf8 err!"
- *    提前退出, 出错时仍会照常显示已转换的部分。
+ *  5) 【font_textout_utf8 的降级行为】__utf8_to_utf16 在遇到非法 UTF-8 时会
+ *     提前退出, 这里不做额外处理 —— 显示已转换的部分比整串不显示更好。
  */

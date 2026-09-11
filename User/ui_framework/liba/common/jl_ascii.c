@@ -1,29 +1,22 @@
 /**
  * @file    jl_ascii.c
- * @brief   杰理 ASCII 字符串工具库
+ * @brief   ASCII 字符串工具库
  *
- * 【来源】从 cpu/br27/liba/ascii.a 的 ASCII_lib.c.o 还原。该库交付的是 LLVM
- *   bitcode(非机器码)且保留完整调试信息, 故按 IR + DWARF 还原, 不是按语义猜。
- *     原始路径: btsdk/lib/utils/ascii/ASCII_lib.c
- *     原厂行号: ToUpper 20  ToLower 29  StrCmp 47  StrCmpNoCase 74
- *               IntToStr 105  StrToInt 126  StrToHex 140  StrLen 177
- *               WStrLen 191  JBHash 204
+ * UI 框架各模块共用的字符串工具。
  *
- * 【字符比较一律走 u8】原厂 IR 里字符载入是 `sext i8`, 即 pi32 的 char 有符号;
- *   本工程 armclang 带 -funsigned-char, char 无符号。原厂的大小写/数字区间判断
- *   用的是 `add i8 c, -48` + `icmp ult` 这种无符号手法, 所以这里统一按 u8 取值
- *   再比较 —— 两个平台结果完全一致, 不受 char 符号性影响。
+ * 【字符比较一律走 u8】不同工具链下 char 的符号性不一致(本工程 armclang 带
+ *   -funsigned-char, char 无符号), 而大小写/数字的区间判断必须按无符号语义
+ *   进行, 所以这里统一按 u8 取值再比较 —— 结果不受 char 符号性影响。
  *
- * 【不加判空】原厂这几个函数一个都不判 NULL(IR 的函数属性里还带
- *   "allow-nullptr-deref")。这里如实照做, 不擅自加固: 加了会把"传 NULL"从
- *   崩溃变成静默返回, 是行为变更而不是修 Bug。
+ * 【不加判空】这几个函数都不判 NULL —— 调用约定就是"指针必须有效"。
+ *   加判空会把"传 NULL"从崩溃变成静默返回, 反而掩盖调用方的错误。
  */
 #include "jl_ascii.h"
 
 
 /*
- * @note 原厂是【倒序】遍历: while (len--) 之后拿 buf[len], 从末字节往前走。
- *       结果与正序相同, 照抄以对齐 IR。
+ * @note 这里是【倒序】遍历: while (len--) 之后拿 buf[len], 从末字节往前走 ——
+ *       长度递减和下标可以共用一个变量, 结果与正序完全相同。
  */
 void ASCII_ToUpper(void *buf, u32 len)
 {
@@ -57,7 +50,7 @@ void ASCII_ToLower(void *buf, u32 len)
  *
  * @note 通配符是 '?' 与 '*' 两个, 且【src 与 dst 两侧都生效】——
  *       jl_ascii.h 的注释只提了 dst 侧的 '?', 与实现不符, 以实现为准
- *       (IR 里四个 icmp: dst=='?' dst=='*' src=='?' src=='*' 全部 or 在一起)。
+ *       (四个判断 dst=='?' dst=='*' src=='?' src=='*' 取逻辑或)。
  * @note 两串同时到结束符 -> 0(匹配); 只有一方到 -> 报当前位置。
  */
 u32 ASCII_StrCmp(const char *src, const char *dst, u32 len)
@@ -133,8 +126,8 @@ int ASCII_StrCmpNoCase(const char *src, const char *dst, int len)
  * @param strLen 输出宽度。为 0 时按 intNum 的自然位数
  * @param bufLen 缓冲容量, 下标 >= bufLen 的那一位【跳过不写但照样继续循环】
  *
- * @note 【从不写结束符】—— 任何模式下都只写数字字符, 这是原厂行为
- *       (IR 里全函数只有一处 store, 存的是 `(intNum % 10) | 0x30`)。
+ * @note 【从不写结束符】—— 任何模式下都只写数字字符(全函数只有一处写操作,
+ *       写入的是 `(intNum % 10) | 0x30`)。
  *       所以拿它产出 C 字符串的调用方必须自己保证缓冲已清零。
  * @note intNum 为 0 且 strLen 为 0 时自然位数是 0, 【一个字节都不写】。
  * @note 位数超过 strLen 时保留低位(高位被 intNum /= 10 吃掉)。
@@ -194,7 +187,7 @@ u32 ASCII_StrToInt(const void *pStr, u32 *pRint, u32 strLen)
  * @brief 十六进制字符串转整数, 【必须带 "0x" / "0X" 前缀】
  * @return 解析出的数值; 任何一步不合法都返回 0
  *
- * @note 原厂是个三态状态机: 第 1 个字符必须是 '0', 第 2 个必须是 'x' 或 'X',
+ * @note 这是个三态状态机: 第 1 个字符必须是 '0', 第 2 个必须是 'x' 或 'X',
  *       之后才是十六进制数位。所以 "1F" 返回 0, 必须写成 "0x1F"。
  * @note 数位段遇到非法字符是【整个返回 0】, 不是返回已解析的部分。
  * @note 只有 "0x" 没有数位时返回 0。溢出静默丢高位。
@@ -265,8 +258,8 @@ u32 ASCII_StrLen(void *str, u32 len)
  * @brief 双字节串长度, 步进 2, 以【连续两个 0 字节】为结束符
  * @return 结束符所在下标; 没有则返回停下时的 i
  *
- * @note 高位字节的下标原厂写的是 `i | 1` 而不是 `i + 1`。i 恒为偶数,
- *       两者等价, 照抄以对齐 IR。
+ * @note 高位字节的下标用的是 `i | 1` 而不是 `i + 1`: i 恒为偶数(步进 2),
+ *       两者等价, 按位或少一次加法。
  */
 u32 ASCII_WStrLen(void *str, u32 len)
 {

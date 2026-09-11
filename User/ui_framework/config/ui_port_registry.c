@@ -2,8 +2,9 @@
  * @file    ui_port_registry.c
  * @brief   显式注册表 —— 控件 / UI 风格 / 推屏接口
  *
- * 原厂靠链接脚本收集三个段(.control_ops / .ui_style / .lcd_if_info)得到
- * begin/end 边界符号。移植到 Keil 后改成本文件里的三张显式表, 原因:
+ * 这三张表也可以靠链接脚本收集三个段(.control_ops / .ui_style /
+ * .lcd_if_info)得到 begin/end 边界符号。本工程用 Keil, 所以改成本文件里
+ * 的三张显式表, 原因:
  *
  *   1. armlink 没有 GNU ld 的 PROVIDE, 造不出那类段边界符号;
  *   2. 段收集漏一项是【静默故障】—— 编译链接全过, 只是界面上某类元素
@@ -89,7 +90,7 @@ const struct control_ops *get_control_ops_by_type(int type)
  *  ⚠ 新增页面要动两处: 写 ui_action/<页面>_action.c, 然后在这里加
  *    一条 extern + 表里加一行。漏了是编译期未定义符号, 不是运行期静默失效。
  *
- *  原厂靠链接脚本收集 .elm_event_handler_JL 段 + .ui_style 段做同一件事,
+ *  同一件事也可以靠链接脚本收集 .elm_event_handler_JL 段 + .ui_style 段,
  *  为什么改成显式表见 include/ui/ui_core.h 的说明。
  * ==================================================================== */
 
@@ -111,8 +112,8 @@ const struct ui_handler_group *const g_ui_handler_table[] = {
  *  liba/res/resfile.c 用它把"工程号 pj_id"映射到一套资源文件路径, 供
  *  ui_load_res_by_pj_id / ui_load_sty_by_pj_id 查找。
  *
- *  原厂定义在杰理 SDK 的 platform/watch_bgp.c 里(彩屏手表的多套表盘各占一个 pj_id)。
- *  该文件是彩屏表盘管理, 点阵屏用不到, 已从工程移除, 表挪到这里 ——
+ *  这张表原先属于彩屏表盘管理模块(多套表盘各占一个 pj_id)。
+ *  点阵屏用不到那个模块, 已从工程移除, 表挪到这里 ——
  *  它本质就是一张注册表, 和上面两张放一起。
  *
  *  点阵屏只有一套 JL 资源, 不需要按 pj_id 分流, 所以表里只有哨兵项。
@@ -137,8 +138,8 @@ extern const struct lcd_interface lcd;
 
 /**
  * @brief 取推屏接口句柄
- * @note 原实现遍历 .lcd_if_info 段并返回第一项; 这里直接返回唯一那一项,
- *       行为等价。
+ * @note 一个工程只会编进一块屏的驱动, 所以这里直接返回那一项,
+ *       不必遍历 —— 真要支持多屏切换, 改成按 id 查表即可。
  */
 struct lcd_interface *lcd_get_hdl(void)
 {

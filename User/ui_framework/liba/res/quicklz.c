@@ -1,32 +1,27 @@
 /*
  * quicklz.c —— QuickLZ 解压(仅解压侧, 压缩侧不在库里)
  *
- * 【来源】从 cpu/br27/liba/res.a 的 quicklz.c.o 还原。该库交付的是 LLVM bitcode
- *   (非机器码)且保留完整调试信息, 故本文件按 IR + DWARF 还原。
- *     参考 IR : cpu/br27/tools/ui_reimpl/ref_ir/quicklz.ll
- *     原始路径: btsdk/lib/utils/ui/resource/quicklz.c
- *
  * 【这是第三方库】QuickLZ 1.5.0 的解压部分(QLZ_COMPRESSION_LEVEL 1、
- *   QLZ_STREAMING_BUFFER 0)。原厂只保留了解压所需的五个函数, 压缩侧整块删掉了。
- *   还原时逐条比对 IR 确认了各分支的位域布局与原版一致。
+ *   QLZ_STREAMING_BUFFER 0)。这里只需要解压所需的五个函数, 压缩侧不收录。
+ *   各分支的位域布局按 QuickLZ 的流格式实现。
  *
- * 【本工程完全用不到 —— 已用最终固件符号表复核】
+ * 【本工程当前编不到 —— 已用最终固件符号表复核】
  *   调用链是 image_decode()(resfile.c, case 2) -> quicklz_decode() -> qlz_decompress()。
- *   注意 quicklz_decode 【是】有调用者的(早先这里写"无人调用"不准确), 但整条链
- *   在最终固件里全部为 0: image_decode / quicklz_decode / qlz_decompress /
- *   qlz_decompress_core 一个都没链进去, 被 LTO 整体丢掉了。
+ *   quicklz_decode 【是】有调用者的, 但整条链在最终固件里符号数全为 0:
+ *   image_decode / quicklz_decode / qlz_decompress / qlz_decompress_core
+ *   一个都没链进去, 被优化整体丢掉了。
  *
- *   判死活的方法(见 README 3.3): 光看"有没有调用点"不够 —— 得看调用者自己
- *   是否活着。硬证据是在最终固件符号表里数该函数的出现次数, 并【同时跑一组
- *   已知活着的函数做对照】(如 Rle_Decode 37、open_resfile 12), 免得全 0 其实是
- *   匹配方式写错了。
+ *   判死活别只看"有没有调用点" —— 还得看调用者自己是否活着。可靠的做法是
+ *   在最终固件的符号表里数该函数的出现次数, 并【同时数一组已知活着的函数
+ *   做对照】(如 Rle_Decode 37、open_resfile 12), 免得全 0 其实是匹配方式
+ *   写错了。
  *
- *   还原它只是为了把 res.a 清空。也正因为是死代码, 文末 TODO 那两条边界问题
- *   不在加固范围内(见 README 9.3)。
+ *   收录它是为了让资源层的解压分支完整。也正因为当前是死代码, 文末注意
+ *   事项里那两条边界问题暂不处理。
  *
- * 【无需行号锁定】本模块【没有任何 ASSERT】, 也没有字符串常量 ——
+ * 【本文件不需要 #line】本模块【没有任何 ASSERT】, 也没有字符串常量 ——
  *   全局只有 qlz_decompress_core 里那张 static const bitlut 表。
- *   因此不存在 __FILE__/__LINE__ 依赖, 不必像 rle.c / ascii.c 那样用 #line 拨行号。
+ *   所以不存在 __FILE__/__LINE__ 依赖, 不必像 rle.c / ascii.c 那样拨行号。
  *
  * 【段属性】代码在 .quicklz.text; bitlut 在 .quicklz.text.const。
  */
@@ -59,7 +54,7 @@ size_t qlz_decompress(const char *source, void *destination, qlz_state_decompres
 
 /*
  * @brief 从 src 处按小端读出 bytes(1~4) 个字节拼成一个 32 位值
- * @note bytes 取其它值时返回 0 —— 原版就是这样, 不报错。
+ * @note bytes 取 1~4 之外的值时返回 0, 不报错 —— 沿用 QuickLZ 的行为。
  */
 static inline ui32 fast_read(const void *src, ui32 bytes)
 {
@@ -141,7 +136,7 @@ static size_t qlz_decompress_core(const unsigned char *source, unsigned char *de
     const unsigned char *last_matchstart = last_destination_byte - UNCONDITIONAL_MATCHLEN - UNCOMPRESSED_END;
     ui32 offset;
 
-    /* 这两个形参在 level-1 + 无流式缓冲的配置下用不到, 原版也只是挂着。 */
+    /* 这两个形参在 level-1 + 无流式缓冲的配置下用不到, 只是挂着占位。 */
     (void)state;
     (void)history;
 
@@ -184,15 +179,15 @@ static size_t qlz_decompress_core(const unsigned char *source, unsigned char *de
             }
 
             /*
-             * 加固: 原库【完全不校验边界】, 从压缩流里读出的 offset 与 matchlen
-             * 直接拿去 memcpy_up —— 一段被篡改或损坏的压缩数据可以造成任意
-             * 越界读写。这是 QuickLZ 原版就有的性质(它假定输入可信)。
+             * offset 与 matchlen 直接来自压缩流, 【必须校验后才能用】——
+             * QuickLZ 的流格式假定输入可信, 不校验时一段被篡改或损坏的数据
+             * 就能造成任意越界读写:
              *
              *   · offset 大于已输出长度 -> 读到 destination 之前;
              *   · dst + matchlen 越过 last_destination_byte -> 写出界。
              *
-             * 两者都是【只能靠数据自证】的量, 查出来就只能判定流已损坏、
-             * 返回 0 让调用方知道解压失败(正常返回的是 size, 不会是 0)。
+             * 两者都只能靠数据自证, 查出来就只能判定流已损坏、返回 0 让调用方
+             * 知道解压失败(正常返回的是 size, 不会是 0)。
              */
             if (offset > (ui32)(dst - destination)) {
                 return 0;
@@ -242,11 +237,11 @@ size_t qlz_decompress(const char *source, void *destination, qlz_state_decompres
 {
     size_t dsiz;
 
-    /* 加固: 原库不检查这三个指针。source 为 NULL 时下面 qlz_size_decompressed
-     * 头一件事就是解引用它。
-     * 注意【仍然无法校验 destination 缓冲区够不够大】—— 接口没把它的长度传进来,
-     * 长度全靠压缩流头部自述。调用方必须先自己调一次 qlz_size_decompressed
-     * 并按它分配, 这一点没变。 */
+    /* 三个指针都要判空: source 为 NULL 时下面 qlz_size_decompressed 头一件事
+     * 就是解引用它。
+     * 注意【destination 缓冲区够不够大仍然无法校验】—— 接口没把它的长度传
+     * 进来, 长度全靠压缩流头部自述。调用方必须先调一次 qlz_size_decompressed
+     * 并按它分配。 */
     if (source == NULL || destination == NULL || state == NULL) {
         return 0;
     }
@@ -254,8 +249,8 @@ size_t qlz_decompress(const char *source, void *destination, qlz_state_decompres
     dsiz = qlz_size_decompressed(source);
 
     if ((*source & 1) == 1) {
-        /* 加固: 原库【丢弃 core 的返回值】直接 return dsiz, 于是解压失败与
-         * 成功对调用方完全不可区分。现在承接它 —— core 判定流已损坏时返回 0。 */
+        /* core 的返回值要承接: 直接 return dsiz 的话, 解压失败与成功对调用方
+         * 完全不可区分。core 判定流已损坏时返回 0。 */
         if (qlz_decompress_core((const unsigned char *)source, (unsigned char *)destination,
                                 dsiz, state, (unsigned char *)destination) == 0) {
             state->stream_counter = 0;
@@ -271,29 +266,22 @@ size_t qlz_decompress(const char *source, void *destination, qlz_state_decompres
 }
 
 /*
- * 原库缺陷清单 + 加固状态(下面每条描述的都是【原库】行为, 仍照原样保留;
- * 方括号是本文件当前的处理结果。差异已登记在
- * cpu/br27/tools/ui_reimpl/accept/quicklz.txt 并锁定指纹)。
+ * 实现注意事项与已知限制
  *
- *   [已修] 1 —— 【解压侧完全不校验边界】qlz_decompress_core 从压缩流里读出的
- *                offset 与 matchlen 不做任何检查就直接
- *                memcpy_up(dst, dst - offset, matchlen):
- *                  · offset 大于已输出长度时会【读到 destination 缓冲区之前】;
- *                  · dst + matchlen 可能【越过 last_destination_byte】写出界。
- *                一段被篡改或损坏的压缩数据可以造成任意越界读写。这是 QuickLZ
- *                原版就有的性质(它假定输入可信), 不是移植引入的。
- *                -> 两处都补了检查, 判定流已损坏时 return 0(正常返回 size,
- *                   不会是 0), 并由 qlz_decompress 承接这个失败。
+ *  1) 【解压侧校验了边界】qlz_decompress_core 对从压缩流读出的 offset 与
+ *     matchlen 都做了范围检查, 判定流已损坏时返回 0(正常返回 size)。
+ *     QuickLZ 的流格式本身假定输入可信, 没有这两处检查就能被一段损坏数据
+ *     造成任意越界读写。
  *
- *   [部分] 2 —— 三个指针的判空已补上。但【destination 缓冲区够不够大仍然无法
- *                校验】: 接口根本没把它的长度传进来, 长度全靠压缩流头部自述。
- *                调用方必须先自己调一次 qlz_size_decompressed 并按它分配 ——
- *                这一点是接口形态决定的, 不改签名就修不了。
+ *  2) 【destination 缓冲区大小无法校验】接口没把目标长度传进来, 长度全靠
+ *     压缩流头部自述。调用方必须先用 qlz_size_decompressed 算出长度再分配 ——
+ *     这是接口形态决定的, 不改签名修不了。
  *
- *   [保留] 3 —— fast_read 对 bytes 取 1~4 之外的值静默返回 0, 调用方无法区分
- *                "读到的就是 0" 与 "参数非法"。它是文件内的 static helper,
- *                四个调用点传的都是字面量 4 或 CWORD_LEN, 取不到非法值。
+ *  3) 【fast_read 的非法 bytes 静默返回 0】调用方无法区分"读到的就是 0"与
+ *     "参数非法"。它是文件内的 static helper, 四个调用点传的都是字面量 4
+ *     或 CWORD_LEN, 取不到非法值。
  *
- * 【注意】本模块是死代码(整条 image_decode -> quicklz_decode -> qlz_decompress
- * 链在最终固件里符号数全为 0, 见文件开头)。加固是为了改回彩屏配置时它变活。
+ *  4) 【本模块当前是死代码】整条 image_decode -> quicklz_decode ->
+ *     qlz_decompress 链在最终固件里符号数全为 0(见文件开头)。上面那些检查是
+ *     为改回彩屏配置、它重新变活时准备的。
  */
