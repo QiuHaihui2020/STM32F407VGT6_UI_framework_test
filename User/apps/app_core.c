@@ -102,7 +102,7 @@ static void app_ui_init(void)
     log_info("ui init succ\n");
 
     /* 显示首个窗口。ID 要与资源文件里的窗口编号对上, 见 port/ui_style.h */
-    UI_SHOW_WINDOW(ID_WINDOW_BT);
+    UI_SHOW_WINDOW(PAGE_3);
 }
 
 static void app_core_function(void *priv)

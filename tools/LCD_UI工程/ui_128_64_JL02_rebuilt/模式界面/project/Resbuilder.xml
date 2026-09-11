@@ -273,12 +273,28 @@
                                 <ColorList>
                                         <Color>8DEEDB</Color>
                                         <Color>D9EE94</Color>
+                                        <Color>368FEE</Color>
+                                        <Color>FFFFFF</Color>
+                                        <Color>AAA555</Color>
+                                        <Color>D2EE45</Color>
+                                        <Color>EED9C1</Color>
                                         <Color>000000</Color>
+                                        <Color>38EE44</Color>
                                 </ColorList>
                                 <PictureList>
                                         <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\dcx2496_uires\screen_previews\scrn_000_LOGO.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\pic_lcd\BATTLVL5.BMP</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\pic_lcd\c_nosel.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\pic_lcd\c_sel.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\pic_lcd\A0026JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\pic_lcd\A0027JL.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\oled\一级\bt.bmp</Picture>
+                                        <Picture fmt="OSD1">D:\MyFile\zh-jieli\sdk_demo\JIELI_STM32_UI\STM32F407VGT6_Template\tools\LCD_UI工程\ui_128_64_JL02_rebuilt\模式界面\project\config\oled\一级\clock.bmp</Picture>
                                 </PictureList>
                                 <CellList>
+                                        <Cell>m90</Cell>
+                                        <Cell>m61</Cell>
+                                        <Cell>m58</Cell>
                                 </CellList>
                         </Page>
                 </PageList>
