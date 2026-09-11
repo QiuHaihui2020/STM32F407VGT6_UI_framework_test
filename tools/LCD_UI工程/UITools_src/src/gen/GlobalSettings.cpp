@@ -29,10 +29,10 @@
  *   ├───────────────┼──────────────────────────────┤
  *   │ ▶ 界面尺寸    │                               │
  *   │   图片资源目…│ config                    [...] │
- *   │   多国语言文…│ ../../../UITools/多国语言…xls [...]│
+ *   │   多国语言文…│ ../../../assets/多国语言…xls  [...]│
  *   │   工程目录:   │ .                         [...] │
- *   │   控件文件:   │ …/control/control.json    [...] │
- *   │   自定义控件…│ …/control/ex              [...] │
+ *   │   控件文件:   │ …/assets/widgets.json     [...] │
+ *   │   自定义控件…│ …/assets/widgets.d        [...] │
  *   └───────────────┴──────────────────────────────┘
  *                                    [确定]  [取消]
  *
@@ -160,7 +160,7 @@ public:
                 return;
             }
             /* 存的是相对当前目录的路径（ui-config 里就是
-             * "../../../UITools/control/control.json" 这种），跟着工程走。
+             * "../../../assets/widgets.json" 这种），跟着工程走。
              * 能算出相对路径就存相对的，跨盘符才退回绝对路径。 */
             const QDir base(QDir::currentPath());
             const QString rel = base.relativeFilePath(p);

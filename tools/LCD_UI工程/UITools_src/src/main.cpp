@@ -22,8 +22,8 @@
  *                                    roundtrip 只证明"没改的原样带出"，这一项才证明
  *                                    "改过的重建出来也一样" —— 属性面板一编辑就走这条路
  *
- * --tools-root 默认取可执行文件同级目录；控件库(control/control.json)、
- * 控件图标、多国语言表都从这里找。
+ * --tools-root 默认取可执行文件同级目录；控件库(assets/widgets.json)、
+ * 控件图标、多国语言表都从这里找（各自的确切位置见 AssetPaths.h）。
  */
 #include <QApplication>
 #include <QIcon>
@@ -39,6 +39,7 @@
 
 #include "MainWindow.h"
 #include "AppIcon.h"
+#include "AssetPaths.h"
 #include "Preview.h"
 
 #include "ActionList.h"
@@ -82,7 +83,7 @@ int main(int argc, char *argv[])
     p.addHelpOption();
     p.addVersionOption();
     QCommandLineOption optRoot(QStringList() << QStringLiteral("tools-root"),
-                               QStringLiteral("UITools 目录（含 control/ backgrounds/）"),
+                               QStringLiteral("工具目录（含 assets/）"),
                                QStringLiteral("dir"));
     QCommandLineOption optSty(QStringList() << QStringLiteral("sty-dump"),
                               QStringLiteral("只解析 .sty 并退出"),
@@ -363,19 +364,21 @@ int main(int argc, char *argv[])
     MainWindow w;
 
     /* 工具目录：命令行给了就用；否则先看 exe 自己旁边（工具目录里就有
-     * control/ 和 config/），再按目录约定往上找三级。这样在工程目录里
-     * 双击启动脚本、一个参数都不给也能跑起来。 */
+     * assets/），再按目录约定找 —— 工具在 UI 工程目录下的 tool\ 里，
+     * 从 <UI工程>/project 数上去就是 ../tool。这样在工程目录里启动、
+     * 一个参数都不给也能跑起来。
+     * 后面几个候选是老布局（工具目录和工程并列）的兜底。 */
     QString root = p.value(optRoot);
     if (root.isEmpty()) {
         QStringList cand;
-        cand << QCoreApplication::applicationDirPath()
-             << QDir::cleanPath(QDir::current().absoluteFilePath(
-                    QStringLiteral("../../../UIToolkit")))
-             << QDir::cleanPath(QDir::current().absoluteFilePath(
-                    QStringLiteral("../../../UITools")));
+        cand << QCoreApplication::applicationDirPath();
+        for (const char *up : { "../tool", "../../tool",
+                                "../../../UIToolkit", "../../../UITools" }) {
+            cand << QDir::cleanPath(QDir::current().absoluteFilePath(
+                        QString::fromLatin1(up)));
+        }
         for (const QString &c : cand) {
-            if (QFile::exists(QDir(c).absoluteFilePath(
-                    QStringLiteral("control/control.json")))) {
+            if (assets::isToolRoot(c)) {
                 root = c;
                 break;
             }
@@ -387,18 +390,40 @@ int main(int argc, char *argv[])
     w.setToolsRoot(root);
     w.show();
 
-    /* 要打开哪个工程：命令行给了就用；否则读当前目录的
-     * config/ini/project.ini 里的 projectfilename —— 和 QtToolBin 同一份配置，
-     * 也是启动脚本（cd project && start UITools.exe）能工作的原因。 */
+    /* 要打开哪个工程：命令行给了就用（双击关联的 .uiproj 走的就是这条）；
+     * 否则按目录约定自己找。
+     *
+     * 【为什么不止看当前目录】当前目录是启动脚本 cd 进去的那个工程目录 ——
+     * 而直接双击 <UI工程>\tool\UITools.exe 时，当前目录是 tool\，那儿没有
+     * project.ini，于是什么都不开、进来是个空窗口。所以再往 exe 的邻居
+     * ..\project 看一眼：一个 UI 工程目录里就一份工程，不会有歧义。 */
+    auto projectInDir = [](const QString &dir) -> QString {
+        const QString ini = QDir(dir).absoluteFilePath(
+            QStringLiteral("config/ini/project.ini"));
+        if (!QFile::exists(ini)) {
+            return QString();
+        }
+        QSettings st(ini, QSettings::IniFormat);
+        const QString f = st.value(QStringLiteral("Project/projectfilename")).toString();
+        if (f.isEmpty()) {
+            return QString();
+        }
+        const QString full = QDir(dir).absoluteFilePath(f);
+        return QFile::exists(full) ? full : QString();
+    };
+
     QString openPath = p.positionalArguments().value(0);
     if (openPath.isEmpty()) {
-        const QString ini = QDir::current().absoluteFilePath(
-            QStringLiteral("config/ini/project.ini"));
-        if (QFile::exists(ini)) {
-            QSettings st(ini, QSettings::IniFormat);
-            const QString f = st.value(QStringLiteral("Project/projectfilename")).toString();
-            if (!f.isEmpty() && QFile::exists(QDir::current().absoluteFilePath(f))) {
-                openPath = QDir::current().absoluteFilePath(f);
+        const QString exeDir = QCoreApplication::applicationDirPath();
+        const QStringList dirs{
+            QDir::currentPath(),
+            QDir::cleanPath(QDir(exeDir).absoluteFilePath(QStringLiteral("../project"))),
+            QDir::cleanPath(QDir(exeDir).absoluteFilePath(QStringLiteral(".."))),
+        };
+        for (const QString &d : dirs) {
+            openPath = projectInDir(d);
+            if (!openPath.isEmpty()) {
+                break;
             }
         }
     }

@@ -1,5 +1,6 @@
 #include "ControlLibrary.h"
 #include "AppIcon.h"
+#include "AssetPaths.h"
 
 #include <QDir>
 #include <QFile>
@@ -13,15 +14,15 @@ bool ControlLibrary::load(const QString &uiToolsRoot, QString *err)
     m_root = uiToolsRoot;
     m_controls.clear();
 
-    const QString mainJson = QDir(uiToolsRoot).filePath(QStringLiteral("control/control.json"));
+    const QString mainJson = assets::widgetsJson(uiToolsRoot);
     if (!loadOne(mainJson, err)) {
         return false;
     }
     const int builtinCount = m_controls.size();
 
-    /* 扩展控件：control/ex/*.json。往这个目录丢文件就能加控件，
+    /* 扩展控件：自定义控件目录里的 *.json。往这个目录丢文件就能加控件，
      * 缺目录不算错误。 */
-    QDir exDir(QDir(uiToolsRoot).filePath(QStringLiteral("control/ex")));
+    QDir exDir(assets::widgetsDir(uiToolsRoot));
     if (exDir.exists()) {
         const QStringList files = exDir.entryList(QStringList() << QStringLiteral("*.json"),
                                                   QDir::Files, QDir::Name);

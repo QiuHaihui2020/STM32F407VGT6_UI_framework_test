@@ -1,4 +1,5 @@
 #include "Canvas.h"
+#include "ProjectFile.h"
 
 #include <QJsonObject>
 #include "Preview.h"
@@ -1215,7 +1216,7 @@ void CanvasManager::onOpenProject()
     }
     const QString f = QFileDialog::getOpenFileName(
         nullptr, QStringLiteral("打开工程文件"), QString(),
-        QStringLiteral("UI 工程 (*.json)"));
+        projectfile::dialogFilter());
     if (f.isEmpty()) {
         return;
     }
@@ -1245,9 +1246,17 @@ void CanvasManager::onSaveAsProject()
     /* 【先把输入框里的改动逼出来】工具栏按钮是 NoFocus，点"保存"不会让
      * 属性面板上那个输入框失焦，editingFinished 不发，刚敲的值还没进模型。 */
     EditorOps::commitPendingEdit();
+    /* 【默认名给新后缀，但老工程保持原样】已经打开的是 .json 的话，另存为
+     * 还默认成 .json —— 不然点一下"保存"就悄悄换了后缀，project.ini 里那行
+     * 跟着变，别人再用别的工具打开这个目录就找不到工程了。 */
+    QString defName = m_model.name();
+    const QString cur = m_model.filePath();
+    defName += cur.isEmpty()
+               ? QLatin1Char('.') + projectfile::preferredSuffix()
+               : QLatin1Char('.') + QFileInfo(cur).suffix();
     const QString f = QFileDialog::getSaveFileName(
-        nullptr, QStringLiteral("保存工程文件"), m_model.name() + QStringLiteral(".json"),
-        QStringLiteral("UI 工程 (*.json)"));
+        nullptr, QStringLiteral("保存工程文件"), defName,
+        projectfile::dialogFilter());
     if (f.isEmpty()) {
         return;
     }

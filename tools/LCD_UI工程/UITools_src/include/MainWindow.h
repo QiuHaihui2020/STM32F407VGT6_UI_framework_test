@@ -97,6 +97,12 @@ protected:
     /** 退出前问一次（"是否真的退出程序?" + 未保存提示）。 */
     void closeEvent(QCloseEvent *e) override;
 
+    /* 把工程文件（.uiproj / .json）或者工程目录拖进窗口就打开它。
+     * 画布上那套"从控件列表拖控件"是 ScenesScreen 自己处理的，它对不认识的
+     * 载荷 ignore()，事件就冒到这一层来，两者不打架。 */
+    void dragEnterEvent(QDragEnterEvent *e) override;
+    void dropEvent(QDropEvent *e) override;
+
 private slots:
     /** 右键菜单里的"查找对像"：弹 findDlg，按名字/ID号在树里定位。 */
     void onFindObject();

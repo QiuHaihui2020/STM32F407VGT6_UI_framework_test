@@ -27,7 +27,7 @@ namespace sty {
 struct Options {
     int     pjId = 0;               ///< 界面上的"工程ID"，进 id 的 bit29..31
     int     rotate = 0;             ///< 0/1/2/3 -> 0/90/180/270
-    QString optionIni;              ///< UITools/config/ini/option.ini
+    QString optionIni;              ///< 控件类型码表（assets/typecodes.ini）
     QString projectDir;             ///< 工程目录（图片相对路径的基准）
     /** Resbuilder.xml 最终落在哪个目录。空 = 就落在工程目录。
      *  excel_path 要相对它折算 —— 正常情况下就写进工程目录，两者相同；

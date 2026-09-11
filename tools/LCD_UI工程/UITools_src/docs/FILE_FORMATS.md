@@ -9,7 +9,7 @@
 ## 0. 工具链全景
 
 ```
-                UIToolkit/UITools.exe           (Qt5 布局编辑器)
+                UIProject/tool/UITools.exe      (Qt5 布局编辑器)
 工程 json  ──────────────┐
 (SmallColorTFT.json)     │  编辑/保存
                          ▼
@@ -74,7 +74,7 @@ project
                  └─ listwidget[]   列表项
 ```
 
-## 2. 控件库 `control/control.json`
+## 2. 控件库 `assets/widgets.json`
 
 **是外部数据文件**，直接读就行：
 
@@ -85,7 +85,7 @@ project
 ```
 
 顶层键名是 `compoents`（少个 n，不是 components），别"顺手改对"。
-`control/ex/*.json` 是扩展控件（slider / vslider），`backgrounds/*.json` 是背景模板。
+`assets/widgets.d/*.json` 是扩展控件（slider / vslider）。
 
 ---
 

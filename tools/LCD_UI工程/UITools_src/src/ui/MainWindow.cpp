@@ -4,8 +4,11 @@
 #include <QMouseEvent>
 #include <QAbstractSpinBox>
 #include <QWheelEvent>
+#include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QSettings>
+#include <QUrl>
 #include <QDir>
 #include "Canvas.h"
 #include "Docks.h"
@@ -15,6 +18,8 @@
 #include "StyBuilder.h"
 #include "StyFile.h"
 #include "EditorOps.h"
+#include "AssetPaths.h"
+#include "ProjectFile.h"
 #include "BuildDate.h"
 #include "AppIcon.h"
 #include "UiTheme.h"
@@ -57,6 +62,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     setObjectName(QStringLiteral("MainWindow"));
+    /* 工程文件 / 工程目录拖进窗口就打开，见 dropEvent() */
+    setAcceptDrops(true);
     setWindowTitle(tr("UI编辑工具(Build:%1)").arg(common::buildDate()));
     /* 默认窗口尺寸：客户区 1687x969（工具栏 31 + 内容 969），
      * 四列 263 / 232 / 927 / 255。 */
@@ -479,7 +486,7 @@ void MainWindow::setToolsRoot(const QString &path)
     m_mgr->setToolsRoot(path);
     /* "保存成控件"落到这里，ControlLibrary 下次启动也从这里扫，
      * 两边指同一个目录才不会存了看不见。 */
-    EditorOps::setCustomWidgetDir(QDir(path).filePath(QStringLiteral("control/ex")));
+    EditorOps::setCustomWidgetDir(assets::widgetsDir(path));
     m_components->reload();
 }
 
@@ -503,6 +510,102 @@ void MainWindow::closeEvent(QCloseEvent *e)
         return;
     }
     e->accept();
+}
+
+namespace {
+
+/**
+ * 拖进来的这个路径对应哪个工程文件。
+ *
+ * 认三种拖法，都是人会顺手做的：
+ *   - 工程文件本身（.uiproj / .json）
+ *   - 工程目录（里面有 config\ini\project.ini）
+ *   - UI 工程根目录（里面有 project\）—— 从资源管理器上一级直接拖整个目录
+ *
+ * @return 工程文件的绝对路径；空表示这个路径不是工程。
+ */
+QString projectFileFromDropped(const QString &path)
+{
+    const QFileInfo fi(path);
+    if (fi.isFile()) {
+        return projectfile::isProjectFile(path) && !projectfile::isAutosave(path)
+               ? fi.absoluteFilePath() : QString();
+    }
+    if (!fi.isDir()) {
+        return QString();
+    }
+    QDir dir(fi.absoluteFilePath());
+    /* 拖的是 UI 工程根目录：往里走一层到 project\ */
+    if (!QFile::exists(dir.filePath(QStringLiteral("config/ini/project.ini")))
+        && dir.exists(QStringLiteral("project"))) {
+        dir.cd(QStringLiteral("project"));
+    }
+    /* project.ini 说了算 —— 一个目录里可能躺着好几份设计 */
+    const QString ini = dir.absoluteFilePath(QStringLiteral("config/ini/project.ini"));
+    if (QFile::exists(ini)) {
+        QSettings st(ini, QSettings::IniFormat);
+        const QString f = st.value(QStringLiteral("Project/projectfilename")).toString();
+        if (!f.isEmpty() && QFile::exists(dir.absoluteFilePath(f))) {
+            return dir.absoluteFilePath(f);
+        }
+    }
+    /* 没有 project.ini（比如别人只发了一份设计过来）就找目录里唯一那个 */
+    for (const QString &f : dir.entryList(projectfile::nameFilters(),
+                                          QDir::Files, QDir::Name)) {
+        if (!projectfile::isAutosave(f)) {
+            return dir.absoluteFilePath(f);
+        }
+    }
+    return QString();
+}
+
+/// 拖进来的一堆 URL 里，第一个能当工程打开的。
+QString firstProjectIn(const QMimeData *mime)
+{
+    if (!mime || !mime->hasUrls()) {
+        return QString();
+    }
+    for (const QUrl &u : mime->urls()) {
+        if (!u.isLocalFile()) {
+            continue;
+        }
+        const QString p = projectFileFromDropped(u.toLocalFile());
+        if (!p.isEmpty()) {
+            return p;
+        }
+    }
+    return QString();
+}
+
+} // namespace
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *e)
+{
+    /* 【这里就要判死】dragEnter 接了、drop 的时候才发现打不开的话，
+     * 拖动全程指针都是"可以放"的样子，松手却什么都不发生。 */
+    if (firstProjectIn(e->mimeData()).isEmpty()) {
+        e->ignore();
+        return;
+    }
+    e->acceptProposedAction();
+}
+
+void MainWindow::dropEvent(QDropEvent *e)
+{
+    const QString path = firstProjectIn(e->mimeData());
+    if (path.isEmpty()) {
+        e->ignore();
+        return;
+    }
+    e->acceptProposedAction();
+    /* 先问没保存的改动 —— 和"打开工程"菜单走同一道关 */
+    if (!m_mgr->confirmDiscardChanges()) {
+        return;
+    }
+    QString err;
+    if (!m_mgr->openProject(path, &err)) {
+        QMessageBox::warning(this, QStringLiteral("打开失败"), err);
+    }
 }
 
 void MainWindow::onFindObject()
@@ -566,18 +669,33 @@ void MainWindow::refreshPropertyContext(const QString &projectJson)
     PropertyContext &ctx = PropertyContext::instance();
     ctx.projectDir = QFileInfo(projectJson).absolutePath();
 
-    /* 多国语言表：工程里记了就用工程的，否则按约定的目录结构去
-     * <工程>/../../../UITools/ 下找唯一一个 .xls */
+    /* 多国语言表：工程里记了就用工程的，否则去工具目录里找唯一一个 .xls。
+     *
+     * 【以前这里只认一个写死的目录名】原来是 <工程>/../../../UITools，工具目录
+     * 改名之后这条兜底就永远落空 —— 表现是属性面板的"选文字"列表空着，不报错。
+     * 现在优先用当前的工具目录，再按目录约定往上找。 */
     QString xls = m_mgr->model()->langExcel();
     if (!xls.isEmpty() && !QFileInfo(xls).isAbsolute()) {
         xls = QDir(ctx.projectDir).absoluteFilePath(xls);
     }
     if (xls.isEmpty() || !QFileInfo::exists(xls)) {
-        const QString ut = QDir::cleanPath(
-            QDir(ctx.projectDir).absoluteFilePath(QStringLiteral("../../../UITools")));
-        const QStringList found = QDir(ut).entryList(QStringList{ QStringLiteral("*.xls") },
-                                                     QDir::Files);
-        xls = found.isEmpty() ? QString() : QDir(ut).absoluteFilePath(found.first());
+        QStringList roots{ m_mgr->toolsRoot() };
+        for (const char *up : { "../tool", "../../tool",
+                                "../../../UIToolkit", "../../../UITools" }) {
+            roots << QDir::cleanPath(QDir(ctx.projectDir)
+                                     .absoluteFilePath(QString::fromLatin1(up)));
+        }
+        xls.clear();
+        for (const QString &r : roots) {
+            if (r.isEmpty()) {
+                continue;
+            }
+            const QString f = assets::i18nXls(r);
+            if (!f.isEmpty()) {
+                xls = f;
+                break;
+            }
+        }
     }
     ctx.excelPath = QFileInfo::exists(xls) ? xls : QString();
 
@@ -786,7 +904,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
                                                 : QStringLiteral("**没加载**")));
     if (!libOk) {
         log << QStringLiteral("[失败] 控件库没加载出来 —— 检查 --tools-root "
-                              "是否指向含 control/control.json 的工具目录");
+                              "是否指向含 assets/widgets.json 的工具目录");
         if (report) {
             *report = log.join(QLatin1Char('\n'));
         }
@@ -3129,12 +3247,11 @@ int MainWindow::runOpsTest(QString *report)
             QString e2;
             const bool loaded = b.loadProject(jf, &e2);
             check(QStringLiteral("新建的空工程 StyBuilder 读得进"), loaded, e2);
-            /* 控件类型码在 UITools/config/ini/option.ini 里，不加载的话
+            /* 控件类型码在工具目录的 assets/typecodes.ini 里，不加载的话
              * 每个节点都是"认不出控件类型"，记录长度全按 16 兜底，测出来没意义 */
             QString e3;
-            const QString ini = QDir(m_mgr->toolsRoot())
-                                .filePath(QStringLiteral("config/ini/option.ini"));
-            check(QStringLiteral("类型码表 option.ini 读得进"),
+            const QString ini = assets::typeCodes(m_mgr->toolsRoot());
+            check(QStringLiteral("类型码表 typecodes.ini 读得进"),
                   b.loadOptionIni(ini, &e3), e3);
             if (loaded) {
                 sty::Options opt;
@@ -3802,6 +3919,10 @@ int MainWindow::runOpsTest(QString *report)
          * 只是编辑器算格子用的，算完落在行的矩形上。这也正是这个 bug 要命的
          * 地方：改完不重排行，那这个参数**对资源一点影响都没有**。
          * 下面就是拿生成出来的 .sty 字节来证明它现在真的生效了。 */
+        /* 【比字节之前先把生成时间戳抹掉】.sty 头 @4 那一格是
+         * QDateTime::currentSecsSinceEpoch()（见 StyBuilder 里那段说明），
+         * 同一份模型隔一秒生成出来就不一样。不抹掉的话这里两条断言都是错的：
+         * 「字节变了」会被时间戳假阳性放过，「两遍稳定」则会随机失败。 */
         auto buildSty = [&]() -> QByteArray {
             const QString d = QDir::temp().filePath(QStringLiteral("uitools_space"));
             QDir().mkpath(d);
@@ -3816,7 +3937,14 @@ int MainWindow::runOpsTest(QString *report)
             }
             sty::Options opt;
             const sty::Output o = b.build(opt);
-            return o.ok ? o.sty : QByteArray();
+            if (!o.ok) {
+                return QByteArray();
+            }
+            QByteArray s = o.sty;
+            if (s.size() >= 8) {
+                s.replace(4, 4, QByteArray(4, '\0'));
+            }
+            return s;
         };
         const QByteArray styBefore = buildSty();
 
@@ -4912,12 +5040,11 @@ void MainWindow::onStatusMessage(const QString &msg)
 }
 
 /**
- * "修改背景" —— 从 <UITools>/backgrounds/ 里挑一张铺到画布底下。
+ * "修改背景" —— 从工具目录的 assets/canvas/ 里挑一张铺到画布底下。
  *
- * 对话框里给一段说明（HTML）：
- *   背景图片目录名是 'backgrounds'，把背景图片放在该目录下就可以显示了，
- *   只支持 JPG 格式。
- * 双击列表里的一项就应用 —— 那正是 onDobuleClickedImage() 这个槽的用途。
+ * 对话框里给一段说明（HTML），把目录说清楚：图片放进去才列得出来，
+ * 而且只认 JPG。双击列表里的一项就应用 —— 那正是 onDobuleClickedImage()
+ * 这个槽的用途。
  */
 void MainWindow::onChangeBackgroud()
 {
@@ -4926,13 +5053,13 @@ void MainWindow::onChangeBackgroud()
     dlg.resize(420, 460);
 
     auto *tip = new QLabel(QStringLiteral(
-        "<b><p>背景图片目录名是 'backgrounds'　</p>"
-        "<p>把背景图片放在该目录下就可以显示了,只支持JPG格式</p></b>"), &dlg);
+        "<b><p>背景图片放在工具目录的 assets\\canvas\\ 下　</p>"
+        "<p>放进去就能在这里选,只支持 JPG 格式</p></b>"), &dlg);
     tip->setWordWrap(true);
 
     auto *list = new QListWidget(&dlg);
     list->setIconSize(QSize(64, 48));
-    const QDir bg(QDir(m_mgr->toolsRoot()).filePath(QStringLiteral("backgrounds")));
+    const QDir bg(assets::canvasDir(m_mgr->toolsRoot()));
     for (const QString &fn : bg.entryList(QStringList{ QStringLiteral("*.jpg"),
                                                        QStringLiteral("*.JPG") },
                                           QDir::Files, QDir::Name)) {

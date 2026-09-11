@@ -67,5 +67,5 @@ echo         set PATH=%QT_DIR:/=\%\bin;%%PATH%%
 echo         set QT_PLUGIN_PATH=%QT_DIR:/=\%\plugins
 echo.
 echo [build] full-chain acceptance test:
-echo         python "%~dp0re\verify_toolchain.py" %BUILD_DIR% ^<project dir^>
+echo         python "%~dp0compat\verify_toolchain.py" %BUILD_DIR% ^<project dir^>
 endlocal

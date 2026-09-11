@@ -4,7 +4,7 @@
 
 | 工具 | 干什么 |
 |---|---|
-| `UITools.exe`    | 布局编辑器，读写工程 json |
+| `UITools.exe`    | 布局编辑器，读写工程文件（`.uiproj` / `.json`，内容都是 json） |
 | `QtToolBin.exe`  | 工程 json → `project.bin`(=JL.sty) + `ename.h` + `Resbuilder.xml` + `debug.txt` |
 | `ResBuilder.exe` | `Resbuilder.xml` + bmp + xls → `result.bin`(=JL.res) / `result.str`(=JL.str) + 5 个头文件 |
 
@@ -218,7 +218,7 @@ set QT_PLUGIN_PATH=C:\Qt\5.15.2\msvc2019_64\plugins
 ### 编辑器
 
 ```
-UITools.exe --tools-root ..\UIToolkit  ..\ui_128_64_app\模式界面\project\SmallColorTFT.json
+UITools.exe --tools-root ..\UIProject\tool  ..\UIProject\project\SmallColorTFT.uiproj
 ```
 `--tools-root` 指向工具目录，控件库 / 图标 / 多国语言表都从那儿读。
 
@@ -250,7 +250,7 @@ QtToolBin.exe <工程.json> --run-resbuilder <ResBuilder.exe 路径>
 |---|---|
 | `--pj-id N` | 工程 ID，进控件 id 的 bit29..31，默认 0 |
 | `--rotate N` | 0/1/2/3 -> 0°/90°/180°/270°，直接进 `.sty` 文件头 |
-| `--option-ini <路径>` | 控件类型码表，默认在 `<工程>/../../../UITools/config/ini/option.ini` |
+| `--option-ini <路径>` | 控件类型码表，默认在 `<工程>/../tool/assets/typecodes.ini` |
 | `--excel <路径>` | 多国语言 xls，写进 `Resbuilder.xml` 的 `excel_path` |
 | `--language 0xNN` | 语言位掩码，默认 `0x13`（简中+繁中+英文） |
 | `--ename <ename.h>` | **只用于比对**：复用现成 `ename.h` 里已分配的 id |
@@ -268,42 +268,50 @@ ResBuilder.exe [Resbuilder.xml] [-o 输出目录] [--verify 参考目录]
 
 ## 目录怎么摆
 
-装好之后是**成对的两个目录**：
+装好之后是**一个目录**：UI 工程本体，工具住在它里面。
 
 ```
 tools\LCD_UI工程\
-    UIToolkit\             工具目录        22 MB
-    ui_128_64_app\         工程目录        15 MB
+    UIProject\                             37 MB
+        step1/2/3-*.bat  clear.bat         打开 / 生成 / 自检
+        project\                           工程本体（打开的就是它）
+        tool\                              三个 exe + Qt + assets\
 ```
 
-工程里的相对路径约定是 `..\..\..\<工具目录>\`。
+工程里的相对路径只有一条约定：从 `<UI工程>\project` 看，工具在 `..\tool`。
+**不写死工具目录叫什么名字**，整个 `UIProject\` 改名、搬走都不影响。
 
-### `UIToolkit\` —— 工具目录
+### `UIProject\tool\` —— 工具
 
 ```
 UITools.exe  QtToolBin.exe  ResBuilder.exe        三个工具
 Qt5*.dll  platforms\  imageformats\  styles\      Qt 运行库，不用配环境变量
-config\ini\option.ini  control\  backgrounds\     控件类型码表 / 控件库 / 背景图
-Application Data\  多国语言_128_64.xls  Resbuilder.xml
+assets\                                           数据文件（在版本库里，不由脚本装配）
+    widgets.json  widgets.d\                      控件库 / 自定义控件
+    typecodes.ini                                 控件类型码表
+    canvas\                                       画布背景图（JPG）
+    i18n_128_64.xls                               多国语言表
+    pack_template.xml                             资源描述模板
 compat\                                           校验脚本
-template\  新建工程.bat                            拉空工程
+template\  新建工程.bat                            拉一个新的 UI 工程
 README.md                                         目录内容清单
 ```
 
-### `ui_128_64_app\` —— 工程目录
+`assets\` 的解析和旧位置兜底在 `src/core/AssetPaths.h`。
+
+### `UIProject\` —— 工程
 
 ```
+step1-打开UI绘图工具.bat
+step2-生成资源.bat
+step3-自检.bat
+打开图片资源文件夹.bat
 clear.bat  clear.sh  README.md
-模式界面\
-    step1-打开UI绘图工具.bat
-    step2-生成资源.bat
-    step3-自检.bat
-    打开图片资源文件夹.bat
-    project\
-        SmallColorTFT.json  SmallColor_oled.json
-        config\  backgrounds\  Application Data\
-        copy_file.bat  release.bat  version.txt
-        （生成物：跑 step2 就有）
+project\
+    SmallColorTFT.json  SmallColor_oled.json
+    config\  Application Data\
+    copy_file.bat  release.bat  version.txt
+    （生成物：跑 step2 就有）
 ```
 
 缓存和中间文件（`autosave.json`、`uitoolbin.bin`、`Resbuilder.dat`、
@@ -316,18 +324,20 @@ clear.bat  clear.sh  README.md
 
 ```
 build.bat              编出三个 exe 到 C:\bt\uitools
-mkdist_tooldir.bat     装配 ..\UIToolkit\
-mkdist_project.bat     装配 ..\ui_128_64_app\
+mkdist_tooldir.bat     装配 ..\UIProject\tool\（exe / Qt / compat / template）
+mkdist_project.bat     从既有工程种一个新工程出来（一次性，会拦重复执行）
 ```
 
-两个装配脚本都从源码树里取"覆盖层"，所以目录可以随时删掉重建：
+`assets\` **不由脚本装配** —— 它就在版本库里 `UIProject\tool\assets\`，
+改了直接提交。每次构建都从别处拷一份的话，部署出来的树和提交的内容
+会悄悄对不上。其余覆盖层还是从源码树取，所以随时能删掉重建：
 
 | 源码树 | 装到哪 |
 |---|---|
-| `tooldir\` | 工具目录根：`README.md`、`新建工程.bat` |
-| `projectdir\family\` | 工程族根：`clear.bat`、`clear.sh`、`README.md` |
-| `projectdir\screen\` | 每个 `<界面>\`：step1/2/3 + `打开图片资源文件夹.bat` + `ui-config` |
-| `projectdir\newproject\` | 空工程才要的：空 `project.ini`、`copy_file.bat`、`pic_lcd\` |
+| `tooldir\` | `tool\` 根：`README.md`、`新建工程.bat` |
+| `projectdir\family\` | 工程根：`clear.bat`、`clear.sh`、`README.md` |
+| `projectdir\screen\` | 工程根：step1/2/3 + `打开图片资源文件夹.bat` + `project\ui-config` + `project\copy_file.bat` |
+| `projectdir\newproject\` | 空工程才要的：空 `project.ini`、`pic_lcd\` |
 
 `template\`（新建工程用）= `projectdir\screen\` + `projectdir\newproject\`，
 所以新工程和已有工程的 step 脚本永远是同一份，不会走偏。
@@ -338,10 +348,10 @@ mkdist_project.bat     装配 ..\ui_128_64_app\
 |---|---|
 | `step1-打开UI绘图工具.bat` | 开编辑器 |
 | `step2-生成资源.bat` | 弹 QtToolBin 界面，点「生成资源文件(F5)」生成并拷进固件工程 |
-| `step3-自检.bat` | 21 项自洽性检查 |
+| `step3-自检.bat` | 25 项自洽性检查 |
 
 step2 是弹窗的（界面上有进度条和输出）；step1/step3 直接干活。
-三个都**不带参数** —— 工具目录按 `..\..\..\UIToolkit` 找，
+三个都**不带参数** —— 工具目录按 `..\tool` 找，
 其余参数从 `project\config\ini\project.ini` 读：
 
 ```ini
@@ -439,7 +449,7 @@ UITools_src/
 
 - 工程 json 的写出格式 = Qt `toJson(Indented)`，三个真实工程字节一致
 - `.sty` / `.res` / `.str` 的**读侧和写侧**都打通了，见上面的整链验收
-- 控件库从 `control/control.json` + `control/ex/*.json` 读，既有工程完全兼容
+- 控件库从 `assets/widgets.json` + `assets/widgets.d/*.json` 读，既有工程完全兼容
 
 **能真正干活**
 

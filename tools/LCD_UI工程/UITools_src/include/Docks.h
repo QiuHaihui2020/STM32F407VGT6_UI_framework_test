@@ -147,7 +147,7 @@ private:
 };
 
 /** "控件列表" 组框：图层 / 布局 两个大按钮 + 控件网格 + 自定义控件。
- *  数据来自 UITools/control/control.json 与 control/ex/*.json。 */
+ *  数据来自工具目录的 assets/widgets.json 与 assets/widgets.d/*.json。 */
 class CompoentControls : public QGroupBox
 {
     Q_OBJECT

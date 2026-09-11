@@ -1,8 +1,8 @@
 [Project]
 Size=128*64
-CustomTemplateDir=../../../UIToolkit/control/ex
+CustomTemplateDir=../tool/assets/widgets.d
 Dir=.
 ImageDir=config
-LangugeFile=../../../UIToolkit/\x591a\x56fd\x8bed\x8a00_128_64.xls
-TemplateJson=../../../UIToolkit/control/control.json
+LangugeFile=../tool/assets/i18n_128_64.xls
+TemplateJson=../tool/assets/widgets.json
 LastOpen=@ByteArray(./SmallColorTFT.json)

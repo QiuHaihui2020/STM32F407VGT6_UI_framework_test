@@ -9,7 +9,7 @@
  * 【存在哪：工程目录的 Resbuilder.xml】
  * 一开始存到了 <工具目录>/config/ini/resbuilder.ini，那是错的：工程目录里那份
  * Resbuilder.xml（LCDPANEL / 选中 13 / 简体中文 Cambria 24 / 德语 宋体 12 /
- * excel 是相对路径 ../../../UITools/多国语言_128_64.xls）和界面上显示的逐项
+ * excel 是相对路径 ../tool/assets/i18n_128_64.xls）和界面上显示的逐项
  * 吻合，而工具目录里的 Resbuilder.xml / Resbuilder.dat 是另一套
  * （TFTPANEL / 0x7 / twsbox）。这一页是**跟着工程走**的 ——
  * 两个工程各有各的设置，正合常理。

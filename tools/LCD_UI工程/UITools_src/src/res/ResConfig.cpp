@@ -61,7 +61,7 @@ bool ResConfig::load(const QString &path, QString *error)
     f.close();
     baseDir = QFileInfo(path).absolutePath();
 
-    // 编码：写的确实是 UTF-8（现成的 UITools/Resbuilder.xml 里
+    // 编码：写的确实是 UTF-8（既有工程的 Resbuilder.xml 里
     // "多"是 E5 A4 9A、"宋体"是 E5 AE 8B E4 BD 93），和 XML 头声明的一致。
     // 但历史上本工具自己写出过 GBK 的版本（toLocal8Bit，见 StyBuilder.cpp 里
     // 那段说明），所以读的时候仍然两种都认：先按 UTF-8 试，解出替换字符或者

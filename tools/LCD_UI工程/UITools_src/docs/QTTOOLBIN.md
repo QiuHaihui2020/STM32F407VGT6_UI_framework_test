@@ -86,7 +86,7 @@ JSON文件:  [ SmallColorTFT.json ]        工程ID: [0]
 
 ## 2. 控件类型码：完全来自 option.ini（已验证 273/273）
 
-`UITools/config/ini/option.ini` 的 `[Control]` 段就是权威表：
+工具目录 `assets/typecodes.ini` 的 `[Control]` 段就是权威表：
 
 ```ini
 [Control]
@@ -109,7 +109,7 @@ png=233
 ```
 
 **查表键的顺序是 `caption` 优先，再退回 `-type`。**
-这一点很关键：`control/ex/` 里的扩展控件（slider / vslider 及其零件）的 `-type`
+这一点很关键：自定义控件（slider / vslider 及其零件）的 `-type`
 都是 `NewLayout` / `ImageList` / `Text`，真正决定类型码的是 `caption`。
 option.ini 里同时给了中英两套键就是为这个。
 

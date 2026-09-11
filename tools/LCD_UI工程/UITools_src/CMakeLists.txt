@@ -12,7 +12,7 @@
 #     cmake --build build --config Release
 #
 # 运行:
-#     ./UITools --tools-root ../..            # 指向 UITools 目录，读 control/control.json
+#     ./UITools --tools-root ../..            # 指向工具目录，读 assets/widgets.json
 #     ./UITools --sty-dump ../../../JL/JL.sty # 只解析 .sty，不开界面
 #
 cmake_minimum_required(VERSION 3.16)

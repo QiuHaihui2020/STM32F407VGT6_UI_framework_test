@@ -4,7 +4,7 @@
 后半部分（§12 起）是按时间顺序记的修复笔记。
 
 > 跑起来的前提：**工作目录必须是工程目录**，否则工程里的 `lang_excel`
-> 相对路径（`../../../UIToolkit/多国语言_128_64.xls`）解不出来。
+> 相对路径（`../tool/assets/i18n_128_64.xls`）解不出来。
 > 用 step1 脚本启动就不用管这件事。
 
 ---
@@ -188,7 +188,7 @@
 工程文件里**没有 `widget` 这个键**。键写错了文件仍是合法 json，但下游 QtToolBin
 遍历不到那棵子树，表现是"编辑器里有这个控件，生成的 .sty 里没有"。
 
-新建控件时是把 `control/control.json` 里那份模板**整份克隆**下来的：对照过既有
+新建控件时是把 `assets/widgets.json` 里那份模板**整份克隆**下来的：对照过既有
 工程文件，节点的键集合 = 模板的键集合（连空的 `"widget": []` 都留着），只多出装
 孩子用的 `layout` / `listwidget`。手搭一个空壳节点会丢掉 `element_css`，也就丢掉
 了几何、样式和事件。
@@ -289,9 +289,9 @@
   都没有（NewFrame 175 / NewLayout 85 / NewList 14 / NewLayer 3），`control.json`
   的模板里也只有 id / element_css / scroll / highlight_index / action，没有存行列
   数的字段。本工具先用 `rows` / `cols`，拿到带 NewGrid 的既有工程要按样本改。
-- **`保存成控件`落到 `<工具目录>/control/ex/`**。[全局设置]里的说明文字写的是
+- **`保存成控件`落到 `<工具目录>/assets/widgets.d/`**。[全局设置]里的说明文字写的是
   "自定义的模版控件目录,默认是 widgets 目录"，但工具目录下并没有 widgets，
-  控件实际是从 `control/ex/` 扫出来的（slider / vslider 就在那儿）。
+  控件实际是从 `assets/widgets.d/` 扫出来的（slider / vslider 就在那儿）。
   两说法对不上，按**实际生效的那个**来。
 - 事件动作（ActionList）的二进制布局还没定下来，编辑器里先只做壳。
 
@@ -520,7 +520,7 @@ UITools.exe --tools-root <UITools目录> --export-test <工程.json>
 走的是同一个 `exportResourceForTest()`，把完整输出打出来，退出码 0 = 成功。
 **它不跑收尾脚本** —— `copy_file.bat` 会往固件工程里拷文件，无人值守时不能碰。
 注意工程要放在层级正确的目录里（`Resbuilder.xml` 的 `excel_path` 是
-`../../../UITools/多国语言_128_64.xls` 这种相对路径），随便找个临时目录会解不到 xls。
+`../tool/assets/i18n_128_64.xls` 这种相对路径），随便找个临时目录会解不到 xls。
 
 ### 8.4 [全局设置]里的一组：点阵屏预览配色
 
@@ -734,7 +734,7 @@ ops-test 新增四条，TFT **141 项** / oled **131 项** 全过：
 ### 8.8 控件参数的取值范围：数据驱动
 
 用户报「你做的参数没有任何限制」。范围不写死在代码里，而是**写在
-`control/control.json` 的属性上**，界面按它建编辑器。提示语两条：
+`assets/widgets.json` 的属性上**，界面按它建编辑器。提示语两条：
 
 ```
 "请输入%1~%2的整数"       —— 属性写了 min/max 时用它
@@ -763,7 +763,7 @@ ops-test 新增四条，TFT **141 项** / oled **131 项** 全过：
 
 一条**本版自己加的**：没写 `min`/`max` 时再按声明类型收一道
 （`int8` 0~255、`int16` 0~32768）。现成那 5 个 int8/int16 属性都写了 min/max，
-所以这一条在既有数据上是**空操作**，只在自定义控件（`control/ex`）漏写时兜底。
+所以这一条在既有数据上是**空操作**，只在自定义控件（`assets/widgets.d`）漏写时兜底。
 
 > **位置坐标那四个框不在这套规则里**。`control.json` 的 `rect` 属性
 > **没有** min/max，范围是运行时按父容器算的。当初这里凭工程数据猜了一套
@@ -809,7 +809,7 @@ if (自身类型 == NewLayout(3) || 自身类型 == NewLayer(4)) {
 }
 ```
 
-类型码来自 `UITools/config/ini/option.ini` 的 `[Control]` 段：
+类型码来自工具目录 `assets/typecodes.ini` 的 `[Control]` 段：
 `NewLayout=3`、`NewLayer=4`，而 `VerticalList/HorizontalList/NewGrid=5`
 —— **列表本身走的是下面那条**（叶子分支）。
 
@@ -1670,9 +1670,9 @@ ops-test：TFT **440 项** / oled **428 项** 全过。
 [Project]
 Size=128*64                                    ; 页面尺寸
 ImageDir=config                                ; 图片目录
-LangugeFile=../../../UIToolkit/多国语言_128_64.xls
-TemplateJson=../../../UIToolkit/control/control.json
-CustomTemplateDir=../../../UIToolkit/control/ex
+LangugeFile=../tool/assets/i18n_128_64.xls
+TemplateJson=../tool/assets/widgets.json
+CustomTemplateDir=../tool/assets/widgets.d
 LastOpen=@ByteArray(./SmallColorTFT.json)      ; 上次打开哪个工程
 [Preview]
 LitColor / DarkColor / GridColor               ; 点阵屏预览配色（本版加的）

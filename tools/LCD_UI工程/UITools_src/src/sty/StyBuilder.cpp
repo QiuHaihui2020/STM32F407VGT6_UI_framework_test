@@ -1144,7 +1144,7 @@ Output Builder::build(const Options &opt)
             s += QStringLiteral("\t\t<paneltype>%1</paneltype>\r\n").arg(opt.panelType);
             s += QStringLiteral("\t\t<picture_path>%1</picture_path>\r\n").arg(pp);
             /* 【excel_path 写相对工程目录的路径】既有那份写的是
-             * ../../../UITools/多国语言_128_64.xls，不是绝对路径 —— 工程整个
+             * ../tool/assets/i18n_128_64.xls，不是绝对路径 —— 工程整个
              * 挪个位置或者换台机器还能用。命令行 --excel 给的一般是绝对路径，
              * 这里折算回去。给的本来就是相对路径就原样保留。 */
             const QString xmlDir = opt.outDir.isEmpty() ? opt.projectDir : opt.outDir;

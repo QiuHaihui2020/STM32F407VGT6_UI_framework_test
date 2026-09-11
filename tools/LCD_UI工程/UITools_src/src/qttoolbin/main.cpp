@@ -5,7 +5,7 @@
 //   QtToolBin [工程.json] [选项]
 //     --pj-id N          工程 ID（进控件 id 的 bit29..31），默认 0
 //     --rotate N         0/1/2/3 -> 0/90/180/270
-//     --option-ini <路径> 默认在 <工程目录>/../../../UITools/config/ini/option.ini 找
+//     --option-ini <路径> 默认在工具目录的 assets/typecodes.ini 找（见 AssetPaths.h）
 //     --excel <路径>     写进 Resbuilder.xml 的 excel_path
 //     --language 0xNN    语言掩码，默认 0x13
 //     --ename <ename.h>  复用已有 ename.h 里的 id（用于和既有资源逐字节比对）
@@ -22,7 +22,7 @@
 //     projectbatscript  收尾脚本 -> --script
 //     projectresbuilder true = 不重新生成资源（界面上那个勾选框）
 // 命令行显式给的选项优先于 project.ini。所以启动脚本可以是干净的一行：
-//     cd project && ..\..\..\UIToolkit\QtToolBin.exe --run-resbuilder <...>
+//     cd project && ..\..\..\QtToolBin.exe --run-resbuilder <...>
 //
 // 产出：project.bin / ename.h / Resbuilder.xml / debug.txt
 #include <QApplication>
@@ -43,6 +43,7 @@
 #include <QTimer>
 #include <QTextStream>
 
+#include "AssetPaths.h"
 #include "StyBuilder.h"
 #include "FeatureDialog.h"
 #include "ResbuilderOptions.h"
@@ -210,8 +211,7 @@ int main(int argc, char *argv[])
             vo.projectDir = vdir;
             vo.pjId = pini.value(QStringLiteral("Project/projectid"), 0).toInt();
             vo.rotate = pini.value(QStringLiteral("Project/projectrotate"), 0).toInt();
-            vo.optionIni = QDir(QCoreApplication::applicationDirPath())
-                           .absoluteFilePath(QStringLiteral("config/ini/option.ini"));
+            vo.optionIni = assets::typeCodes(QCoreApplication::applicationDirPath());
             vo.enameIn = QDir(vdir).absoluteFilePath(QStringLiteral("ename.h"));
 
             sty::Builder vb;
@@ -580,19 +580,20 @@ int main(int argc, char *argv[])
             opt.language = savedLang;
         }
     }
-    /* 工程目录一般是 .../ui_xxx/<界面>/project，工具目录在上三级。
-     * 先找放着本 exe 的那个工具目录，找不到再退回 UITools ——
-     * 这样两套工具目录都能用。 */
+    /* 工程目录是 <UI工程>/project，工具在 <UI工程>/tool 里，数上去就是
+     * ../tool。先找放着本 exe 的那个，再按目录约定找；后面几个候选是
+     * 老布局（工具目录和工程并列）的兜底。 */
     const QString exeDir = QCoreApplication::applicationDirPath();
     QStringList toolRoots;
-    toolRoots << exeDir
-              << QDir::cleanPath(QDir(projDir).absoluteFilePath(
-                     QStringLiteral("../../../UIToolkit")))
-              << QDir::cleanPath(QDir(projDir).absoluteFilePath(
-                     QStringLiteral("../../../UITools")));
+    toolRoots << exeDir;
+    for (const char *up : { "../tool", "../../tool",
+                            "../../../UIToolkit", "../../../UITools" }) {
+        toolRoots << QDir::cleanPath(QDir(projDir).absoluteFilePath(
+                         QString::fromLatin1(up)));
+    }
     if (opt.optionIni.isEmpty()) {
         for (const QString &r : toolRoots) {
-            const QString c = QDir(r).absoluteFilePath(QStringLiteral("config/ini/option.ini"));
+            const QString c = assets::typeCodes(r);
             if (QFile::exists(c)) {
                 opt.optionIni = c;
                 break;
@@ -602,10 +603,9 @@ int main(int argc, char *argv[])
     // 多国语言 xls：命令行没给就在工具目录里找唯一的那个
     if (opt.excelPath.isEmpty()) {
         for (const QString &r : toolRoots) {
-            const QStringList x = QDir(r).entryList(QStringList{ QStringLiteral("*.xls") },
-                                                    QDir::Files);
+            const QString x = assets::i18nXls(r);
             if (!x.isEmpty()) {
-                opt.excelPath = QDir(r).absoluteFilePath(x.first());
+                opt.excelPath = x;
                 break;
             }
         }

@@ -130,7 +130,7 @@ void ProjectDialog::on_pushButton_clicked()
     m_langXls = f;
     m_filestatus->setText(QFileInfo(f).fileName());
 
-    /* 多国语言表默认是 UITools/多国语言_128_64.xls，
+    /* 多国语言表默认是工具目录 assets/ 下那个 xls，
      * 第一行是语言列名（Chinese_Simplified / English / ...），
      * 与 result.h 里的 LANGUAGEID 一一对应。这里只列出文件名，
      * 真正的解析要等 .str 资源写入实现。 */

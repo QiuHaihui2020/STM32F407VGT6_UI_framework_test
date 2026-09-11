@@ -1,5 +1,8 @@
 #include "ToolBinWindow.h"
 
+#include "AssetPaths.h"
+#include "ProjectFile.h"
+
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -136,11 +139,11 @@ ToolBinWindow::~ToolBinWindow() = default;
 
 void ToolBinWindow::loadIni()
 {
-    // 工程目录里所有 json 都列出来（autosave 是编辑器的自动存档，不算工程）
+    // 工程目录里的工程文件都列出来（autosave 是编辑器的自动存档，不算工程）
     const QStringList js = QDir(m_projectDir).entryList(
-        QStringList{ QStringLiteral("*.json") }, QDir::Files, QDir::Name);
+        projectfile::nameFilters(), QDir::Files, QDir::Name);
     for (const QString &j : js) {
-        if (j.compare(QLatin1String("autosave.json"), Qt::CaseInsensitive) != 0) {
+        if (!projectfile::isAutosave(j)) {
             m_json->addItem(j);
         }
     }
@@ -171,17 +174,13 @@ void ToolBinWindow::loadIni()
     m_res.loadFromProject(resXmlPathOf(m_projectDir));
 
     /* 多国语言表：设置里配了就用它。存的是**相对工程目录**的路径
-     * （../../../UITools/多国语言_128_64.xls），这里解成绝对路径再用。 */
+     * （既有工程里是 ../../../<工具目录>/…xls 这种），这里解成绝对路径再用。 */
     if (!m_res.excelPath.isEmpty()) {
         m_excelPath = QFileInfo(m_res.excelPath).isAbsolute()
                       ? m_res.excelPath
                       : QDir(m_projectDir).absoluteFilePath(m_res.excelPath);
     } else {
-        const QStringList xls = QDir(toolDir()).entryList(
-            QStringList{ QStringLiteral("*.xls") }, QDir::Files);
-        if (!xls.isEmpty()) {
-            m_excelPath = QDir(toolDir()).absoluteFilePath(xls.first());
-        }
+        m_excelPath = assets::i18nXls(toolDir());
     }
     m_language = m_res.languageMask;
     m_panelType = m_res.panelType;
@@ -261,7 +260,7 @@ void ToolBinWindow::setBusy(bool on)
 void ToolBinWindow::onPickJson()
 {
     const QString f = QFileDialog::getOpenFileName(
-        this, tr("选择工程 json"), m_projectDir, tr("UI 工程 (*.json)"));
+        this, tr("选择工程文件"), m_projectDir, projectfile::dialogFilter());
     if (f.isEmpty()) {
         return;
     }
@@ -389,8 +388,7 @@ void ToolBinWindow::onGenerate()
     opt.excelPath = m_excelPath;
     opt.language = m_language;
     opt.panelType = m_panelType;
-    opt.optionIni = QDir(toolDir()).absoluteFilePath(
-        QStringLiteral("config/ini/option.ini"));
+    opt.optionIni = assets::typeCodes(toolDir());
 
     sty::Builder b;
     QString err;

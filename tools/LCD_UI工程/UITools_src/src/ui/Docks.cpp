@@ -986,7 +986,7 @@ void CompoentControls::reload()
     QVector<const ControlTemplate *> custom;
     if (m_mgr) {
         for (const ControlTemplate &t : m_mgr->library()->controls()) {
-            /* control/ex/ 里的扩展控件（slider / vslider）本身就是组合布局，
+            /* 自定义控件目录里的扩展控件（slider / vslider）本身就是组合布局，
              * 它们的 -type 也是 "NewLayout" —— 所以"跳过图层/布局"这条过滤
              * 只能对内置控件生效，否则扩展控件会被一起误杀。 */
             if (t.isExtension) {
@@ -1007,7 +1007,7 @@ void CompoentControls::reload()
         ++row;
     }
 
-    /* control/ex/ 里的扩展控件单独放进"自定义控件"子组 */
+    /* 自定义控件目录里的扩展控件单独放进"自定义控件"子组 */
     m_custom = new QGroupBox(tr("自定义控件"), m_grid);
     auto *cg = new QGridLayout(m_custom);
     cg->setContentsMargins(6, 6, 6, 6);
@@ -1213,7 +1213,7 @@ void CompoentControls::createDropped(UiNode *parent, const QString &cls,
     }
     if (cls == QLatin1String("NewLayout")
         && type == QLatin1String("NewLayout")) {
-        /* 注意：control/ex 里的 slider / vslider 的 -class 也是 NewLayout，
+        /* 注意：自定义控件里的 slider / vslider 的 -class 也是 NewLayout，
          * 但 -type 不是，所以要连 type 一起判，否则拖 slider 会变成拖布局。 */
         appendChild(parent, cls, type, QStringLiteral("布局"),
                     QStringLiteral("布局_%1").arg(seq), pos);

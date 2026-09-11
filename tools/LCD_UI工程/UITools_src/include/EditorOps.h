@@ -36,7 +36,7 @@ namespace EditorOps {
 const char *const kControlMime = "application/x-uitools-control";
 
 /* ---- 层级判定 --------------------------------------------------------
- * 判的是 "-class" 而不是 "-type"：control/ex/ 里的扩展控件（slider）
+ * 判的是 "-class" 而不是 "-type"：自定义控件里的扩展控件（slider）
  * -type 也叫 NewLayout，按 type 判会把它错当容器。 */
 bool isPage(const UiNode *n);
 bool isLayer(const UiNode *n);
@@ -78,7 +78,7 @@ bool isTopScreen(const UiNode *n);
  *     所以列表那两种早就是同一套规则，表格没道理单独一套。
  *
  * 【水平列表不用单独处理】它的 -class 是 NewList，isList() 天然覆盖。
- * 【slider / vslider 这些扩展控件也不用】control/ex 里它们的 -class 就是
+ * 【slider / vslider 这些扩展控件也不用】它们的 -class 就是
  *   NewLayout，本来就按布局收孩子（工程里的 MUSIC_FILE_SLIDER 底下就挂着三个图片）。
  */
 
@@ -263,7 +263,7 @@ UiNode *makeFromTemplate(UiNode *parent, const QString &type,
 
 /* ---- 自定义控件目录 ---------------------------------------------------
  * [全局设置]里那一项："自定义的模版控件目录,默认是 widgets 目录"。
- * 默认落到 <UITools>/control/ex/ —— ControlLibrary 扫的就是它，
+ * 默认落到工具目录的 assets/widgets.d/ —— ControlLibrary 扫的就是它，
  * 存进去下次启动就能在"自定义控件"那一组里看到。 */
 void    setCustomWidgetDir(const QString &dir);
 QString customWidgetDir();

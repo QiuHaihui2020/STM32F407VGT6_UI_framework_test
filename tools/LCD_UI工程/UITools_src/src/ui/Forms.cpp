@@ -654,7 +654,7 @@ void BaseForm::doPaste()
 }
 
 /**
- * "保存成控件"：把当前节点存成一份控件模板，落到 <UITools>/control/ex/。
+ * "保存成控件"：把当前节点存成一份控件模板，落到工具目录的 assets/widgets.d/。
  *
  * 存的格式就是 control.json 的格式（顶层 "compoents" 数组，键名沿用
  * 那个拼写错误），ControlLibrary 启动时扫这个目录，下次就出现在
@@ -915,7 +915,7 @@ void NewLayout::onDeleteMe() { BaseForm::onDeleteMe(); }
 
 void NewLayout::onBeComeTemplateWidget()
 {
-    /* 原工具把当前布局存成模板，落到 UITools/control/ex/ 下供以后复用。 */
+    /* 把当前布局存成模板，落到自定义控件目录下供以后复用。 */
     if (!m_node) {
         return;
     }
