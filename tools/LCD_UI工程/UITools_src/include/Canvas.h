@@ -264,6 +264,14 @@ public:
      */
     int healBrokenNodes();
 
+    /**
+     * 把 [全局设置] 的配置文件绑到这个工程的目录下，并重读跟它走的东西
+     * （点阵屏预览配色、每个文字控件的「预览文字」）。
+     *
+     * 打开 / 另存工程之后调。这样复制一份 UI 工程，这些设置一起被复制走。
+     */
+    void bindSettingsToProject(const QString &jsonPath);
+
     /* ---- 无人值守入口（--make-sample / ops-test 用）------------------
      * onCreateNewProject() / onCreateNewScenesScreen() 里塞满了模态框
      * （"是否关闭当前工程"、ProjectDialog…），脚本里跑不了。这两个是

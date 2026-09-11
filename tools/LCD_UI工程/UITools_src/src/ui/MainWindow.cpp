@@ -16,6 +16,7 @@
 #include "StyFile.h"
 #include "EditorOps.h"
 #include "BuildDate.h"
+#include "GlobalSettings.h"
 #include "Preview.h"
 #include "findDlg.h"
 #include "I18nLanguage.h"
@@ -1097,6 +1098,18 @@ int MainWindow::runOpsTest(QString *report)
             ++fail;
         }
     };
+
+    /* 【自测不许弄脏工程的配置】ui-config 现在跟着工程走（见 §18），
+     * 测试里改预览文字、改配色会直接写进工程目录下那个**受版本管理**的文件。
+     * 这里整体重定向到临时沙箱，跑完再指回去。真实路径先记下来，18z 要用它
+     * 断言"配置确实落在工程目录下"。 */
+    const QString kRealCfgPath = GlobalSettings::filePath();
+    const QString kProjCfgDir =
+        QFileInfo(m_mgr->model()->filePath()).absolutePath();
+    const QString kCfgSandbox = QDir::temp().filePath(QStringLiteral("uitools_ops_cfg"));
+    QDir(kCfgSandbox).removeRecursively();
+    QDir().mkpath(kCfgSandbox);
+    GlobalSettings::setProjectDir(kCfgSandbox);
 
     /* 【别死盯当前页】activePage 是工程里存的，用户上次停在哪一页就是哪一页 ——
      * 新建一个空页面存盘之后，当前页就是那个空页，整套测试直接报"缺样本"。
@@ -4716,6 +4729,92 @@ int MainWindow::runOpsTest(QString *report)
               QStringLiteral("%1 个").arg(frame->cssStateCount()));
     }
 
+    /* --- 18z. 配置跟着工程走：复制一份工程，预览文字还在 ---
+     * ui-config 里存的全是**按工程**的东西（页面尺寸、图片目录、多国语言表、
+     * 点阵屏预览配色、每个文字控件的「预览文字」）。它原来锚的是**进程当前
+     * 目录** —— 原厂没这毛病是因为启动脚本永远 `cd project` 再起 exe，
+     * 而从别处起 exe 就会在那儿凭空拉一个和工程无关的空配置。
+     * 现在锚到工程目录，好处就是这一条：**把 UI 工程整个复制走，
+     * 这些设置一起过去**。
+     *
+     * 【为什么不在这儿 openProject 验】那会把模型和画布整个拆了重建，
+     * 而本测试全程攥着 page/layer/layout/frame 这些裸指针 —— 立刻全变野的，
+     * 实测直接踩坏堆（0xC0000374）。改成只切配置目录，不动模型：
+     * 结论一样硬，因为"复制工程能带走"靠的就是**这份文件在工程目录里**。 */
+    {
+        /* 【断言用启动时记下的那个路径】测试全程跑在沙箱里（见本函数开头），
+         * 这里要验的是"工具真跑起来时配置落在工程目录下"。 */
+        check(QStringLiteral("配置文件落在工程目录下，不是进程当前目录"),
+              kRealCfgPath.startsWith(kProjCfgDir), kRealCfgPath);
+        const QString projDir = kCfgSandbox;   // 下面拿沙箱当"这个工程的目录"
+
+        /* 找一个带 ID 号的文字控件 */
+        UiNode *txt = nullptr;
+        for (UiNode *pg : m_mgr->model()->pages()) {
+            pg->forEach([&](UiNode *x) {
+                if (!txt && x->type == QLatin1String("Text")) {
+                    for (const UiProperty &p : x->props) {
+                        if (p.name == QLatin1String("id") && !p.ename.isEmpty()) {
+                            txt = x;
+                        }
+                    }
+                }
+                return txt == nullptr;
+            });
+            if (txt) {
+                break;
+            }
+        }
+        if (!txt) {
+            check(QStringLiteral("18z 前提：工程里有带 ID 号的文字控件"), false);
+        } else {
+            const QString probe = QStringLiteral("预览文字跟着工程走");
+            const QString had = Preview::presetText(txt);
+            Preview::setPresetText(txt, probe);
+            check(QStringLiteral("预览文字写得进去"),
+                  Preview::presetText(txt) == probe, Preview::presetText(txt));
+
+            /* 切走再切回来：既强制把上一份落盘，又证明是**从文件里**读回来的 */
+            const QString tmpDir = QDir::temp().filePath(QStringLiteral("uitools_cfgA"));
+            QDir(tmpDir).removeRecursively();
+            QDir().mkpath(tmpDir);
+            GlobalSettings::setProjectDir(tmpDir);
+            check(QStringLiteral("换工程目录之后，配置文件跟着换"),
+                  GlobalSettings::filePath().startsWith(QDir(tmpDir).absolutePath()),
+                  GlobalSettings::filePath());
+            check(QStringLiteral("换到空目录，读不到上一个工程的预览文字（互不干扰）"),
+                  Preview::presetText(txt).isEmpty(), Preview::presetText(txt));
+
+            GlobalSettings::setProjectDir(projDir);
+            check(QStringLiteral("切回来，预览文字从工程目录的文件里读得回来"),
+                  Preview::presetText(txt) == probe, Preview::presetText(txt));
+
+            /* ★ 复制工程 = 复制这个目录。把 ui-config 拷过去，指过去，还得在 */
+            const QString cp = QDir::temp().filePath(QStringLiteral("uitools_cfgB"));
+            QDir(cp).removeRecursively();
+            QDir().mkpath(cp + QStringLiteral("/Application Data"));
+            const bool copied =
+                QFile::copy(GlobalSettings::filePath(),
+                            QDir(cp).filePath(QStringLiteral("Application Data/ui-config")));
+            check(QStringLiteral("18z 前提：配置文件复制得过去"), copied,
+                  GlobalSettings::filePath());
+            if (copied) {
+                GlobalSettings::setProjectDir(cp);
+                check(QStringLiteral("★ 复制一份工程，预览文字跟着过来了"),
+                      Preview::presetText(txt) == probe,
+                      Preview::presetText(txt));
+            }
+
+            /* 收拾干净：切回原工程，预览文字恢复原样 */
+            GlobalSettings::setProjectDir(projDir);
+            Preview::setPresetText(txt, had);
+            check(QStringLiteral("测试完预览文字恢复原样"),
+                  Preview::presetText(txt) == had, Preview::presetText(txt));
+            QDir(tmpDir).removeRecursively();
+            QDir(cp).removeRecursively();
+        }
+    }
+
     /* --- 19. 这一通改完，工程还得能存能读 --- */
     const QString tmp = QDir::temp().filePath(QStringLiteral("uitools_opstest.json"));
     QString err;
@@ -4728,6 +4827,10 @@ int MainWindow::runOpsTest(QString *report)
               reread && !re.pages().isEmpty(), err);
         QFile::remove(tmp);
     }
+
+    /* 配置指回工程目录，沙箱删掉 —— 别给下一次运行留脏东西 */
+    GlobalSettings::setProjectDir(kProjCfgDir);
+    QDir(kCfgSandbox).removeRecursively();
 
     EditorOps::setSilent(false);
     log << QStringLiteral("--- 通过 %1 项，失败 %2 项 ---").arg(log.size() - fail).arg(fail);

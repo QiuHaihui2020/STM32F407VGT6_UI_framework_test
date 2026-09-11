@@ -1744,3 +1744,89 @@ m_stateCb->setEnabled(n != nullptr && want > 1);   // ✗
 `contextMenuPolicy` 都是 `CustomContextMenu`，再走一遍复制添加/删除活动项。
 
 ops-test：TFT **440 项** / oled **428 项** 全过。
+
+## 18. ui-config 跟着工程走
+
+### 18.1 它是什么，为什么必须跟着工程
+
+`Application Data/ui-config` 是[全局设置]的存档（`QSettings::IniFormat`，
+原厂同一个文件名，键名也照抄，两边可以互换着用）。里面全是**按工程**的东西：
+
+```ini
+[Project]
+Size=128*64                                    ; 页面尺寸
+ImageDir=config                                ; 图片目录
+LangugeFile=../../../UITools_rebuilt/多国语言_128_64.xls
+TemplateJson=../../../UITools_rebuilt/control/control.json
+CustomTemplateDir=../../../UITools_rebuilt/control/ex
+LastOpen=@ByteArray(./SmallColorTFT.json)      ; 上次打开哪个工程
+[Preview]
+LitColor / DarkColor / GridColor               ; 点阵屏预览配色（本版加的）
+[previewText]
+project\BT_TEXT=…                              ; 每个文字控件的「预览文字」
+```
+
+所以它**不能**放到工具目录下：
+
+* 会串味 —— 页面尺寸、图片目录、多国语言表每个工程都不一样。这不是假设：
+  原厂的 `UITools/Application Data/ui-config` 里躺着 `Size=240*240` 和
+  `多国语言_240x240_twsbox.xls`，就是当年谁在 UITools 目录下起过一次工具
+  留下的残骸。
+* 里面的路径是**相对工程目录**写的（`config`、`./SmallColorTFT.json`、
+  `../../../UITools_rebuilt/…`），挪走就全指错。
+
+跟着工程走还白捡一个好处：**把 UI 工程整个复制一份，预览文字、预览配色、
+各条路径一起过去，不用重配**。
+
+### 18.2 原来的毛病：锚的是进程当前目录
+
+```cpp
+static const QString kPath =
+    QDir(QDir::currentPath()).absoluteFilePath("Application Data/ui-config");  // ✗
+```
+
+原厂没这毛病，是因为它的启动脚本永远是 `cd project && start ui-tools.exe`，
+cwd 恰好等于工程目录。而从别处起 exe（自动化脚本、`--ops-test`）就会在那儿
+凭空拉出一个 `Application Data/`，里面还是一份和当前工程无关的空配置 ——
+仓库根被这么刷过好几次。
+
+改法：`GlobalSettings::setProjectDir()`，打开 / 另存工程之后由
+`CanvasManager::bindSettingsToProject()` 调，同时重读跟配置走的东西
+（预览配色）。没打开工程时退回当前目录，行为不变。
+
+`QSettings` 的文件是构造时定死的，所以换目录 = 换一个实例；换之前必须
+`sync()`，否则上一个工程还没落盘的改动会跟着旧实例一起没。
+
+### 18.3 顺带堵掉一个新副作用：自测会弄脏工程
+
+配置跟着工程走之后，`--ops-test` 里那些改预览文字、改配色的用例会**直接写进
+工程目录下那个受版本管理的文件**。第一次跑完就把
+`ui_128_64_JL02_rebuilt/…/Application Data/ui-config` 改了，还留下一条
+`project\BaseForm_13=预览文字跟着工程走` —— 而且这条残留会让下一次运行的
+三条用例假红（"编码格式 ascii 时预览不画资源里的文字"之类，因为它以为
+没配预览文字）。
+
+`runOpsTest()` 现在开头就把配置整体重定向到临时沙箱，跑完指回工程目录并删掉
+沙箱。18z 断言"配置落在工程目录下"用的是**启动时记下的那个路径**，不是跑测
+时的沙箱路径。
+
+### 18.4 ops-test 18z
+
+```
+[通过] 配置文件落在工程目录下，不是进程当前目录
+        —— …/ui_128_64_JL02_rebuilt/模式界面/project/Application Data/ui-config
+[通过] 换工程目录之后，配置文件跟着换
+[通过] 换到空目录，读不到上一个工程的预览文字（互不干扰）
+[通过] 切回来，预览文字从工程目录的文件里读得回来
+[通过] ★ 复制一份工程，预览文字跟着过来了
+[通过] 测试完预览文字恢复原样
+```
+
+这一条**不 openProject**：那会把模型和画布整个拆了重建，而本测试全程攥着
+page/layer/layout/frame 这些裸指针，立刻全变野的（实测直接踩坏堆
+0xC0000374）。改成只切配置目录、不动模型 —— 结论一样硬，因为"复制工程能
+带走"靠的就是这份文件在工程目录里。
+
+验收：ops-test TFT **448** / oled **436**，失败 0；dialog-smoke 16/16；
+json 往返与全节点标脏重建逐字节相同；`verify_toolchain` 不合格 0 项；
+用户工程整条链 12 个产物 + 自洽 24/24；工程目录和原厂目录 git 都干净。

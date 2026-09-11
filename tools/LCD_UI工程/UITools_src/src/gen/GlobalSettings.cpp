@@ -58,24 +58,49 @@
 
 namespace {
 
-/** 设置文件：<启动目录>/Application Data/ui-config，和原厂同一个。
+/** 当前用的是哪个目录下的 ui-config。空 = 还没定过，按当前目录算。 */
+QString g_cfgDir;
+
+/** 设置文件：<工程目录>/Application Data/ui-config，和原厂同一个文件名。
  *
- *  【为什么要在第一次调用时定住】QSettings 存的是相对路径的话，Qt 只在构造
- *  的那一刻解析一次；而工具跑起来之后会因为各种文件对话框改掉进程的当前
- *  目录。所以这里第一次算出绝对路径就缓存住，后面都用它。 */
+ *  【为什么要缓存】QSettings 存的是相对路径的话，Qt 只在构造的那一刻解析
+ *  一次；而工具跑起来之后会因为各种文件对话框改掉进程的当前目录。所以这里
+ *  一定要用绝对路径。
+ *
+ *  【为什么是工程目录不是当前目录】见 GlobalSettings::setProjectDir 的说明。
+ *  没打开工程时（空启动、自测）退回当前目录，行为和以前一样。 */
 QString configPath()
 {
-    static const QString kPath =
-        QDir(QDir::currentPath()).absoluteFilePath(
+    static QString kFallback;
+    if (!g_cfgDir.isEmpty()) {
+        return QDir(g_cfgDir).absoluteFilePath(
             QStringLiteral("Application Data/ui-config"));
-    return kPath;
+    }
+    if (kFallback.isEmpty()) {
+        kFallback = QDir(QDir::currentPath()).absoluteFilePath(
+            QStringLiteral("Application Data/ui-config"));
+    }
+    return kFallback;
 }
 
-/** QSettings 不可拷贝，给个共享实例。 */
+/** QSettings 不可拷贝，给个共享实例。
+ *
+ *  【路径变了要换一个】QSettings 的文件是构造时定死的，改不了。工程一换
+ *  就得整个换掉 —— 换之前先 sync()，否则上一个工程还没落盘的改动会丢。 */
 QSettings &settings()
 {
-    static QSettings st(configPath(), QSettings::IniFormat);
-    return st;
+    static QSettings *st = nullptr;
+    static QString stPath;
+    const QString want = configPath();
+    if (!st || stPath != want) {
+        if (st) {
+            st->sync();
+            delete st;
+        }
+        st = new QSettings(want, QSettings::IniFormat);
+        stPath = want;
+    }
+    return *st;
 }
 
 struct PathRow {
@@ -324,6 +349,18 @@ GlobalSettings::GlobalSettings(QWidget *parent)
 }
 
 GlobalSettings::~GlobalSettings() = default;
+
+void GlobalSettings::setProjectDir(const QString &dir)
+{
+    const QString want = dir.isEmpty() ? QString() : QDir(dir).absolutePath();
+    if (g_cfgDir == want) {
+        return;
+    }
+    /* 先把当前这份落盘再切 —— 不然刚改的预览文字/配色会跟着旧实例一起没了 */
+    settings().sync();
+    g_cfgDir = want;
+    settings();          // 立刻建出新实例，顺便把目录建好
+}
 
 QString GlobalSettings::filePath()
 {

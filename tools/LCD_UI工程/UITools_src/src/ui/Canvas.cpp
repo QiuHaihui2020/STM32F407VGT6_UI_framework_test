@@ -1062,11 +1062,25 @@ int CanvasManager::healBrokenNodes()
     return healed;
 }
 
+/* 工程一换，配置文件跟着换到那个工程目录下，并把跟配置走的东西重读一遍。
+ * 预览配色和「预览文字」都存在 ui-config 里，不重读的话画布上还是上一个
+ * 工程的样子。 */
+void CanvasManager::bindSettingsToProject(const QString &jsonPath)
+{
+    const QString dir = jsonPath.isEmpty()
+                        ? QString()
+                        : QFileInfo(jsonPath).absolutePath();
+    GlobalSettings::setProjectDir(dir);
+    Preview::reloadMonoColors();
+    emit previewStyleChanged();
+}
+
 bool CanvasManager::openProject(const QString &path, QString *err)
 {
     if (!m_model.load(path, err)) {
         return false;
     }
+    bindSettingsToProject(path);
     /* 【打开就地修】旧版建出来的空壳节点（没有 element_css）在这儿补齐，
      * 否则生成资源时它和它整棵子树全是零尺寸，烧进去不显示。
      * 补完是**脏**的，用户下次保存就落到文件里。 */
@@ -1092,6 +1106,8 @@ bool CanvasManager::saveProjectAs(const QString &path, QString *err)
     if (!m_model.save(path, err)) {
         return false;
     }
+    /* 另存到别处 = 换了工程目录，配置也跟过去（下次打开那份才配得上） */
+    bindSettingsToProject(path);
     setDirty(false);
     writeProjectIni(path);
     /* 原厂还会在工程目录里留一份 autosave.json（这个名字在 ui-tools.exe

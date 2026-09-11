@@ -44,6 +44,7 @@ project.bin 被换成 oled 工程的（45248 字节），而脚本在建 TFT（2
 import datetime
 import io
 import os
+import re
 import subprocess
 import sys
 
@@ -76,6 +77,114 @@ BUDGET = {
 
 
 HERE_REFS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'refs')
+
+# 文本产物里"允许整行不同"的判据。命中就算已知差异，其余一律不可解释。
+_TS = re.compile(r'\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}')
+
+
+def _segs(a, b):
+    """差异按连续段归并，返回 [(起, 止)]（闭区间，8 字节内算一段）。"""
+    d = [i for i in range(min(len(a), len(b))) if a[i] != b[i]]
+    out = []
+    if not d:
+        return out
+    s0 = p = d[0]
+    for i in d[1:]:
+        if i <= p + 8:
+            p = i
+        else:
+            out.append((s0, p))
+            s0 = p = i
+    out.append((s0, p))
+    return out
+
+
+def explain_text(name, a, b):
+    """文本产物按**行**比。返回不可解释的行（行号, 本版, 原厂）。
+
+    只允许两类整行不同：
+      · 行里有时间戳（生成时间，每次都变）
+      · result.xml 的 <Color .../> —— 原厂 <ColorList> 的次序来自 Qt5 QSet
+        的随机哈希种子，跑三遍三个样（FILE_FORMATS.md 10.10）
+    """
+    la = a.decode('utf-8', 'replace').splitlines()
+    lb = b.decode('utf-8', 'replace').splitlines()
+    bad = []
+    if len(la) != len(lb):
+        bad.append((-1, '行数 %d' % len(la), '行数 %d' % len(lb)))
+        return bad
+    for i, (x, y) in enumerate(zip(la, lb)):
+        if x == y:
+            continue
+        if _TS.search(x) and _TS.search(y):
+            continue                              # 生成时间
+        if name == 'result.xml' and '<Color' in x and '<Color' in y:
+            continue                              # 调色板次序
+        if name == 'res_ver.h' and '#define' in x and '#define' in y:
+            continue                              # 版本号/校验和，跟 resver 走
+        bad.append((i + 1, x.strip()[:70], y.strip()[:70]))
+    return bad
+
+
+def explain_sty(a, b):
+    """project.bin 只允许三种差异，别的都算不可解释：
+
+      · [4,8)            生成时间戳（固件把前 16 字节当 res[16] 不透明块）
+      · 每页表项 +14..15 crc_data —— 页数据里有下面那种垃圾尾巴，CRC 自然跟着变
+      · 本版写 0x00、原厂是垃圾的连续段 —— Time(+28)/number(+24) 的
+        char format[16]，原厂只 strcpy 了 strlen+1 个字节，剩下是没清的堆内存
+        （里面躺着两个活指针，原厂自己重跑一遍也全变）；本版整片清零。
+    """
+    npg = a[17] if len(a) > 17 else 0
+    crc_at = set()
+    for i in range(npg):
+        base = 24 + i * 20 + 14
+        crc_at.update((base, base + 1))
+    bad = []
+    for s0, p in _segs(a, b):
+        if s0 >= 4 and p < 8:
+            continue
+        if all(i in crc_at for i in range(s0, p + 1)):
+            continue
+        if all(a[i] == 0 for i in range(s0, p + 1)):
+            continue                              # 本版清零 vs 原厂垃圾
+        bad.append((s0, p, a[s0:p + 1][:12].hex(' '), b[s0:p + 1][:12].hex(' ')))
+    return bad
+
+
+def explain_res(a, b):
+    """result.bin / result.str 允许两种差异，别的都算不可解释：
+
+      · [0x0C,0x10)  resver —— 原厂是随机值，跑三遍三个样
+      · **调色板次序** —— 原厂 <ColorList> 的次序来自 Qt5 QSet 的随机哈希
+        种子（FILE_FORMATS.md 10.10）。这里不是无脑放行：把差异段按 4 字节
+        （一个颜色项）切开，两边排序后必须**完全一样**，也就是说只准是同一
+        组颜色换了个顺序。少一个、多一个、改一个值，立刻判不可解释。
+    """
+    bad = []
+    for s0, p in _segs(a, b):
+        if s0 >= 0x0C and p < 0x10:
+            continue
+        # 【四种相位都试】调色板在文件里的起点不按文件的 4 字节网格走
+        # （每张图的块头长度不一样），所以不能拿 s0 % 4 去对齐 —— 实测
+        # 0x1C3B 这一段就是错位的。四个相位里只要有一个能证明"同一组颜色
+        # 换了次序"，就算解释得通。
+        okperm = False
+        for phase in range(4):
+            lo = s0 - ((s0 - phase) % 4)
+            hi = p + 1
+            hi += (-(hi - phase)) % 4
+            if lo < 0 or hi > min(len(a), len(b)):
+                continue
+            ca = [a[i:i + 4] for i in range(lo, hi, 4)]
+            cb = [b[i:i + 4] for i in range(lo, hi, 4)]
+            if ca and sorted(ca) == sorted(cb):
+                okperm = True
+                break
+        if okperm:
+            continue                      # 同一组颜色，只是次序不同
+        bad.append((s0, p, a[s0:p + 1][:12].hex(' '), b[s0:p + 1][:12].hex(' ')))
+    return bad
 
 
 def main():
@@ -116,22 +225,27 @@ def main():
     xls = os.path.abspath(os.path.join(proj, '..', '..', '..', 'UITools',
                                        '多国语言_128_64.xls'))
 
-    # 【被顶掉的 project.bin 先从存档还原】
-    # ename.h / result.* 这些是 tracked 的，被顶掉 `git checkout` 就能回来；
-    # 而 project.bin 在 .gitignore 里（*.bin），一旦被别的运行覆盖就永远回不来。
-    # 所以在 re/refs/ 存了一份**原厂 QtToolBin 当场生成**的，跑之前对一下，
-    # 不一样就还原 —— 2026-09-10 一天之内就被顶掉两次（24692 -> 26108 -> 26400）。
-    # 存档带 .ref 后缀：仓库的 .gitignore 里有 *.bin，不改名就提交不上去
-    archive = os.path.join(HERE_REFS, os.path.basename(pick).replace('.json', '')
-                           + '.project.bin.ref')
-    live = os.path.join(proj, 'project.bin')
-    if os.path.exists(archive):
+    # 【被顶掉的 .bin 参考先从存档还原】
+    # 别的产物是 tracked 的，被顶掉 `git checkout` 就能回来；而 *.bin 在
+    # .gitignore 里，一旦被别的运行覆盖就**永远回不来**，而且不会有任何提示。
+    # 实际吃过两次亏：
+    #   project.bin  一天之内被顶两次（24692 -> 26108 -> 26400）
+    #   result.bin   被 rebuilt 工程的产物顶成 11451（真值 10953），而旧的
+    #                "差异字节数 <= 预算"判定还一路报"允许范围内" —— 假绿
+    # 所以在 re/refs/ 存了**原厂工具当场生成**的那一份，跑之前对一下就还原。
+    # 存档带 .ref 后缀：仓库的 .gitignore 里有 *.bin，不改名就提交不上去。
+    stem = os.path.basename(pick).replace('.json', '')
+    for prod in ('project.bin', 'result.bin'):
+        archive = os.path.join(HERE_REFS, '%s.%s.ref' % (stem, prod))
+        live = os.path.join(proj, prod)
+        if not os.path.exists(archive):
+            continue
         want = open(archive, 'rb').read()
         cur = open(live, 'rb').read() if os.path.exists(live) else None
         if cur != want:
             open(live, 'wb').write(want)
-            print('（project.bin 参考被顶过，已从 re/refs 存档还原：%d -> %d 字节）'
-                  % (len(cur) if cur else 0, len(want)))
+            print('（%s 参考被顶过，已从 re/refs 存档还原：%d -> %d 字节）'
+                  % (prod, len(cur) if cur else 0, len(want)))
 
     # 【跑之前把参考产物拍个快照，跑完原样放回去】
     # ResBuilder 的产物是"就地"落在工程目录里的（-o 只管得住 QtToolBin），
@@ -182,13 +296,35 @@ def main():
             continue
         # 参考一律取快照 —— 磁盘上那份这会儿已经被本次运行顶掉了
         a, b = open(pa, 'rb').read(), snapshot[n]
-        d = sum(1 for i in range(min(len(a), len(b))) if a[i] != b[i]) + abs(len(a) - len(b))
-        budget = BUDGET.get(n, 0)
-        ok = d <= budget
+        d = (sum(1 for i in range(min(len(a), len(b))) if a[i] != b[i])
+             + abs(len(a) - len(b)))
+
+        # 【判定看的是差在哪儿，不是差多少】
+        # 旧判定是"差异字节数 <= 预算"，只数个数不看位置 —— 真出内容 bug，
+        # 只要碰的字节数没超预算就照样绿。而且它确实掩盖过：工程目录里的
+        # result.bin 参考被别的工程顶掉（10953 -> 11451），旧判定报"允许范围内"。
+        unexplained = []
+        if n == 'project.bin':
+            for s0, p, xa, xb in explain_sty(a, b):
+                unexplained.append('@0x%06X..0x%06X 本版=%s 原厂=%s' % (s0, p, xa, xb))
+        elif n in ('result.bin', 'result.str'):
+            for s0, p, xa, xb in explain_res(a, b):
+                unexplained.append('@0x%06X..0x%06X 本版=%s 原厂=%s' % (s0, p, xa, xb))
+        elif len(a) != len(b):
+            unexplained.append('长度就不一样：本版 %d / 原厂 %d' % (len(a), len(b)))
+        else:
+            for ln, xa, xb in explain_text(n, a, b):
+                unexplained.append('第 %d 行  本版=%s  原厂=%s' % (ln, xa, xb))
+
+        ok = not unexplained
         print('%-24s %-8d %-8d %-8d %s' % (n, len(a), len(b), d,
-              '逐字节相同' if d == 0 else ('允许范围内' if ok else '★ 超出预期')))
+              '逐字节相同' if d == 0 else ('差异都可解释' if ok else '★ 有讲不通的差异')))
         if not ok:
             bad += 1
+            for line in unexplained[:6]:
+                print('    %s' % line)
+            if len(unexplained) > 6:
+                print('    ...还有 %d 处' % (len(unexplained) - 6))
     restore()            # 工程目录一个字节都不留下改动
     print('\n不合格 %d 项' % bad)
     if bad:

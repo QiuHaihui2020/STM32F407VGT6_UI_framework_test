@@ -4,9 +4,10 @@
  *
  * 用途：原厂[全局设置]，六项 —— 界面尺寸 + 五条路径。
  *
- * 【存哪儿】原厂存在**工程目录**下的 "Application Data/ui-config"
- * （QSettings::IniFormat，相对启动时的当前目录；启动脚本是 cd project 之后
- * 再起 exe，所以就落在工程目录里）。证据：
+ * 【存哪儿】**工程目录**下的 "Application Data/ui-config"（QSettings::IniFormat）。
+ * 原厂是"相对启动时的当前目录"，靠启动脚本 cd 到工程目录来保证落对地方；
+ * 本版直接按工程目录定位（见 setProjectDir 的说明），从哪儿起 exe 都一样。
+ * 证据：
  *   - ui-tools.exe 0xc94ae8 有字面量 "Application Data/ui-config"
  *   - 0xc94467 起是一整排键名：
  *       Project/Size  Project/Background  Project/LastOpen  Project/Dir
@@ -39,8 +40,26 @@ public:
     /// 供别处读同一份设置，键名与本对话框里一致
     static QVariant value(const QString &key, const QVariant &def = QVariant());
     static void     setValue(const QString &key, const QVariant &v);
-    /// 设置文件的绝对路径（<启动目录>/Application Data/ui-config）
+    /// 设置文件的绝对路径（<工程目录>/Application Data/ui-config）
     static QString  filePath();
+
+    /**
+     * 把设置文件挪到某个工程目录下。打开/新建/另存工程之后调。
+     *
+     * 【为什么必须跟着工程走】这个文件里存的全是**按工程**的东西：页面尺寸、
+     * 图片目录、多国语言表、上次打开的工程、点阵屏预览配色，还有每个文字
+     * 控件的「预览文字」。跟着工程走才有两个好处：
+     *   · 复制一份 UI 工程，这些设置一起被复制过去，预览文字不用重配；
+     *   · 两个工程互不干扰 —— 页面尺寸 128*64 和 240*240 不会互相冲掉。
+     *
+     * 原来锚的是**进程当前目录**。原厂没这毛病是因为它的启动脚本永远是
+     * `cd project && start ui-tools.exe`，cwd 恰好等于工程目录；而从别处
+     * 起 exe（脚本、自测）就会在那儿凭空拉出一个 Application Data 目录，
+     * 里面还是一份和当前工程无关的空配置。
+     *
+     * @param dir 工程 json 所在目录；空串表示回到"按当前目录"的老行为
+     */
+    static void     setProjectDir(const QString &dir);
 
 public slots:
     void onAccepted();
