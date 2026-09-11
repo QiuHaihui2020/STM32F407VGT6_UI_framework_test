@@ -10,7 +10,7 @@
  * 【界面还原】ProjectDialog.ui 被 uic 编译进了 exe，控件名以 QStringLiteral
  * 形式残留在 .rdata 里，用 compat/strlit_scan.py 抓到的原始顺序是：
  *     buttonBox, label_3, prjname, layoutWidget2, verticalLayout,
- *     pushButton, ":/icon/icons/fileopen.png", view_lang, filestatus,
+ *     pushButton, ":/icons/browse.png", view_lang, filestatus,
  *     groupBox, layoutWidget, gridLayout, label, spinBox, label_2,
  *     spinBox_2, layoutWidget1, horizontalLayout
  * 本文件用代码搭出同名控件（没有还原 .ui 文件本身，见 README「还原度」）。

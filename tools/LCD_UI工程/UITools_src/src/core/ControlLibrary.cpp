@@ -83,7 +83,7 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
             }
         }
         if (t.icon.isNull()) {
-            t.icon = QIcon(QStringLiteral(":/icon/icons/canvas-diagram.png"));
+            t.icon = QIcon(QStringLiteral(":/icons/page-new.png"));
         }
         if (!t.type.isEmpty()) {
             m_controls.append(t);

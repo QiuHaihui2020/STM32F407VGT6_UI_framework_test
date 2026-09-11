@@ -1398,7 +1398,7 @@ void CanvasManager::onAboutBtn()
 {
     /* 三行：图标 + 名称 / 开发者 / 维护者。 */
     QMessageBox::about(nullptr, QStringLiteral("关于"),
-                       QStringLiteral("<b><img src=':/icon/icons/smallpt.png'></b>"
+                       QStringLiteral("<b><img src=':/icons/logo.png'></b>"
                           "<p>名称: UITools </p>"
                           "<p>开发者: Claude Opus 5 (Anthropic)</p>"
                           "<p>维护者: Claude Opus 5 (Anthropic)</p>"));

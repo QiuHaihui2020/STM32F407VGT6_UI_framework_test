@@ -110,7 +110,7 @@ void TreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
     it->setData(0, Qt::UserRole, packNode(n));
     /* 只有容器（有子节点的）才有那只眼睛 */
     if (!n->children.isEmpty()) {
-        it->setIcon(0, QIcon(QStringLiteral(":/icon/icons/eye_open@2x.png")));
+        it->setIcon(0, QIcon(QStringLiteral(":/icons/eye.png")));
     }
     it->setExpanded(true);
     for (const auto &c : n->children) {
@@ -237,8 +237,8 @@ void TreeDock::onSwapShowHideObject()
     s->toggleUserHidden(n);
     if (QTreeWidgetItem *it = m_tree->currentItem()) {
         it->setIcon(0, QIcon(s->isUserHidden(n)
-                             ? QStringLiteral(":/icon/icons/eye-hidden.png")
-                             : QStringLiteral(":/icon/icons/eye_open@2x.png")));
+                             ? QStringLiteral(":/icons/eye-off.png")
+                             : QStringLiteral(":/icons/eye.png")));
     }
 }
 

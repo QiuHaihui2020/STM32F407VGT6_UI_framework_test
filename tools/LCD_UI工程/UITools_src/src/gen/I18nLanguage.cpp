@@ -29,9 +29,9 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     auto *selAll = new QPushButton(QStringLiteral("全选"), this);
     auto *dselAll = new QPushButton(QStringLiteral("全不选"), this);
     auto *re = new QPushButton(QStringLiteral("反选"), this);
-    auto *up = new QPushButton(QIcon(QStringLiteral(":/icon/icons/go-up.png")),
+    auto *up = new QPushButton(QIcon(QStringLiteral(":/icons/move-up.png")),
                                QStringLiteral("上移一行"), this);
-    auto *down = new QPushButton(QIcon(QStringLiteral(":/icon/icons/go-down.png")),
+    auto *down = new QPushButton(QIcon(QStringLiteral(":/icons/move-down.png")),
                                  QStringLiteral("下移一行"), this);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     localizeButtonBox(box);

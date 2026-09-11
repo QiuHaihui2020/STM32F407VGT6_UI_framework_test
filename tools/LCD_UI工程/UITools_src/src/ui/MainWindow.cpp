@@ -266,7 +266,7 @@ static const int kStatusMaxWidth = 230;
 void MainWindow::buildToolBar()
 {
     auto icon = [](const char *n) {
-        return QIcon(QStringLiteral(":/icon/icons/%1").arg(QLatin1String(n)));
+        return QIcon(QStringLiteral(":/icons/%1").arg(QLatin1String(n)));
     };
 
     QToolBar *tb = addToolBar(tr("主工具栏"));
@@ -280,33 +280,33 @@ void MainWindow::buildToolBar()
     tb->setMinimumHeight(58);      // 28 图标 + 文字 + 上下留白
 
     /* 工具栏按钮 */
-    QAction *aNew    = tb->addAction(icon("category_vcs.png"),     tr("新建工程(P)"));
-    QAction *aOpen   = tb->addAction(icon("document-open.png"),    tr("打开工程(O)"));
-    QAction *aSave   = tb->addAction(icon("Save_Icon.png"),        tr("保存工程(S)"));
-    QAction *aSaveAs = tb->addAction(icon("document-save-as.png"), tr("另存为(A)"));
+    QAction *aNew    = tb->addAction(icon("project-new.png"),     tr("新建工程(P)"));
+    QAction *aOpen   = tb->addAction(icon("project-open.png"),    tr("打开工程(O)"));
+    QAction *aSave   = tb->addAction(icon("project-save.png"),        tr("保存工程(S)"));
+    QAction *aSaveAs = tb->addAction(icon("project-save-as.png"), tr("另存为(A)"));
     tb->addSeparator();
-    QAction *aNewPage = tb->addAction(icon("canvas-diagram.png"),      tr("新建页面(N)"));
-    QAction *aDelPage = tb->addAction(icon("removesubmitfield.png"),   tr("删除页面(D)"));
+    QAction *aNewPage = tb->addAction(icon("page-new.png"),      tr("新建页面(N)"));
+    QAction *aDelPage = tb->addAction(icon("page-delete.png"),   tr("删除页面(D)"));
     tb->addSeparator();
     /* 【资源导出】把导出那一页直接嵌进主窗口（同一个 ToolBinWindow 类、
      * 同一条生成链），改完布局当场就能导出，不用退出去再跑一遍脚本。 */
-    QAction *aExport = tb->addAction(icon("build.png"),               tr("资源导出"));
+    QAction *aExport = tb->addAction(icon("export.png"),               tr("资源导出"));
     aExport->setToolTip(QStringLiteral(
         "把当前工程导出成资源文件（project.bin / ename.h / result.bin …），"
         "点了直接跑，不弹界面。等同于 step2 那个 UIToolBin 里的「生成资源文件」。\n"
         "要改工程ID / 调用脚本 / 功能设置，走右键菜单的「资源导出设置…」"));
     aExport->setShortcut(QKeySequence(Qt::Key_F5));
     tb->addSeparator();
-    QAction *aShot   = tb->addAction(icon("Screenshot.png"),          tr("截屏(P)"));
+    QAction *aShot   = tb->addAction(icon("screenshot.png"),          tr("截屏(P)"));
     aShot->setToolTip(QStringLiteral("截取程序的界面,并保存成PNG图片"));
     tb->addSeparator();
-    QAction *aGlobal = tb->addAction(icon("preferences-system.png"),  tr("全局设置"));
+    QAction *aGlobal = tb->addAction(icon("settings.png"),  tr("全局设置"));
     aGlobal->setToolTip(QStringLiteral("软件的全局设置,需要重启软件后生效."));
-    QAction *aZoom   = tb->addAction(icon("interface.png"),           tr("工程缩放"));
+    QAction *aZoom   = tb->addAction(icon("resize.png"),           tr("工程缩放"));
     aZoom->setToolTip(QStringLiteral(
         "对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零."));
     tb->addSeparator();
-    QAction *aAbout  = tb->addAction(icon("mode_help@2x.png"),        tr("关于(I)"));
+    QAction *aAbout  = tb->addAction(icon("about.png"),        tr("关于(I)"));
 
     tb->addSeparator();
 

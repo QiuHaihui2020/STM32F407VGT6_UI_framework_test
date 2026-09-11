@@ -124,9 +124,9 @@ ImageFileDialog::ImageFileDialog(QWidget *parent)
 
     auto *btnAdd = new QPushButton(tr("添加 →"), this);
     auto *btnDel = new QPushButton(tr("← 删除"), this);
-    auto *btnUp = new QPushButton(QIcon(QStringLiteral(":/icon/icons/go-up.png")),
+    auto *btnUp = new QPushButton(QIcon(QStringLiteral(":/icons/move-up.png")),
                                   QStringLiteral("上移一行"), this);
-    auto *btnDown = new QPushButton(QIcon(QStringLiteral(":/icon/icons/go-down.png")),
+    auto *btnDown = new QPushButton(QIcon(QStringLiteral(":/icons/move-down.png")),
                                     QStringLiteral("下移一行"), this);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     localizeButtonBox(box);

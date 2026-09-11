@@ -37,7 +37,7 @@ ConfigProject::ConfigProject(QWidget *parent)
 
     m_prjname = new QLineEdit(this);
 
-    auto *openfile = new QPushButton(QIcon(QStringLiteral(":/icon/icons/fileopen.png")),
+    auto *openfile = new QPushButton(QIcon(QStringLiteral(":/icons/browse.png")),
                                      QStringLiteral("打开多国语言文件"), this);
     m_filestatus = new QLabel(this);
     m_filestatus->setWordWrap(true);
