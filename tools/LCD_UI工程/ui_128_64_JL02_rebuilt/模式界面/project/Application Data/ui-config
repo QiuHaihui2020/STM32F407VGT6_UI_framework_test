@@ -11,3 +11,8 @@ LastOpen=@ByteArray(./SmallColorTFT.json)
 LitColor=#bada02
 DarkColor=#565821
 GridColor=#9a9d3b
+
+[previewText]
+project\MUSIC_FILE=\x6b4c\x540d\x9884\x89c8
+project\MUSIC_LYRICS=\x6b4c\x8bcd\x9884\x89c8\x4e00\x884c
+project\MUSIC_LYRICS1=\x6b4c\x8bcd\x9884\x89c8\x4e8c\x884c

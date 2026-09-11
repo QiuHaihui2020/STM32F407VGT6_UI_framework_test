@@ -1,7 +1,7 @@
 {
     "-name": "SmallColorTFT",
     "-type": "project",
-    "activePage": 3,
+    "activePage": 1,
     "lang_excel": "../../../UITools/多国语言_128_64.xls",
     "language": [
     ],
