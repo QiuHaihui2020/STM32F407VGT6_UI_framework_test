@@ -13,6 +13,7 @@
 #define GLOBALSETTINGS_H
 
 #include <QDialog>
+#include <QVector>
 #include <QVariant>
 
 class QTreeWidget;
@@ -60,6 +61,9 @@ private:
     QTreeWidgetItem *m_lit = nullptr;      ///< 点阵屏预览 -> 像素点亮颜色:
     QTreeWidgetItem *m_dark = nullptr;     ///< 点阵屏预览 -> 像素熄灭颜色:
     QTreeWidgetItem *m_grid = nullptr;     ///< 点阵屏预览 -> 网格颜色:
+    QTreeWidgetItem *m_uiPreset = nullptr;   ///< 界面配色 -> 方案:
+    QTreeWidgetItem *m_uiBase = nullptr;     ///< 界面配色 -> 底色:（只在自定义时可改）
+    QTreeWidgetItem *m_uiAccent = nullptr;   ///< 界面配色 -> 强调色:
 };
 
 #endif // GLOBALSETTINGS_H

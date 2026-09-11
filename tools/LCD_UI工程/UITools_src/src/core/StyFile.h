@@ -26,7 +26,10 @@
 /** 文件头，24 字节，对应固件 struct ui_file_head。 */
 struct StyHead {
     quint32 uiVersion  = 0;           ///< 与 ename.h 的 UI_VERSION 宏一致
-    quint32 magic2     = 0x6A978292u; ///< 固定值
+    /** 生成时间戳（Unix 秒）。**不是** magic —— 每生成一次就变一次。
+     *  固件把前 16 字节当 res[16] 不透明块，只读前 4 字节的 UI_VERSION，
+     *  这一格它根本不看。 */
+    quint32 genTime    = 0;
     quint32 hdrPtr     = 16;          ///< 固定 16
     quint32 totalSize  = 0;           ///< 文件大小 - (24 + 20*windowNum)
     quint8  type       = 1;

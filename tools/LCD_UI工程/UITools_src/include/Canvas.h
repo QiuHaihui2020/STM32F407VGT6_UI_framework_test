@@ -350,6 +350,14 @@ private slots:
     void onConfProject();                  ///< ★
 
 private:
+    /**
+     * 拆掉所有画布页。
+     *
+     * 【必须在换掉模型之前调】画布上每个控件都攥着一个 UiNode 指针。
+     * 先 createDefault()/load() 把旧节点树 delete 掉，再来拆控件的话，
+     * 拆的过程中布局一重排就摸到野指针，当场崩。
+     */
+    void clearScreens();
     void rebuildScreens();
 
     ProjectModel    m_model;

@@ -33,6 +33,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFont>
+#include <QIcon>
 #include <QScopedPointer>
 #include <QFile>
 #include <QFileInfo>
@@ -143,6 +144,7 @@ int main(int argc, char *argv[])
         appHolder.reset(new QApplication(argc, argv));
         QFont f(QStringLiteral("SimSun"), 9);
         QApplication::setFont(f);
+        QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/app.png")));
     } else {
         appHolder.reset(new QCoreApplication(argc, argv));
     }

@@ -1,4 +1,5 @@
 #include "BaseDialog.h"
+#include "AppIcon.h"
 #include "ActionList.h"
 
 #include <QComboBox>
@@ -181,15 +182,15 @@ void ActionList::onCustomContextMenu(QPoint pos)
     /* 六项：插入行 / 删除当前行 / 上移一行 / 移到顶部 /
      * 下移一行 / 移到底部。之前是我自己起的"添加/删除/上移/下移"。 */
     QMenu menu(this);
-    QAction *add = menu.addAction(QIcon(QStringLiteral(":/icons/row-add.png")),
+    QAction *add = menu.addAction(AppIcon::get(QStringLiteral("row-add.png")),
                                   QStringLiteral("插入行"));
-    QAction *del = menu.addAction(QIcon(QStringLiteral(":/icons/row-delete.png")),
+    QAction *del = menu.addAction(AppIcon::get(QStringLiteral("row-delete.png")),
                                   QStringLiteral("删除当前行"));
     menu.addSeparator();
-    QAction *up = menu.addAction(QIcon(QStringLiteral(":/icons/row-up.png")),
+    QAction *up = menu.addAction(AppIcon::get(QStringLiteral("row-up.png")),
                                  QStringLiteral("上移一行"));
     QAction *top = menu.addAction(QStringLiteral("移到顶部"));
-    QAction *down = menu.addAction(QIcon(QStringLiteral(":/icons/row-down.png")),
+    QAction *down = menu.addAction(AppIcon::get(QStringLiteral("row-down.png")),
                                    QStringLiteral("下移一行"));
     QAction *bottom = menu.addAction(QStringLiteral("移到底部"));
 

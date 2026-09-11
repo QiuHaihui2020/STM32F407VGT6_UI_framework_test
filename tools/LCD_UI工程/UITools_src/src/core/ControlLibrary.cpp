@@ -1,4 +1,5 @@
 #include "ControlLibrary.h"
+#include "AppIcon.h"
 
 #include <QDir>
 #include <QFile>
@@ -83,7 +84,7 @@ bool ControlLibrary::loadOne(const QString &jsonPath, QString *err)
             }
         }
         if (t.icon.isNull()) {
-            t.icon = QIcon(QStringLiteral(":/icons/page-new.png"));
+            t.icon = AppIcon::get(QStringLiteral("page-new.png"));
         }
         if (!t.type.isEmpty()) {
             m_controls.append(t);

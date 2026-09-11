@@ -404,6 +404,28 @@ void BaseForm::paintEvent(QPaintEvent *)
     p.setPen(pen);
     p.drawRect(rect().adjusted(0, 0, -1, -1));
 
+    /* 【空内容的控件要看得见】刚建出来的「图片」控件图片列表是空的，「文字」
+     * 控件文字列表也是空的 —— 屏上确实什么都不画，但编辑器里也什么都不画的话，
+     * 用户建完控件面对一片黑，既不知道它在哪，也没法拖动改大小，看着就像
+     * "加了图片没反应"。
+     *
+     * 这里给它画一个明显的占位：虚线框 + 一条对角线。这是编辑器的辅助标记，
+     * 和上面那圈辅助线一样受工具栏「隐藏辅助线」管 —— 关掉就是屏上的真实
+     * 样子，不会骗人。
+     *
+     * 【只在选中时画】一页里本来就有一批"内容运行时才填"的空控件（文件名、
+     * 歌词……），全都标上的话整屏都是虚线，比不画还难看。而新建出来的控件是
+     * **自动选中**的，正好落在这一条上：建完立刻看得见、拖得动。想挨个查有
+     * 哪些还没配内容，点过去就是了。 */
+    if (m_node && isSelected() && isContentEmpty()) {
+        QPen ph(QColor(0x2b, 0x7d, 0xd1, 200));
+        ph.setStyle(Qt::DashLine);
+        p.setPen(ph);
+        const QRect r = rect().adjusted(0, 0, -1, -1);
+        p.drawRect(r);
+        p.drawLine(r.topLeft(), r.bottomRight());
+    }
+
     /* 名字只在选中时显示，否则 200 多个控件叠上去全是字 */
     if (m_node && isSelected() && height() >= 10) {
         p.setPen(QColor(0x2b, 0x7d, 0xd1));
@@ -412,6 +434,36 @@ void BaseForm::paintEvent(QPaintEvent *)
                    Qt::AlignLeft | Qt::AlignVCenter,
                    fontMetrics().elidedText(t, Qt::ElideRight, width() - 4));
     }
+}
+
+/**
+ * 这个控件"该有内容但还是空的"吗？
+ *
+ * 只对**内容来自资源**的那几类控件成立：图片列表空的「图片」、文字列表空的
+ * 「文字/数字/时间」、图片表空的「电池电量」。布局/图层/列表这些容器本来就
+ * 没有自己的内容，不算。
+ *
+ * 用途只有一个：画布上给它画个占位框，让人看得见、摸得着（见 paintEvent）。
+ */
+bool BaseForm::isContentEmpty() const
+{
+    if (!m_node) {
+        return false;
+    }
+    static const QStringList kContentTypes{
+        QStringLiteral("ImageList"), QStringLiteral("Text"),
+        QStringLiteral("Number"), QStringLiteral("number"),
+        QStringLiteral("Time"), QStringLiteral("Battery"),
+    };
+    if (!kContentTypes.contains(m_node->type)) {
+        return false;
+    }
+    /* 有背景图也算有内容 —— 屏上看得见东西 */
+    if (!m_node->cssField(0, QStringLiteral("background_image"),
+                          QStringLiteral("background-image")).toString().isEmpty()) {
+        return false;
+    }
+    return Preview::contentOf(m_node, Preview::monoLit()).isNull();
 }
 
 /** 画 css 里的"内边框线"。单色屏下颜色只决定画不画。 */

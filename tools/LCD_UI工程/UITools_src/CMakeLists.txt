@@ -42,6 +42,8 @@ set(UITOOLS_UI
     src/ui/Canvas.cpp
     src/ui/Docks.cpp
     src/ui/Property.cpp
+    src/ui/AppIcon.cpp
+    src/ui/UiTheme.cpp
     src/ui/MainWindow.cpp
     src/ui/ProjectDialog.cpp
 )
@@ -58,9 +60,19 @@ file(GLOB UITOOLS_HDRS CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.h")
 
+# exe 在资源管理器/任务栏里的图标。Windows 下靠一个 .rc 资源提供，
+# 和窗口图标（QApplication::setWindowIcon 读 :/icons/app.png）是两回事，
+# 两个都要有。图标本身由 resources/make_icons.py 生成。
+if (WIN32)
+    set(UITOOLS_WIN_RC "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.rc")
+else()
+    set(UITOOLS_WIN_RC "")
+endif()
+
 # 编辑器也要读多国语言 xls（"文字列表"属性的选择对话框），
 # 复用 ResBuilder 那边写的 BIFF8 读取器
 add_executable(UITools WIN32
+    ${UITOOLS_WIN_RC}
     src/main.cpp
     src/res/XlsReader.cpp
     # 内容预览复用生成资源那条链：同一个 GDI 光栅化器、同一套透明色判定，
@@ -126,7 +138,7 @@ set(RES_CORE
     src/res/ResBuilderCore.cpp
 )
 
-add_executable(ResBuilder src/resbuilder/main.cpp ${RES_CORE})
+add_executable(ResBuilder src/resbuilder/main.cpp ${UITOOLS_WIN_RC} ${RES_CORE})
 target_include_directories(ResBuilder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/res)
 # 需要 QImage 读 bmp/png，所以带上 Gui；界面部分用不到
 target_link_libraries(ResBuilder PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
@@ -144,6 +156,7 @@ endif()
 # QtToolBin 是弹窗工具，所以这里要 Widgets；
 # 不带参数弹界面，带生成类选项走命令行（见 src/qttoolbin/main.cpp 抬头）。
 add_executable(QtToolBin WIN32
+    ${UITOOLS_WIN_RC}
     src/qttoolbin/main.cpp
     src/qttoolbin/ToolBinWindow.cpp
     src/qttoolbin/ToolBinWindow.h

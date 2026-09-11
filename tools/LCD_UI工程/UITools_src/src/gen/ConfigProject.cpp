@@ -1,4 +1,5 @@
 #include "BaseDialog.h"
+#include "AppIcon.h"
 #include "ConfigProject.h"
 
 #include <QDialogButtonBox>
@@ -37,7 +38,7 @@ ConfigProject::ConfigProject(QWidget *parent)
 
     m_prjname = new QLineEdit(this);
 
-    auto *openfile = new QPushButton(QIcon(QStringLiteral(":/icons/browse.png")),
+    auto *openfile = new QPushButton(AppIcon::get(QStringLiteral("browse.png")),
                                      QStringLiteral("打开多国语言文件"), this);
     m_filestatus = new QLabel(this);
     m_filestatus->setWordWrap(true);

@@ -16,6 +16,8 @@
 #include "StyFile.h"
 #include "EditorOps.h"
 #include "BuildDate.h"
+#include "AppIcon.h"
+#include "UiTheme.h"
 #include "GlobalSettings.h"
 #include "Preview.h"
 #include "findDlg.h"
@@ -48,47 +50,8 @@
 #include <QKeySequence>
 #include <QCloseEvent>
 
-/* 界面配色：
- *   面板绿 #C0DCC0 / 属性区 #CEE2CE / 列表内白底 #F1F1F1 / 画布灰 #F0F0F0 */
-static const char *const kAppQss = R"(
-QMainWindow, QMainWindow > QWidget { background: #F0F0F0; }
-QDockWidget { background: #C0DCC0; }
-QDockWidget > QWidget { background: #C0DCC0; }
-QDockWidget::title { background: #C0DCC0; padding: 0px; max-height: 10px; }
-QTreeWidget { background: #FFFFFF; border: 1px solid #9BBF9B; }
-QListWidget { background: #C0DCC0; border: 1px solid #9BBF9B; }
-QGroupBox {
-    background: #C0DCC0;
-    border: 1px solid #9BBF9B;
-    margin-top: 14px;
-    padding-top: 4px;
-}
-QGroupBox::title {
-    subcontrol-origin: margin; subcontrol-position: top left;
-    padding: 0 4px; background: #C0DCC0;
-}
-QScrollArea { background: #F1F1F1; border: 1px solid #9BBF9B; }
-QScrollArea > QWidget > QWidget { background: #F1F1F1; }
-QTabWidget::pane { background: #CEE2CE; border: 1px solid #9BBF9B; }
-QTabBar::tab { background: #DCEEDC; border: 1px solid #9BBF9B; padding: 2px 8px; }
-QTabBar::tab:selected { background: #CEE2CE; }
-/* 工具栏：图标在上、文字在下的大按钮（版式见 temp/Snipaste_2026-09-09_08-46-05.jpg）*/
-QToolBar {
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #FBFDFF, stop:1 #E2E9F2);
-    border-bottom: 1px solid #B6C4D6;
-    spacing: 0px;
-    padding: 1px;
-}
-QToolBar::separator { width: 1px; background: #C8D2DE; margin: 5px 3px; }
-/* 【别给 QToolButton 加 min-width】QStyleSheetStyle 会拿它当**实际宽度**用，
- * 不是当下限：加了 min-width:52px 之后每个按钮都被压成 52+padding，标题就被
- * QCommonStylePrivate::toolButtonElideText 从中间截断成「新建…」。让 Qt 自己按文字算。 */
-QToolButton { padding: 2px 5px; border: 1px solid transparent; }
-QToolButton:hover { border: 1px solid #A0C0E0; background: #EAF2FB; }
-QToolButton:pressed { border: 1px solid #7C9EC4; background: #D7E6F7; }
-QToolButton:disabled { color: #A0A0A0; }
-)";
+/* 界面配色整套搬到 UiTheme 里了 —— 预设方案表、7 个可配色、
+ * 以及由它们派生整份样式表，都在那儿。这里只负责按当前配色套上去。 */
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -140,7 +103,13 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::applyAppStyle()
 {
-    setStyleSheet(QLatin1String(kAppQss));
+    /* 图标要在建工具栏之前定深浅 —— 深色底下主色墨得换成浅的。
+     * 深浅不是另设的开关，是按面板底色的明度算出来的（见 UiTheme）。 */
+    {
+        const UiTheme::Palette pal = UiTheme::current();
+        AppIcon::setDark(pal.isDark());
+        setStyleSheet(UiTheme::qss(pal));
+    }
 }
 
 void MainWindow::buildDocks()
@@ -232,6 +201,15 @@ void MainWindow::buildDocks()
      * 所以不能走 markDirty —— 否则标题平白带上 *、退出还问要不要保存。 */
     /* [全局设置]里改了点阵屏预览配色：右栏那些页面图也要重画一遍 */
     connect(m_mgr, &CanvasManager::previewStyleChanged, this, [this]() {
+        /* [全局设置] 里改了界面配色就当场换掉整份样式表 —— 和点阵屏预览配色
+         * 一样即改即见，不用重启。这两样都只影响界面长相，不进任何产物。 */
+        /* 图标也得跟着换 —— 深色底下主色墨要换成浅的，否则整排图标
+         * 压在深色工具栏上看不见。已经设出去的图标不会自己变，得重设。 */
+        const UiTheme::Palette pal = UiTheme::current();
+        setStyleSheet(UiTheme::qss(pal));
+        AppIcon::setDark(pal.isDark());
+        AppIcon::refresh(this);
+        m_tree->reload();
         m_pages->reload();
     });
     connect(m_com, &BaseProperty::previewOnlyChanged, this, [this]() {
@@ -250,7 +228,7 @@ QWidget *makeVSep(QWidget *parent)
     auto *line = new QFrame(parent);
     line->setFrameShape(QFrame::VLine);
     line->setFrameShadow(QFrame::Plain);
-    line->setStyleSheet(QStringLiteral("color: #C8D2DE;"));
+    /* 【别写死颜色】主题一换（浅色/深色）写死的灰就露馅了，交给调色板 */
     line->setContentsMargins(4, 5, 4, 5);
     return line;
 }
@@ -265,11 +243,15 @@ static const int kStatusMaxWidth = 230;
 
 void MainWindow::buildToolBar()
 {
-    auto icon = [](const char *n) {
-        return QIcon(QStringLiteral(":/icons/%1").arg(QLatin1String(n)));
-    };
-
     QToolBar *tb = addToolBar(tr("主工具栏"));
+
+    /* 建一个工具栏按钮。名字记在 QAction 上，主题一换 AppIcon::refresh()
+     * 就能把图标按新主题重设一遍（深色下主色墨要换成浅的）。 */
+    auto addAct = [&tb](const char *n, const QString &text) {
+        QAction *a = tb->addAction(AppIcon::get(QLatin1String(n)), text);
+        AppIcon::apply(a, QLatin1String(n));
+        return a;
+    };
     tb->setObjectName(QStringLiteral("mainToolBar"));
     /* 工具栏用"图标在上、文字在下"的大按钮，一排排到底。
      * 之前做成 16px 小图标 + 文字在右，太挤，也不好认。 */
@@ -280,33 +262,33 @@ void MainWindow::buildToolBar()
     tb->setMinimumHeight(58);      // 28 图标 + 文字 + 上下留白
 
     /* 工具栏按钮 */
-    QAction *aNew    = tb->addAction(icon("project-new.png"),     tr("新建工程(P)"));
-    QAction *aOpen   = tb->addAction(icon("project-open.png"),    tr("打开工程(O)"));
-    QAction *aSave   = tb->addAction(icon("project-save.png"),        tr("保存工程(S)"));
-    QAction *aSaveAs = tb->addAction(icon("project-save-as.png"), tr("另存为(A)"));
+    QAction *aNew    = addAct("project-new.png", tr("新建工程(P)"));
+    QAction *aOpen   = addAct("project-open.png", tr("打开工程(O)"));
+    QAction *aSave   = addAct("project-save.png", tr("保存工程(S)"));
+    QAction *aSaveAs = addAct("project-save-as.png", tr("另存为(A)"));
     tb->addSeparator();
-    QAction *aNewPage = tb->addAction(icon("page-new.png"),      tr("新建页面(N)"));
-    QAction *aDelPage = tb->addAction(icon("page-delete.png"),   tr("删除页面(D)"));
+    QAction *aNewPage = addAct("page-new.png", tr("新建页面(N)"));
+    QAction *aDelPage = addAct("page-delete.png", tr("删除页面(D)"));
     tb->addSeparator();
     /* 【资源导出】把导出那一页直接嵌进主窗口（同一个 ToolBinWindow 类、
      * 同一条生成链），改完布局当场就能导出，不用退出去再跑一遍脚本。 */
-    QAction *aExport = tb->addAction(icon("export.png"),               tr("资源导出"));
+    QAction *aExport = addAct("export.png", tr("资源导出"));
     aExport->setToolTip(QStringLiteral(
         "把当前工程导出成资源文件（project.bin / ename.h / result.bin …），"
         "点了直接跑，不弹界面。等同于 step2 那个 UIToolBin 里的「生成资源文件」。\n"
         "要改工程ID / 调用脚本 / 功能设置，走右键菜单的「资源导出设置…」"));
     aExport->setShortcut(QKeySequence(Qt::Key_F5));
     tb->addSeparator();
-    QAction *aShot   = tb->addAction(icon("screenshot.png"),          tr("截屏(P)"));
+    QAction *aShot   = addAct("screenshot.png", tr("截屏(P)"));
     aShot->setToolTip(QStringLiteral("截取程序的界面,并保存成PNG图片"));
     tb->addSeparator();
-    QAction *aGlobal = tb->addAction(icon("settings.png"),  tr("全局设置"));
+    QAction *aGlobal = addAct("settings.png", tr("全局设置"));
     aGlobal->setToolTip(QStringLiteral("软件的全局设置,需要重启软件后生效."));
-    QAction *aZoom   = tb->addAction(icon("resize.png"),           tr("工程缩放"));
+    QAction *aZoom   = addAct("resize.png", tr("工程缩放"));
     aZoom->setToolTip(QStringLiteral(
         "对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零."));
     tb->addSeparator();
-    QAction *aAbout  = tb->addAction(icon("about.png"),        tr("关于(I)"));
+    QAction *aAbout  = addAct("about.png", tr("关于(I)"));
 
     tb->addSeparator();
 
@@ -793,6 +775,23 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
         }
     }
     log << QStringLiteral("图片素材 %1 张（目录 %2）").arg(pics.size()).arg(picDir);
+
+    /* 【先确认控件库在】新建工程要从模板克隆图层和布局，控件库没加载出来
+     * 的话拿到的是空模板，后面一路空指针。--tools-root 指错是最常见的原因，
+     * 与其崩在深处，不如在这儿说清楚。 */
+    const ControlLibrary *lib0 = m_mgr->library();
+    const bool libOk = lib0 && lib0->byType(QStringLiteral("NewLayer"))
+                       && lib0->byType(QStringLiteral("NewLayout"));
+    trace(QStringLiteral("控件库 %1").arg(libOk ? QStringLiteral("已加载")
+                                                : QStringLiteral("**没加载**")));
+    if (!libOk) {
+        log << QStringLiteral("[失败] 控件库没加载出来 —— 检查 --tools-root "
+                              "是否指向含 control/control.json 的工具目录");
+        if (report) {
+            *report = log.join(QLatin1Char('\n'));
+        }
+        return 0;
+    }
 
     trace(QStringLiteral("newProject"));
     m_mgr->newProjectForTest(QStringLiteral("AllCtrl"), QSize(128, 64));
@@ -1593,10 +1592,11 @@ int MainWindow::runOpsTest(QString *report)
      * (0,0,128,64)），全画出来最上面那个把下面全盖死，什么都编不了。 */
     sc->rebuild();
     {
-        /* 找一个标了"默认隐藏"的布局 */
+        /* 找一个标了"默认隐藏"的**顶层布局** —— 只有这一层才按这个位筛，
+         * 叶子控件上的"默认隐藏"是给固件运行时用的，画布不理它 */
         UiNode *hidden = nullptr;
         page->forEach([&](UiNode *x) {
-            if (!hidden && x->parent && x->isDefaultHidden()) {
+            if (!hidden && EditorOps::isTopScreen(x) && x->isDefaultHidden()) {
                 hidden = x;
             }
             return hidden == nullptr;
@@ -2617,6 +2617,14 @@ int MainWindow::runOpsTest(QString *report)
         check(QStringLiteral("干净工程标题上没有 *"),
               !windowTitle().contains(QLatin1Char('*')), windowTitle());
         /* 标题格式：UI编辑工具(Build:YYYY-MM-DD) <工程名> */
+        /* 【应用图标】qrc 路径写错的话 QIcon 是**静默**给一个空图标的：
+         * 编译照过、界面照开，只是标题栏左上角一直空着。得有条断言盯住。 */
+        check(QStringLiteral("应用图标加载得到（:/icons/app.png）"),
+              !QApplication::windowIcon().isNull()
+                  && !QApplication::windowIcon().availableSizes().isEmpty(),
+              QStringLiteral("windowIcon 可用尺寸数=%1")
+                  .arg(QApplication::windowIcon().availableSizes().size()));
+
         check(QStringLiteral("标题带构建日期、不带重建字样"),
               windowTitle().contains(QStringLiteral("Build:"))
                   && !windowTitle().contains(QStringLiteral("重建")),

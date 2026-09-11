@@ -1,6 +1,7 @@
 #include "StyFile.h"
 
 #include <QFile>
+#include <QDateTime>
 #include <QSaveFile>
 #include <QDataStream>
 #include <QStringList>
@@ -87,7 +88,7 @@ bool StyFile::load(const QString &path, QString *err)
     }
 
     m_head.uiVersion = rd32(raw, 0);
-    m_head.magic2    = rd32(raw, 4);
+    m_head.genTime   = rd32(raw, 4);
     m_head.hdrPtr    = rd32(raw, 8);
     m_head.totalSize = rd32(raw, 12);
     m_head.type      = rd8(raw, 16);
@@ -98,9 +99,16 @@ bool StyFile::load(const QString &path, QString *err)
         m_head.rev[i] = rd8(raw, 21 + i);
     }
 
-    if (m_head.magic2 != 0x6A978292u) {
+    /* 【这里以前拿偏移 4 当固定 magic 校验，是错的】那一格是**生成时间戳**，
+     * 每生成一次就变一次，于是任何新生成的 .sty 都被拒之门外 —— --sty-dump
+     * 对着刚导出的文件报"不像 .sty 文件"。
+     * 真正能判"是不是这个格式"的是下面那条长度自洽：
+     *     24 + 20*页数 + totalSize == 文件大小
+     * 别的文件撞上它的概率极低，而对合法文件恒成立。 */
+    if (m_head.type != 1 || m_head.windowNum == 0) {
         if (err) {
-            *err = QStringLiteral("magic2=0x%1，不像 .sty 文件").arg(m_head.magic2, 8, 16, QLatin1Char('0'));
+            *err = QStringLiteral("头不对：type=%1 页数=%2")
+                       .arg(m_head.type).arg(m_head.windowNum);
         }
         return false;
     }
@@ -177,7 +185,7 @@ QByteArray StyFile::serialize() const
     out.reserve(int(m_head.totalSize) + kHeadSize + kWHeadSize * m_windows.size());
 
     wr32(out, m_head.uiVersion);
-    wr32(out, m_head.magic2);
+    wr32(out, m_head.genTime);
     wr32(out, m_head.hdrPtr);
     wr32(out, m_head.totalSize);
     wr8(out, m_head.type);
@@ -279,9 +287,11 @@ bool StyFile::verifyRoundTrip(const QString &path, QString *report)
 QString StyFile::describe() const
 {
     QStringList L;
-    L << QStringLiteral("UI_VERSION = 0x%1  magic2 = 0x%2")
+    L << QStringLiteral("UI_VERSION = 0x%1  生成时间 = 0x%2 (%3)")
       .arg(m_head.uiVersion, 8, 16, QLatin1Char('0'))
-      .arg(m_head.magic2, 8, 16, QLatin1Char('0'));
+      .arg(m_head.genTime, 8, 16, QLatin1Char('0'))
+      .arg(QDateTime::fromSecsSinceEpoch(m_head.genTime)
+               .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")));
     L << QStringLiteral("type=%1 window_num=%2 prop_len=%3 rotate=%4 total_size=%5")
       .arg(m_head.type).arg(m_head.windowNum).arg(m_head.propLen)
       .arg(m_head.rotate).arg(m_head.totalSize);

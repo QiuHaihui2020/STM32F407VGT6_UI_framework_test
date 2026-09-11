@@ -56,6 +56,11 @@ bool isList(const UiNode *n)
     return n && n->cls == QLatin1String("NewList");
 }
 
+bool isTopScreen(const UiNode *n)
+{
+    return isLayout(n) && n && n->parent && isLayer(n->parent);
+}
+
 bool isGrid(const UiNode *n)
 {
     return n && n->cls == QLatin1String("NewGrid");

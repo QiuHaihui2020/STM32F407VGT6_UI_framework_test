@@ -219,6 +219,8 @@ protected:
     Qt::Alignment contentAlign() const;
     /** 画 css 里的"内边框线"。 */
     void paintBorder(QPainter &p);
+    /** 内容来自资源、但资源还没配 —— 画布上要给个占位框。 */
+    bool isContentEmpty() const;
 
     /** 子类往右键菜单里加自己特有的项（列表的加行、表格的加行列…）。 */
     virtual void appendTypeActions(QMenu &menu) { Q_UNUSED(menu) }

@@ -1,4 +1,5 @@
 #include "BaseDialog.h"
+#include "AppIcon.h"
 #include "I18nLanguage.h"
 
 #include <QDialogButtonBox>
@@ -29,9 +30,9 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     auto *selAll = new QPushButton(QStringLiteral("全选"), this);
     auto *dselAll = new QPushButton(QStringLiteral("全不选"), this);
     auto *re = new QPushButton(QStringLiteral("反选"), this);
-    auto *up = new QPushButton(QIcon(QStringLiteral(":/icons/move-up.png")),
+    auto *up = new QPushButton(AppIcon::get(QStringLiteral("move-up.png")),
                                QStringLiteral("上移一行"), this);
-    auto *down = new QPushButton(QIcon(QStringLiteral(":/icons/move-down.png")),
+    auto *down = new QPushButton(AppIcon::get(QStringLiteral("move-down.png")),
                                  QStringLiteral("下移一行"), this);
     auto *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     localizeButtonBox(box);

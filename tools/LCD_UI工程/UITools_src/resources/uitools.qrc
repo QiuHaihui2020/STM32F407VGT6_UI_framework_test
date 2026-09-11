@@ -5,6 +5,7 @@
 <RCC>
     <qresource prefix="/icons">
         <file alias="about.png">icons/about.png</file>
+        <file alias="app.png">icons/app.png</file>
         <file alias="browse.png">icons/browse.png</file>
         <file alias="color.png">icons/color.png</file>
         <file alias="export.png">icons/export.png</file>

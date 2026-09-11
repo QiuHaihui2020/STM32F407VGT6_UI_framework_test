@@ -1,4 +1,5 @@
 #include "Docks.h"
+#include "AppIcon.h"
 #include "Canvas.h"
 #include "Forms.h"
 #include "Property.h"
@@ -110,7 +111,7 @@ void TreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
     it->setData(0, Qt::UserRole, packNode(n));
     /* 只有容器（有子节点的）才有那只眼睛 */
     if (!n->children.isEmpty()) {
-        it->setIcon(0, QIcon(QStringLiteral(":/icons/eye.png")));
+        it->setIcon(0, AppIcon::get(QStringLiteral("eye.png")));
     }
     it->setExpanded(true);
     for (const auto &c : n->children) {
@@ -236,9 +237,9 @@ void TreeDock::onSwapShowHideObject()
      * 可见性，直接翻控件的 visible 位的话，点一下别的节点就被覆盖回去了。 */
     s->toggleUserHidden(n);
     if (QTreeWidgetItem *it = m_tree->currentItem()) {
-        it->setIcon(0, QIcon(s->isUserHidden(n)
-                             ? QStringLiteral(":/icons/eye-off.png")
-                             : QStringLiteral(":/icons/eye.png")));
+        it->setIcon(0, AppIcon::get(s->isUserHidden(n)
+                                    ? QStringLiteral("eye-off.png")
+                                    : QStringLiteral("eye.png")));
     }
 }
 
@@ -268,8 +269,9 @@ void TreeDock::onSwapShowHideSubObject()
  * Preview::contentOf），右栏看到的就是画布看到的，也是屏上看到的。
  *
  * 【为什么天然只画一个布局】一页里 1~9 个整屏布局是互斥的，**恰好只有一个**
- * invisible=false。这里按"默认隐藏就不画"来走，剩下的自然就是运行时那一个，
- * 不用另外挑。
+ * invisible=false。这里按"顶层布局默认隐藏就不画"来走，剩下的自然就是运行时
+ * 那一个，不用另外挑。再往下的控件不看这个位 —— 那是给固件运行时用的
+ * （见 EditorOps::isTopScreen 的说明）。
  */
 class PagePreview : public QWidget
 {
@@ -475,10 +477,6 @@ private:
             int i = 0;
             for (const auto &c : n->children) {
                 UiNode *k = c.second;
-                if (k->isDefaultHidden()) {
-                    ++i;                       // 隐藏的行照样占位
-                    continue;
-                }
                 const int off = i * step;
                 const QRect box = vert
                     ? QRect(origin.x() + k->rect.x(), origin.y() + off,
@@ -494,8 +492,10 @@ private:
 
         for (const auto &c : n->children) {
             UiNode *k = c.second;
-            /* 默认隐藏的不画 —— 一页里那 1~9 个互斥布局就是靠这条筛掉的 */
-            if (k->isDefaultHidden()) {
+            /* 只有顶层互斥布局才按"默认隐藏"筛 —— 一页里那 1~9 个整屏布局靠
+             * 这条挑出运行时的那一个。叶子控件上的这个位是给固件用的，
+             * 编辑器不拿它藏东西（见 EditorOps::isTopScreen）。 */
+            if (EditorOps::isTopScreen(k) && k->isDefaultHidden()) {
                 continue;
             }
             if (!k->rect.isValid()) {

@@ -1,7 +1,9 @@
 #include "BaseDialog.h"
 #include "GlobalSettings.h"
+#include "UiTheme.h"
 
 #include <QColorDialog>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -206,6 +208,7 @@ public:
 
     QColor color() const { return m_color; }
 
+
     void setColor(const QColor &c)
     {
         m_color = c.isValid() ? c : QColor(Qt::black);
@@ -325,6 +328,86 @@ GlobalSettings::GlobalSettings(QWidget *parent)
         "点亮和熄灭的像素上是同一个颜色，别配得和这两个太接近."));
     pvGrp->setExpanded(true);
 
+    /* ---- 界面配色 --------------------------------------------------------
+     * 和上面那组点阵屏预览配色是两回事：那组配的是"屏上的像素长什么样"，
+     * 这组配的是"工具自己长什么样"。两组都**只影响界面，不进任何产物**。
+     *
+     * 只给两个旋钮：主题（浅/深）定灰阶，强调色定选中/悬停/聚焦那一路。
+     * hover、按下、软色块这几档是从强调色现算的（见 MainWindow 的 appQss），
+     * 所以换个强调色整套跟着走，不会出现"主色改了按钮按下去还是旧蓝"。 */
+    auto *uiGrp = new QTreeWidgetItem(m_tree);
+    uiGrp->setText(0, QStringLiteral("界面配色"));
+    uiGrp->setToolTip(0, QStringLiteral(
+        "工具自己的界面配色，改完立刻生效，不写进资源文件."));
+
+    /* 【只有三项，其中底色多数时候还是灰的】页签底、滚动条、禁用态、悬停态
+     * 那十几种颜色全是算出来的（见 UiTheme::qss / derive）——
+     * 摆出来让人一个个配，改一次要动七八处，没人愿意弄第二回。 */
+    m_uiPreset = new QTreeWidgetItem(uiGrp);
+    m_uiPreset->setText(0, QStringLiteral("方案:"));
+    m_uiPreset->setToolTip(0, QStringLiteral(
+        "现成的几套，或者选「自定义」自己配底色.\n"
+        "深浅由底色决定 —— 配成暗色的话，图标会自动换成浅色的墨."));
+    auto *presetCb = new QComboBox(m_tree);
+    for (const UiTheme::Preset &pr : UiTheme::presets()) {
+        presetCb->addItem(pr.name, pr.name);
+    }
+    presetCb->addItem(QStringLiteral("自定义"), QString());
+    m_tree->setItemWidget(m_uiPreset, 1, presetCb);
+
+    const UiTheme::Palette cur0 = UiTheme::current();
+
+    m_uiBase = new QTreeWidgetItem(uiGrp);
+    m_uiBase->setText(0, QStringLiteral("底色:"));
+    m_uiBase->setToolTip(0, QStringLiteral(
+        "面板的底色，也是整套配色的基准 —— 窗口底、输入区、画布底、边框、\n"
+        "文字色全按它推出来。只有方案选「自定义」时才能改."));
+    auto *baseEd = new ColorEdit(QStringLiteral("底色"), m_tree);
+    baseEd->setColor(cur0.panel);
+    m_tree->setItemWidget(m_uiBase, 1, baseEd);
+
+    m_uiAccent = new QTreeWidgetItem(uiGrp);
+    m_uiAccent->setText(0, QStringLiteral("强调色:"));
+    m_uiAccent->setToolTip(0, QStringLiteral(
+        "选中项、当前页签、输入框聚焦边、按钮悬停都取它。\n"
+        "悬停、按下那几档是从它算出来的，不用另外配."));
+    auto *accentEd = new ColorEdit(QStringLiteral("强调色"), m_tree);
+    accentEd->setColor(cur0.accent);
+    m_tree->setItemWidget(m_uiAccent, 1, accentEd);
+
+    /* 换方案：底色和强调色都跟着显示成那套的值，底色一栏置灰。
+     * 选「自定义」则放开底色，起点就是刚才那套的底色 —— 不用从零调。 */
+    auto syncToPreset = [presetCb, baseEd, accentEd](int idx) {
+        const QString name = presetCb->itemData(idx).toString();
+        const bool custom = name.isEmpty();
+        baseEd->setEnabled(custom);
+        if (!custom) {
+            const UiTheme::Palette pal = UiTheme::presetByName(name);
+            baseEd->setColor(pal.panel);
+            accentEd->setColor(pal.accent);
+        }
+    };
+    connect(presetCb, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, syncToPreset);
+
+    {
+        const QString saved = GlobalSettings::value(QStringLiteral("Ui/Preset"))
+                                  .toString();
+        int idx = presetCb->count() - 1;          // 空串 = 自定义，排在最后
+        if (!saved.isEmpty()) {
+            for (int k = 0; k < presetCb->count(); ++k) {
+                if (presetCb->itemData(k).toString() == saved) {
+                    idx = k;
+                    break;
+                }
+            }
+        }
+        QSignalBlocker block(presetCb);   // 别把用户存的颜色刷掉
+        presetCb->setCurrentIndex(idx);
+        baseEd->setEnabled(presetCb->itemData(idx).toString().isEmpty());
+    }
+    uiGrp->setExpanded(true);
+
     /* 【列宽按内容来，别写死】写死 100px 的话「图片资源目录:」会被截成
      * 「图片资源目…」，带缩进的子项「点亮颜色:」更是只剩三个字。
      * 让 Qt 按最长那条算，再留 8px。 */
@@ -384,6 +467,25 @@ void GlobalSettings::onAccepted()
             st.setValue(QStringLiteral("Project/Size"),
                         QStringLiteral("%1*%2").arg(w->value()).arg(h->value()));
         }
+    }
+
+    {
+        QString presetName;
+        if (auto *cb = qobject_cast<QComboBox *>(
+                m_tree->itemWidget(m_uiPreset, 1))) {
+            presetName = cb->currentData().toString();
+        }
+        QColor base;
+        if (auto *ed = dynamic_cast<ColorEdit *>(
+                m_tree->itemWidget(m_uiBase, 1))) {
+            base = ed->color();
+        }
+        QColor accent;
+        if (auto *ed = dynamic_cast<ColorEdit *>(
+                m_tree->itemWidget(m_uiAccent, 1))) {
+            accent = ed->color();
+        }
+        UiTheme::save(presetName, base, accent);
     }
 
     for (QTreeWidgetItem *it : { m_lit, m_dark, m_grid }) {

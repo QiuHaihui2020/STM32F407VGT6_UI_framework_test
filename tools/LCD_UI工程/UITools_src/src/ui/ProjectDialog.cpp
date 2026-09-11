@@ -1,4 +1,5 @@
 #include "ProjectDialog.h"
+#include "AppIcon.h"
 
 #include <QLineEdit>
 #include <QSpinBox>
@@ -61,7 +62,7 @@ ProjectDialog::ProjectDialog(QWidget *parent)
 
     /* 多国语言表 */
     auto *langRow = new QHBoxLayout;
-    auto *pushButton = new QPushButton(QIcon(QStringLiteral(":/icons/browse.png")),
+    auto *pushButton = new QPushButton(AppIcon::get(QStringLiteral("browse.png")),
                                        QStringLiteral("打开多国语言文件"), this);
     pushButton->setObjectName(QStringLiteral("pushButton"));   // ★ 名字决定自动连接
     /* 这一栏的默认内容是"行车记录仪.xls"（一个样例表名） */

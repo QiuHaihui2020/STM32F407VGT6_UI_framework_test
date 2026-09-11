@@ -1,4 +1,5 @@
 #include "Property.h"
+#include "AppIcon.h"
 
 #include "ActionList.h"
 #include "EditorOps.h"
@@ -399,10 +400,10 @@ FileEdit::FileEdit(QWidget *parent)
     /* 缩略图有高度，按钮得留得下，不然图被压扁 */
     m_main->setMinimumHeight(kBgThumbMax.height() + 6);
     m_pick = new QPushButton(this);
-    m_pick->setIcon(QIcon(QStringLiteral(":/icons/browse.png")));
+    m_pick->setIcon(AppIcon::get(QStringLiteral("browse.png")));
     m_pick->setFixedWidth(34);
     m_clear = new QPushButton(this);
-    m_clear->setIcon(QIcon(QStringLiteral(":/icons/row-delete.png")));
+    m_clear->setIcon(AppIcon::get(QStringLiteral("row-delete.png")));
     m_clear->setFixedWidth(24);
     m_clear->setToolTip(QStringLiteral("删除背景图片"));
     m_clear->setEnabled(false);
@@ -500,12 +501,12 @@ Backgroud::Backgroud(QWidget *parent)
     lay->setSpacing(2);
     m_main = new QPushButton(QStringLiteral("背景颜色"), this);
     m_pick = new QPushButton(this);
-    m_pick->setIcon(QIcon(QStringLiteral(":/icons/color.png")));
+    m_pick->setIcon(AppIcon::get(QStringLiteral("color.png")));
     m_pick->setFixedWidth(34);
     /* "背景颜色"右边还有一个小按钮，就是手册 2.3 说的那个
      * "删除背景颜色"：删掉之后它自己变灰。 */
     m_clear = new QPushButton(this);
-    m_clear->setIcon(QIcon(QStringLiteral(":/icons/row-delete.png")));
+    m_clear->setIcon(AppIcon::get(QStringLiteral("row-delete.png")));
     m_clear->setFixedWidth(24);
     m_clear->setToolTip(QStringLiteral("删除背景颜色"));
     lay->addWidget(m_main, 1);
@@ -695,7 +696,7 @@ Border::Border(QWidget *parent)
     row->setSpacing(2);
     m_btn = new QPushButton(tr("边框"), this);
     m_pick = new QPushButton(this);
-    m_pick->setIcon(QIcon(QStringLiteral(":/icons/color.png")));
+    m_pick->setIcon(AppIcon::get(QStringLiteral("color.png")));
     m_pick->setFixedWidth(34);
     row->addWidget(m_btn, 1);
     row->addWidget(m_pick, 0);

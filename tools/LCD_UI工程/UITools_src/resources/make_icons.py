@@ -72,6 +72,11 @@ def rrect(d, x0, y0, x1, y1, r, color=INK, w=W, fill=None):
                         fill=fill)
 
 
+def fill_rrect(d, x0, y0, x1, y1, r, color):
+    d.rounded_rectangle([_p(x0), _p(y0), _p(x1), _p(y1)], radius=_p(r),
+                        fill=color)
+
+
 def quad(p0, p1, p2, n=48):
     """二次贝塞尔采样成折线 —— PIL 不会画曲线，只能自己算点。"""
     out = []
@@ -281,13 +286,13 @@ def i_color(d):
 
 
 LOGO = [
-    "#..#.###",
-    "#..#..#.",
-    "#..#..#.",
-    "#..#..#.",
-    "#..#..#.",
-    "#..#..#.",
-    ".##..###",
+    "#...#.###",
+    "#...#..#.",
+    "#...#..#.",
+    "#...#..#.",
+    "#...#..#.",
+    "#...#..#.",
+    ".###..###",
 ]
 
 
@@ -299,16 +304,67 @@ def i_logo(d):
     cols, rows = len(LOGO[0]), len(LOGO)
     sx = (x1 - x0 - 2 * pad) / cols
     sy = (y1 - y0 - 2 * pad) / rows
-    lit = min(sx, sy) * 0.36
+    lit = min(sx, sy) * 0.30
     for r, row in enumerate(LOGO):
         for c, ch in enumerate(row):
             x = x0 + pad + (c + 0.5) * sx
             y = y0 + pad + (r + 0.5) * sy
-            dot(d, x, y, lit if ch == '#' else lit * 0.32,
+            dot(d, x, y, lit if ch == '#' else lit * 0.28,
                 ACC if ch == '#' else DIM)
 
 
+def i_app(d):
+    """应用图标：一块亮着的点阵屏，屏上是一版界面 —— 左边一个写着 UI 的文字
+    控件正被选中（蓝框 + 四角手柄），右边两行文字，底下一条。
+
+    三样东西各说一句话：点阵屏 = 面向什么设备；屏上那两个**点阵字** = 编的是
+    屏上显示的内容；蓝色选中框 + 手柄 = 这是个能摆能拖的编辑器，不是查看器。
+
+    【字为什么要画成一颗颗点】屏就是点阵屏，字在上面本来就是由亮点拼出来的。
+    画成实心笔画看着更清楚，但那不是这块屏上会出现的东西。为了点还看得见，
+    选中的那个控件占了屏的一多半，右边的文字行相应收窄。
+
+    配色跟真机走：屏底是 STN 那种橄榄绿，点亮是黄绿，选中框用界面强调色。
+    字模复用 LOGO（关于框那块屏用的是同一份），改一处两处都变。"""
+    SCR = (0x46, 0x4B, 0x0E, 255)
+    LIT = (0xCD, 0xE0, 0x00, 255)
+    fill_rrect(d, 0.6, 2.4, 23.4, 21.6, 3.4, (0x22, 0x2C, 0x31, 255))
+    fill_rrect(d, 2.4, 4.2, 21.6, 19.8, 1.2, SCR)
+
+    def bar(x0, y0, x1, y1):
+        d.rectangle([_p(x0), _p(y0), _p(x1), _p(y1)], fill=LIT)
+
+    # 左边那个文字控件：UI 两个点阵字
+    tx0, ty0, tx1, ty1 = 5.0, 7.2, 12.6, 13.2
+    cols, rows = len(LOGO[0]), len(LOGO)
+    cell = min((tx1 - tx0) / cols, (ty1 - ty0) / rows)
+    ox = (tx0 + tx1) / 2.0 - cols * cell / 2.0
+    oy = (ty0 + ty1) / 2.0 - rows * cell / 2.0
+    dotsz = cell * 0.86
+    for r, row in enumerate(LOGO):
+        for c, ch in enumerate(row):
+            if ch != '#':
+                continue
+            x = ox + c * cell + (cell - dotsz) / 2.0
+            y = oy + r * cell + (cell - dotsz) / 2.0
+            d.rectangle([_p(x), _p(y), _p(x + dotsz), _p(y + dotsz)], fill=LIT)
+
+    # 右边两行文字 + 底下一条
+    bar(14.8, 8.5, 19.4, 9.7)
+    bar(14.8, 11.1, 18.0, 12.3)
+    bar(4.2, 16.6, 19.4, 17.9)
+
+    # 选中框：套住左边那个文字控件，四角各一个手柄
+    x0, y0, x1, y1 = 4.2, 6.4, 13.4, 14.0
+    poly(d, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], ACC, 0.9,
+         closed=True, caps=False)
+    for hx, hy in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
+        d.rectangle([_p(hx - 0.95), _p(hy - 0.95),
+                     _p(hx + 0.95), _p(hy + 0.95)], fill=ACC)
+
+
 ICONS = [
+    ('app',             i_app),
     ('project-new',     i_project_new),
     ('project-open',    i_project_open),
     ('project-save',    i_project_save),
@@ -333,7 +389,7 @@ ICONS = [
     ('logo',            i_logo),
 ]
 
-SIZES = {'logo': 256}
+SIZES = {'logo': 256, 'app': 256}
 
 
 def render(fn, size):
@@ -355,6 +411,13 @@ def main():
         made.append((name, size))
         print('  %-18s %dx%d' % (name, size, size))
     print('共 %d 个' % len(made))
+
+    # exe 的图标：多尺寸 .ico，任务栏/资源管理器各取所需
+    render(i_app, 256).save(
+        os.path.join(here, 'app.ico'),
+        sizes=[(16, 16), (24, 24), (32, 32), (48, 48),
+               (64, 64), (128, 128), (256, 256)])
+    print('  app.ico            多尺寸')
 
     if '--sheet' in sys.argv:
         cols, cell = 6, 96

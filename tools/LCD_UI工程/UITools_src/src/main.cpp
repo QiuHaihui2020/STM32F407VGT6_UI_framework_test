@@ -26,6 +26,7 @@
  * 控件图标、多国语言表都从这里找。
  */
 #include <QApplication>
+#include <QIcon>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QFile>
@@ -37,6 +38,7 @@
 #include <QSettings>
 
 #include "MainWindow.h"
+#include "AppIcon.h"
 #include "Preview.h"
 
 #include "ActionList.h"
@@ -60,6 +62,9 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
+    /* 应用图标：标题栏左上角、任务栏、Alt-Tab 都取这一个。
+     * exe 自己在资源管理器里的图标是另一回事，由 resources/app.rc 提供。 */
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/app.png")));
     /* Qt 5.15 默认用系统 UI 字体（中文机器上是微软雅黑），点阵屏工程里
      * 字形偏大偏圆，排版看不准。显式钉死成宋体 9pt。 */
     {

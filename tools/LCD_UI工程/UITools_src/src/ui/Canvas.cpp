@@ -290,10 +290,16 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
  * 那个把下面全盖死，什么都编不了。
  *
  * 两条规则：
- *   1. 标了"默认隐藏"(element_css.invisible == "true") 的默认不画。
+ *   1. **顶层布局**里标了"默认隐藏"(element_css.invisible == "true") 的默认
+ *      不画 —— 剩下的那个就是运行时的默认画面。
  *      但**选中它或它的子孙时要画出来**，否则树上点得到、画布上摸不着。
  *   2. 选中即隔离：找到选中项所属的那个"顶层布局"（父节点是图层的那一层），
  *      同级的其它顶层布局整棵淡出。淡出不是隐藏，照样能点，点一下就换它清晰。
+ *
+ * 【为什么规则 1 只看顶层这一层】叶子控件上的"默认隐藏"是**写进资源给固件
+ * 运行时用的**位（比如文件列表里的图标，程序滚到哪一项才把它显出来），不是
+ * 编辑器的可见性开关。拿它去藏画布上的控件，等于让人没法摆放这些控件 ——
+ * 画布上看不看得见，只由对象树那只眼睛（和右键的显示/隐藏）管。
  */
 void ScenesScreen::applyVisibility()
 {
@@ -319,7 +325,8 @@ void ScenesScreen::applyVisibility()
         UiNode *n = it.key();
         bool visible = true;
         for (UiNode *a = n; a && a->parent; a = a->parent) {
-            if (a->isDefaultHidden() && !onPath.contains(a)) {
+            if (EditorOps::isTopScreen(a) && a->isDefaultHidden()
+                && !onPath.contains(a)) {
                 visible = false;
                 break;
             }
@@ -775,6 +782,22 @@ void CanvasManager::attachHost(QWidget *host)
     rebuildScreens();
 }
 
+void CanvasManager::clearScreens()
+{
+    auto *l = qobject_cast<QStackedLayout *>(m_stackHost ? m_stackHost->layout()
+                                                         : nullptr);
+    if (l) {
+        while (l->count() > 0) {
+            QWidget *w = l->widget(0);
+            l->removeWidget(w);
+            /* 【立刻删，不能 deleteLater】调用方紧接着就要把整棵节点树换掉。
+             * 推迟到事件循环再删的话，那会儿控件手里的 UiNode 已经是野指针。 */
+            delete w;
+        }
+    }
+    m_screens.clear();
+}
+
 void CanvasManager::rebuildScreens()
 {
     if (!m_host) {
@@ -784,12 +807,7 @@ void CanvasManager::rebuildScreens()
     if (!l) {
         return;
     }
-    while (l->count() > 0) {
-        QWidget *w = l->widget(0);
-        l->removeWidget(w);
-        w->deleteLater();
-    }
-    m_screens.clear();
+    clearScreens();
 
     for (UiNode *page : m_model.pages()) {
         auto *s = new ScenesScreen(m_stackHost);
@@ -950,6 +968,8 @@ void CanvasManager::newProjectForTest(const QString &name, const QSize &pageSize
     m_pageSize = pageSize;
     const ControlTemplate *lt = m_lib.byType(QStringLiteral("NewLayer"));
     const ControlTemplate *ot = m_lib.byType(QStringLiteral("NewLayout"));
+    /* 先拆画布再换模型，顺序反了会摸野指针 —— 见 clearScreens 的说明 */
+    clearScreens();
     m_model.createDefault(name, pageSize,
                           lt ? lt->raw : QJsonObject(),
                           ot ? ot->raw : QJsonObject());
@@ -1077,6 +1097,8 @@ void CanvasManager::bindSettingsToProject(const QString &jsonPath)
 
 bool CanvasManager::openProject(const QString &path, QString *err)
 {
+    /* 同理：load() 一成功旧节点树就没了，先把画布拆掉 */
+    clearScreens();
     if (!m_model.load(path, err)) {
         return false;
     }
@@ -1263,6 +1285,9 @@ void CanvasManager::onCreateNewProject()
      * element_css，生成出来固件不显示（见 createDefault 的注释）。 */
     const ControlTemplate *lt = m_lib.byType(QStringLiteral("NewLayer"));
     const ControlTemplate *ot = m_lib.byType(QStringLiteral("NewLayout"));
+    /* 先拆画布再换模型 —— 见 clearScreens 的说明。
+     * 【这是个真崩】开着一个工程再点「新建工程」就会撞上。 */
+    clearScreens();
     m_model.createDefault(name, m_pageSize,
                           lt ? lt->raw : QJsonObject(),
                           ot ? ot->raw : QJsonObject());
