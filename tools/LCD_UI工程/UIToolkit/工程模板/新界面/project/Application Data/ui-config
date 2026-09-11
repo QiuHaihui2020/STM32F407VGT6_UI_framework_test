@@ -1,0 +1,6 @@
+[Project]
+Size=128*64
+CustomTemplateDir=../../../UIToolkit/control/ex
+Dir=.
+ImageDir=config
+TemplateJson=../../../UIToolkit/control/control.json
