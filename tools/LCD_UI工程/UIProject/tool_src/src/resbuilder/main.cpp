@@ -1,9 +1,11 @@
-// ResBuilder —— 资源描述文件 + 位图 + 多国语言表 -> 资源二进制与索引头文件。
+// 资源打包 —— 资源描述文件 + 位图 + 多国语言表 -> 资源二进制与索引头文件。
 //
-//   ResBuilder                       在当前目录找 Resbuilder.xml
-//   ResBuilder <Resbuilder.xml>      指定输入
-//   ResBuilder <xml> -o <目录>       指定输出目录（默认与 xml 同目录）
-//   ResBuilder <xml> --verify <目录> 生成后与该目录里现成的产物逐字节对比
+// 这一段以前是独立的 ResBuilder.exe，现在是 UITools.exe 的一个子命令：
+//
+//   UITools --pack                       在当前目录找 Resbuilder.xml
+//   UITools --pack <Resbuilder.xml>      指定输入
+//   UITools --pack <xml> -o <目录>       指定输出目录（默认与 xml 同目录）
+//   UITools --pack <xml> --verify <目录> 生成后与该目录里现成的产物逐字节对比
 //
 // 输出：result.bin / result.str / result.h / res_ver.h /
 //       result_pic_index.h / result_str_index.h / result.csv / result.xml
@@ -68,7 +70,9 @@ int verifyAgainst(const QString &refDir, const QStringList &written)
 
 } // namespace
 
-int main(int argc, char *argv[])
+/* 由 src/main.cpp 的子命令分发调进来。QCoreApplication 在这儿建 ——
+ * 分发发生在任何 QApplication 构造之前，不会重复。 */
+int resbuilderMain(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
     const QStringList args = app.arguments();
@@ -81,7 +85,8 @@ int main(int argc, char *argv[])
         } else if (a == QLatin1String("--verify") && i + 1 < args.size()) {
             refDir = args.at(++i);
         } else if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
-            out() << QStringLiteral("用法: ResBuilder [Resbuilder.xml] [-o 输出目录] [--verify 参考目录]\n");
+            out() << QStringLiteral("用法: UITools --pack [Resbuilder.xml] "
+                                    "[-o 输出目录] [--verify 参考目录]\n");
             out().flush();
             return 0;
         } else if (!a.startsWith(QLatin1Char('-'))) {

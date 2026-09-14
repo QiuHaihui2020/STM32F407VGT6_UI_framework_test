@@ -4,8 +4,10 @@ rem  Dot-matrix UI toolchain - one-shot build
 rem
 rem  Builds three executables:
 rem      UITools.exe     layout editor (replaces ui-tools.exe)
-rem      QtToolBin.exe   project json -> project.bin / ename.h / Resbuilder.xml
-rem      ResBuilder.exe  Resbuilder.xml + bmp + xls -> result.bin / result.str
+rem  One executable with three entry points (subcommands):
+rem      UITools.exe          the layout editor
+rem      UITools.exe --gen    project file -> project.bin / ename.h / Resbuilder.xml
+rem      UITools.exe --pack   Resbuilder.xml + bmp + xls -> result.bin / result.str
 rem
 rem  Usage:  build.bat [Qt root]        default: C:/Qt/5.15.2/msvc2019_64
 rem
@@ -33,7 +35,12 @@ setlocal
 set QT_DIR=%~1
 if "%QT_DIR%"=="" set QT_DIR=C:/Qt/5.15.2/msvc2019_64
 
+rem  A build dir per Qt kit. CMake caches the Qt5_DIR it found in CMakeCache.txt,
+rem  so pointing -DCMAKE_PREFIX_PATH at a different Qt in the SAME dir does
+rem  nothing - it silently keeps using the previous kit and you get a build that
+rem  still needs the dlls, with no hint that anything went wrong.
 set BUILD_DIR=C:\bt\uitools
+if not exist "%QT_DIR%/bin/Qt5Core.dll" set BUILD_DIR=C:\bt\uitools-static
 set LINK_DIR=C:\bt\src
 set VCVARS=%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat
 if not exist "%VCVARS%" set VCVARS=D:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat
@@ -44,6 +51,7 @@ if not exist "%VCVARS%" (
 if not exist "%QT_DIR%/lib/cmake" (
     echo [build] Qt not found: %QT_DIR%
     echo [build] usage: build.bat C:/Qt/5.15.2/msvc2019_64
+    echo [build]        build.bat C:/Qt/5.15.2-static   ^(one self-contained exe^)
     exit /b 1
 )
 
@@ -61,7 +69,7 @@ cmake -S "%LINK_DIR%" -B "%BUILD_DIR%" -G Ninja ^
 cmake --build "%BUILD_DIR%" || exit /b 1
 
 echo.
-echo [build] output: %BUILD_DIR%\UITools.exe  QtToolBin.exe  ResBuilder.exe
+echo [build] output: %BUILD_DIR%\UITools.exe
 echo [build] before running, put Qt's bin on PATH:
 echo         set PATH=%QT_DIR:/=\%\bin;%%PATH%%
 echo         set QT_PLUGIN_PATH=%QT_DIR:/=\%\plugins

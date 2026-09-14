@@ -29,6 +29,29 @@ find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 message(STATUS "UITools: 使用 Qt${QT_VERSION_MAJOR} (${Qt${QT_VERSION_MAJOR}_VERSION})")
 
+# ---- 动态 Qt 还是静态 Qt --------------------------------------------------
+# 两种都能编。静态那套（C:\Qt\5.15.2-static，自己 configure -static 编的）编出来
+# 是**一个不依赖任何 dll 的 exe**，工具目录里就不用摆 Qt5*.dll 和插件目录了。
+#
+# 静态时要多做两件事：
+#   1. MSVC 运行库也得静态（/MT）—— 那套 Qt 是 -static-runtime 编的，
+#      我们这边还用默认的 /MD 会在链接期撞成一堆 LNK2038。
+#   2. 平台插件要显式导入。动态时 Qt 运行期从 plugins 目录加载；静态时它是
+#      一个 .lib，不 Q_IMPORT_PLUGIN 就没人引用它，链接器直接丢掉，
+#      运行起来报 "could not find or load the Qt platform plugin windows"。
+get_target_property(UITOOLS_QT_TYPE Qt${QT_VERSION_MAJOR}::Core TYPE)
+if(UITOOLS_QT_TYPE STREQUAL "STATIC_LIBRARY")
+    set(UITOOLS_QT_STATIC ON)
+    message(STATUS "UITools: 静态 Qt —— 编出来的 exe 不依赖 Qt dll")
+    if(MSVC)
+        cmake_policy(SET CMP0091 NEW)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+    endif()
+else()
+    set(UITOOLS_QT_STATIC OFF)
+    message(STATUS "UITools: 动态 Qt —— 需要在 exe 旁边放 Qt5*.dll 和 runtime\\ 插件")
+endif()
+
 # ---- 手写实现（承载真实行为）------------------------------------------
 set(UITOOLS_CORE
     src/core/ProjectModel.cpp
@@ -60,6 +83,23 @@ file(GLOB UITOOLS_HDRS CONFIGURE_DEPENDS
      "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.h")
 
+# ---- 资源打包那一条链（原 ResBuilder）----------------------------------
+# 需要 QImage 读 bmp/png，所以要 Gui；Windows 上还用 gdi32 做文字光栅化
+# （见 src/res/TextRaster.cpp）。
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
+set(RES_CORE
+    src/res/ResFormat.cpp
+    src/res/ImageMono.cpp
+    # 内容预览复用生成资源那条链：同一个 GDI 光栅化器、同一套透明色判定，
+    # 画布上看到的就是烧进设备的那份点阵
+    src/res/TextRaster.cpp
+    # 编辑器也要读多国语言 xls（"文字列表"属性的选择对话框）
+    src/res/XlsReader.cpp
+    src/res/ResConfig.cpp
+    src/res/ResFontDat.cpp
+    src/res/ResBuilderCore.cpp
+)
+
 # exe 在资源管理器/任务栏里的图标。Windows 下靠一个 .rc 资源提供，
 # 和窗口图标（QApplication::setWindowIcon 读 :/icons/app.png）是两回事，
 # 两个都要有。图标本身由 resources/make_icons.py 生成。
@@ -69,18 +109,23 @@ else()
     set(UITOOLS_WIN_RC "")
 endif()
 
-# 编辑器也要读多国语言 xls（"文字列表"属性的选择对话框），
-# 复用 ResBuilder 那边写的 BIFF8 读取器
+# ---- 一个 exe，三条入口 -------------------------------------------------
+# 以前是三个可执行文件：编辑器、工程 json -> 布局数据、资源打包。合成一个之后
+#   * 工具目录少两项，其中两个名字还和别处的工具重名
+#   * 静态链接时 Qt 只打包一份（三个各链一份的话体积要翻两倍多）
+#   * 「资源导出」和命令行走的仍然是同一份代码，不会两边跑出两种产物
+# 子命令在 src/main.cpp 的 dispatchSubcommand() 里分发：
+#   UITools --gen  ...   原 QtToolBin
+#   UITools --pack ...   原 ResBuilder
 add_executable(UITools WIN32
     ${UITOOLS_WIN_RC}
     src/main.cpp
-    src/res/XlsReader.cpp
-    # 内容预览复用生成资源那条链：同一个 GDI 光栅化器、同一套透明色判定，
-    # 画布上看到的就是烧进设备的那份点阵
-    src/res/TextRaster.cpp
-    src/res/ResConfig.cpp
-    # 工具栏上的「资源导出」直接嵌 QtToolBin 那一页 —— 两个目标共用同一份
-    # 源码，导出走的就是 step2 那条链，不会两边各跑一套逻辑跑出两种产物
+    # 资源打包那一整条链（原 ResBuilder），--pack 进
+    src/resbuilder/main.cpp
+    ${RES_CORE}
+    # 工程 json -> 布局数据（原 QtToolBin），--gen 进；
+    # 工具栏上的「资源导出」嵌的也是这一页
+    src/qttoolbin/main.cpp
     src/qttoolbin/ToolBinWindow.cpp
     src/qttoolbin/ToolBinWindow.h
     src/qttoolbin/FeatureDialog.cpp
@@ -93,6 +138,8 @@ add_executable(UITools WIN32
     ${UITOOLS_GEN}
     ${UITOOLS_HDRS}
     resources/uitools.qrc
+    # 只读数据（控件库 / 类型码表）编进 exe，见 assets.qrc 抬头
+    resources/assets.qrc
 )
 
 target_include_directories(UITools PRIVATE
@@ -122,61 +169,18 @@ if(MSVC)
     target_compile_options(UITools PRIVATE /utf-8)
 endif()
 
-# =======================================================================
-#  ResBuilder —— 资源描述 + 位图 + xls -> 资源二进制与索引头文件
-#  只依赖 Qt Core（Windows 上还用 gdi32 做文字光栅化，见 src/res/TextRaster.cpp）
-# =======================================================================
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
-
-set(RES_CORE
-    src/res/ResFormat.cpp
-    src/res/ImageMono.cpp
-    src/res/TextRaster.cpp
-    src/res/XlsReader.cpp
-    src/res/ResConfig.cpp
-    src/res/ResFontDat.cpp
-    src/res/ResBuilderCore.cpp
-)
-
-add_executable(ResBuilder src/resbuilder/main.cpp ${UITOOLS_WIN_RC} ${RES_CORE})
-target_include_directories(ResBuilder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/res)
-# 需要 QImage 读 bmp/png，所以带上 Gui；界面部分用不到
-target_link_libraries(ResBuilder PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
-if(WIN32)
-    target_link_libraries(ResBuilder PRIVATE gdi32 user32)
-endif()
-if(MSVC)
-    target_compile_options(ResBuilder PRIVATE /utf-8)
+# ---- 静态链接时要把插件也拉进来 -------------------------------------------
+# 平台插件不导入就起不来；图片格式插件不导入的话，画布背景图（jpg）和
+# 「修改背景图片」里的缩略图会静默显示不出来 —— bmp/png 是编在 QtGui 里的，
+# 只有 jpg/gif/ico 靠插件。
+if(UITOOLS_QT_STATIC)
+    qt5_import_plugins(UITools
+        INCLUDE Qt5::QWindowsIntegrationPlugin
+                Qt5::QJpegPlugin
+                Qt5::QGifPlugin
+                Qt5::QICOPlugin
+    )
 endif()
 
-# =======================================================================
-#  QtToolBin —— 工程 json -> 布局数据与资源描述
-#  工程 json -> project.bin(.sty) / ename.h / Resbuilder.xml / debug.txt
-# =======================================================================
-# QtToolBin 是弹窗工具，所以这里要 Widgets；
-# 不带参数弹界面，带生成类选项走命令行（见 src/qttoolbin/main.cpp 抬头）。
-add_executable(QtToolBin WIN32
-    ${UITOOLS_WIN_RC}
-    src/qttoolbin/main.cpp
-    src/qttoolbin/ToolBinWindow.cpp
-    src/qttoolbin/ToolBinWindow.h
-    src/qttoolbin/FeatureDialog.cpp
-    src/qttoolbin/FeatureDialog.h
-    src/qttoolbin/ResbuilderOptions.cpp
-    src/qttoolbin/ResbuilderOptions.h
-    src/res/ResConfig.cpp
-    src/res/ResConfig.h
-    src/sty/StyBuilder.cpp
-)
-target_include_directories(QtToolBin PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/sty
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/qttoolbin
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/res
-)
-target_link_libraries(QtToolBin PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
-set_target_properties(QtToolBin PROPERTIES AUTOMOC_MOC_OPTIONS "-p;.")
-if(MSVC)
-    target_compile_options(QtToolBin PRIVATE /utf-8)
-endif()
+# 就一个 target 了。原来这儿还有 ResBuilder 和 QtToolBin 两个 add_executable，
+# 现在它们的源码都进了上面那个 target，入口变成 --pack / --gen 两个子命令。

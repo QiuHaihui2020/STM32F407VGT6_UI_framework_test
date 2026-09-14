@@ -24,8 +24,8 @@ rem
 rem  NOT copied - caches / intermediates / generated output. This
 rem  toolchain regenerates all of it, so shipping stale copies only confuses:
 rem      autosave.json     editor autosave, 5 MB
-rem      uitoolbin.bin     QtToolBin intermediate, 4.6 MB
-rem      Resbuilder.dat    ResBuilder cache
+rem      uitoolbin.bin     intermediate from another toolchain, 4.6 MB
+rem      Resbuilder.dat    packer cache
 rem      qtread.csv  imagelist.txt        stale caches with another PC's paths
 rem      project.bin ename.h debug.txt Resbuilder.xml res_ver.h
 rem      result.* result_pic_index.h result_str_index.h    <- step2 makes these

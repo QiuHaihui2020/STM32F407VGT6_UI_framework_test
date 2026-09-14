@@ -36,10 +36,12 @@
 #include <QFont>
 #include <QPixmap>
 #include <QSettings>
+#include <QVector>
 
 #include "MainWindow.h"
 #include "AppIcon.h"
 #include "AssetPaths.h"
+#include "Products.h"
 #include "Preview.h"
 
 #include "ActionList.h"
@@ -60,8 +62,89 @@
 #include "ProjectModel.h"
 #include "ToolBinWindow.h"
 
+/* 两个子命令的入口，实现在各自的 main.cpp 里（原来是两个独立 exe 的 main）。 */
+int toolbinMain(int argc, char *argv[]);
+int resbuilderMain(int argc, char *argv[]);
+
+namespace {
+
+/**
+ * 子命令分发。
+ *
+ * 【为什么合成一个 exe】三个 exe 里有两个和别处的工具重名，而且各自带一份
+ * Qt；合成一个之后工具目录少两项，静态链接时 Qt 也只打包一份。
+ *
+ * 【为什么必须在构造 QApplication 之前分发】被分发到的那两个入口自己要建
+ * Q*Application（--gen 还要按参数决定建带界面的还是不带的），这儿先建一个
+ * 就冲突了。
+ *
+ * 子命令从 argv 里摘掉再往下传，那两段的参数解析一个字都不用改。
+ *
+ * @return 命中就返回退出码，没命中返回 -1（继续走编辑器那条路）。
+ */
+int dispatchSubcommand(int argc, char *argv[])
+{
+    if (argc < 2) {
+        return -1;
+    }
+    /* --clean [工程目录]：把生成物删掉，默认当前目录。
+     * 这一段以前是 clear.bat / clear.sh 两个脚本，收进来之后工具目录少两项，
+     * 而且"哪些算生成物"只有 Products.h 一处定义，不会两边写岔。 */
+    for (int i = 1; i < argc; ++i) {
+        if (QByteArray(argv[i]) != "--clean") {
+            continue;
+        }
+        const QString dir = (i + 1 < argc && argv[i + 1][0] != '-')
+                            ? QString::fromLocal8Bit(argv[i + 1])
+                            : QDir::currentPath();
+        QStringList gone;
+        const int n = products::clean(dir, &gone);
+        QTextStream o(stdout);
+        o << QStringLiteral("清掉 %1 个生成物（%2）\n")
+             .arg(n).arg(QDir::toNativeSeparators(dir));
+        for (const QString &f : gone) {
+            o << QStringLiteral("  %1\n").arg(f);
+        }
+        o.flush();
+        return 0;
+    }
+
+    int (*entry)(int, char **) = nullptr;
+    int at = -1;
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray a(argv[i]);
+        if (a == "--gen") {
+            entry = toolbinMain;
+        } else if (a == "--pack") {
+            entry = resbuilderMain;
+        } else {
+            continue;
+        }
+        at = i;
+        break;
+    }
+    if (!entry) {
+        return -1;
+    }
+    QVector<char *> rest;
+    rest.reserve(argc - 1);
+    for (int i = 0; i < argc; ++i) {
+        if (i != at) {
+            rest.append(argv[i]);
+        }
+    }
+    return entry(rest.size(), rest.data());
+}
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
+    const int sub = dispatchSubcommand(argc, argv);
+    if (sub >= 0) {
+        return sub;
+    }
+
     QApplication app(argc, argv);
     /* 应用图标：标题栏左上角、任务栏、Alt-Tab 都取这一个。
      * exe 自己在资源管理器里的图标是另一回事，由 resources/app.rc 提供。 */
@@ -149,7 +232,7 @@ int main(int argc, char *argv[])
     p.addOption(optNoChrome);
     p.addOption(optExport);
     p.addPositionalArgument(QStringLiteral("project"),
-                            QStringLiteral("要打开的工程 json"));
+                            QStringLiteral("要打开的工程文件（.uiproj / .json）"));
     p.process(app);
 
     QTextStream out(stdout);

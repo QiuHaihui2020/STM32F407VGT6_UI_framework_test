@@ -2,6 +2,7 @@
 
 #include "AssetPaths.h"
 #include "ProjectFile.h"
+#include "Products.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -48,7 +49,7 @@ QString resXmlPathOf(const QString &projectDir)
     return QDir(projectDir).absoluteFilePath(QStringLiteral("Resbuilder.xml"));
 }
 
-/// 工具目录 = 本 exe 所在目录（三个 exe 放一起）
+/// 工具目录 = 本 exe 所在目录
 QString toolDir()
 {
     return QCoreApplication::applicationDirPath();
@@ -64,6 +65,13 @@ ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
     // ---- 运行 ----
     m_run = new QPushButton(tr("生成资源文件(F5)"), this);
     m_run->setMinimumHeight(28);
+    /* 清理放在生成旁边 —— 想重来一遍的时候就在这儿，不用去翻脚本。
+     * 以前这是工具目录里的 clear.bat / clear.sh 两个文件。 */
+    auto *clean = new QPushButton(tr("清理生成物"), this);
+    clean->setMinimumHeight(28);
+    auto *runRow = new QHBoxLayout;
+    runRow->addWidget(m_run, 1);
+    runRow->addWidget(clean, 0);
     m_progress = new QProgressBar(this);
     m_progress->setRange(0, 100);
     m_progress->setValue(0);
@@ -103,7 +111,7 @@ ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
 
     auto *form = new QFormLayout;
     form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    form->addRow(tr("运行:"), m_run);
+    form->addRow(tr("运行:"), runRow);
     form->addRow(tr("进度条:"), m_progress);
     form->addRow(tr("JSON文件:"), jsonRow);
     form->addRow(tr("资源设置:"), feature);
@@ -125,6 +133,27 @@ ToolBinWindow::ToolBinWindow(const QString &projectDir, QWidget *parent)
     resize(620, 520);
 
     connect(m_run, &QPushButton::clicked, this, &ToolBinWindow::onGenerate);
+    connect(clean, &QPushButton::clicked, this, [this]() {
+        /* 【先问一句】这是删文件，而且这个工具没有撤消。默认焦点给"取消"。 */
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("清理生成物"));
+        box.setText(tr("把 %1 里生成出来的那些文件删掉？\n"
+                       "工程 json、图片、多国语言表都不动。")
+                    .arg(QDir::toNativeSeparators(m_projectDir)));
+        QAbstractButton *yes = box.addButton(tr("清理"), QMessageBox::AcceptRole);
+        box.addButton(tr("取消"), QMessageBox::RejectRole);
+        box.setDefaultButton(qobject_cast<QPushButton *>(box.buttons().last()));
+        box.exec();
+        if (box.clickedButton() != yes) {
+            return;
+        }
+        QStringList gone;
+        const int n = products::clean(m_projectDir, &gone);
+        log(tr("清掉 %1 个生成物%2").arg(n)
+            .arg(gone.isEmpty() ? QString()
+                                : QStringLiteral("：") + gone.join(QStringLiteral(" "))));
+    });
     connect(pick, &QPushButton::clicked, this, &ToolBinWindow::onPickJson);
     connect(feature, &QPushButton::clicked, this, &ToolBinWindow::onFeatureSettings);
     auto *f5 = new QShortcut(QKeySequence(Qt::Key_F5), this);
@@ -180,7 +209,11 @@ void ToolBinWindow::loadIni()
                       ? m_res.excelPath
                       : QDir(m_projectDir).absoluteFilePath(m_res.excelPath);
     } else {
-        m_excelPath = assets::i18nXls(toolDir());
+        /* 语言表跟着工程走，先在工程目录里找；工具目录是老布局的兜底。 */
+        m_excelPath = assets::i18nXls(m_projectDir);
+        if (m_excelPath.isEmpty()) {
+            m_excelPath = assets::i18nXls(toolDir());
+        }
     }
     m_language = m_res.languageMask;
     m_panelType = m_res.panelType;
@@ -300,18 +333,19 @@ void ToolBinWindow::onFeatureSettings()
 
 bool ToolBinWindow::runResBuilder()
 {
-    const QString exe = QDir(toolDir()).absoluteFilePath(QStringLiteral("ResBuilder.exe"));
-    if (!QFile::exists(exe)) {
-        log(tr("× 找不到 %1").arg(QDir::toNativeSeparators(exe)));
-        return false;
-    }
+    /* 打包那一段现在是本 exe 的 --pack 子命令，起自己就行。
+     *
+     * 【为什么还是开子进程，不直接函数调用】打包失败时那一路是层层 return
+     * 错误码，中途出岔子只会把那个进程带走；跑在自己进程里的话，编辑器就得
+     * 跟着一起没。界面这边只看退出码和输出，隔离开更稳。 */
+    const QString exe = QCoreApplication::applicationFilePath();
     QProcess p;
     p.setWorkingDirectory(m_projectDir);
     p.setProcessChannelMode(QProcess::MergedChannels);
-    p.start(exe, QStringList()
+    p.start(exe, QStringList() << QStringLiteral("--pack")
             << QDir(m_projectDir).absoluteFilePath(QStringLiteral("Resbuilder.xml")));
     if (!p.waitForStarted(10000)) {
-        log(tr("× ResBuilder 起不来"));
+        log(tr("× 资源打包起不来"));
         return false;
     }
     while (!p.waitForFinished(100)) {

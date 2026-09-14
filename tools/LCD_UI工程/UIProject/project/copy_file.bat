@@ -1,6 +1,6 @@
 @echo off
 rem ===========================================================================
-rem  Called by QtToolBin after the resources are generated.
+rem  Called by the resource generator after the resources are generated.
 rem  Copies them into the STM32 project. Adjust the two paths below if your
 rem  tree differs.
 rem

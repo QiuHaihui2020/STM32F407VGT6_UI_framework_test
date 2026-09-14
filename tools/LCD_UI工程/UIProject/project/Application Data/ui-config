@@ -3,8 +3,8 @@ Size=128*64
 CustomTemplateDir=../tool/assets/widgets.d
 Dir=.
 ImageDir=config
-LangugeFile=../tool/assets/i18n_128_64.xls
-TemplateJson=../tool/assets/widgets.json
+LangugeFile=i18n_128_64.xls
+TemplateJson=
 LastOpen=@ByteArray(./SmallColorTFT.json)
 
 [Preview]

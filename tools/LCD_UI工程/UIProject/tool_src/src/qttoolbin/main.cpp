@@ -1,28 +1,35 @@
-// QtToolBin —— 工程 json -> 资源描述与布局数据。
+// UITools --gen —— 工程文件 -> 资源描述与布局数据。
 //
-// 不带参数时**弹界面**：双击弹窗，在界面上点「生成资源文件(F5)」。
+// 不带生成类选项时**弹界面**：那一页上点「生成资源文件(F5)」。
 // 带下面任一生成类选项则走命令行，不弹窗 —— 自动化/验收脚本用的就是这条路。
-//   QtToolBin [工程.json] [选项]
+//   UITools --gen [工程文件] [选项]
 //     --pj-id N          工程 ID（进控件 id 的 bit29..31），默认 0
 //     --rotate N         0/1/2/3 -> 0/90/180/270
-//     --option-ini <路径> 默认在工具目录的 assets/typecodes.ini 找（见 AssetPaths.h）
+//     --option-ini <路径> 控件类型码表；默认用编进 exe 的那份（见 AssetPaths.h）
 //     --excel <路径>     写进 Resbuilder.xml 的 excel_path
 //     --language 0xNN    语言掩码，默认 0x13
 //     --ename <ename.h>  复用已有 ename.h 里的 id（用于和既有资源逐字节比对）
-//     -o <目录>          输出目录，默认与工程 json 同目录
+//     -o <目录>          输出目录，默认与工程文件同目录
 //     --verify <目录>    生成后与该目录里现成的一套产物做对比
-//     --run-resbuilder <ResBuilder.exe>  生成 Resbuilder.xml 后接着跑资源生成
+//     --run-resbuilder   接着跑资源打包（起本 exe 的 --pack）。后面可以跟一个
+//                        路径，那是老脚本的写法；文件不存在就退回起自己
 //     --script <bat>     最后调用的脚本（默认 copy_file.bat，--no-script 关掉）
 //     --gui / --cli      强制界面 / 强制命令行
+//     --verify-resxml <工程目录> [--report <文件>]
+//                        只验「功能设置」那一页：读得进现成的 Resbuilder.xml，
+//                        再写出去还是同一份。不动原文件
+//     --selftest-generate  等于自动点一次「生成资源文件」，跑完就退出
+//     --shot-feature <png> 把「功能设置」对话框截下来（回归用）
+//     --shot <png>         把这一页截下来（回归用）
 //
-// 不给 json 时，从**当前目录**的 config\ini\project.ini 里读：
-//     projectfilename   要生成的工程 json
+// 不给工程文件时，从**当前目录**的 config\ini\project.ini 里读：
+//     projectfilename   要生成哪个工程
 //     projectid         工程 ID  -> --pj-id
 //     projectrotate     旋转     -> --rotate
 //     projectbatscript  收尾脚本 -> --script
 //     projectresbuilder true = 不重新生成资源（界面上那个勾选框）
-// 命令行显式给的选项优先于 project.ini。所以启动脚本可以是干净的一行：
-//     cd project && ..\..\..\QtToolBin.exe --run-resbuilder <...>
+// 命令行显式给的选项优先于 project.ini。所以启动命令可以是干净的一行：
+//     cd project && ..\tool\UITools.exe --gen --run-resbuilder
 //
 // 产出：project.bin / ename.h / Resbuilder.xml / debug.txt
 #include <QApplication>
@@ -101,9 +108,11 @@ int compareOne(const QString &mine, const QString &ref)
 
 } // namespace
 
-int main(int argc, char *argv[])
+/* 由 src/main.cpp 的子命令分发调进来（UITools --gen）。这里自己建
+ * QApplication / QCoreApplication —— 分发发生在任何 Q*Application 构造之前。 */
+int toolbinMain(int argc, char *argv[])
 {
-    /* 默认是弹窗工具：双击 step2 出界面、点「生成资源文件(F5)」才干活。
+    /* 默认是弹窗工具：不给生成类选项就出界面、点「生成资源文件(F5)」才干活。
      * 但只要给了任何一个生成类选项，就当成命令行调用不弹窗
      * —— compat/verify_toolchain.py 和 step2 之外的自动化都走那条路。
      *
@@ -129,11 +138,21 @@ int main(int argc, char *argv[])
     }
 
 #ifdef Q_OS_WIN
-    /* 这个 exe 是 WIN32 子系统的 —— 双击 step2 弹界面时才不会顺带蹦一个黑窗口。
-     * 代价是命令行模式下 stdout 没接到父进程的控制台，在 cmd 里跑什么都看不见
-     * （重定向到文件/管道是好的，所以验收脚本一直正常）。这里把父进程的控制台
-     * 接回来，命令行模式就和普通控制台程序一样了。 */
-    if (!wantGui && AttachConsole(ATTACH_PARENT_PROCESS)) {
+    /* 这个 exe 是 WIN32 子系统的 —— 双击弹界面时才不会顺带蹦一个黑窗口。
+     * 代价是命令行模式下 stdout 没接到父进程的控制台，在 cmd 里跑什么都看不见。
+     * 这里把父进程的控制台接回来，命令行模式就和普通控制台程序一样了。
+     *
+     * 【但已经被重定向了就绝对不能接】父进程有控制台时 AttachConsole 会成功，
+     * 紧接着那两句 freopen("CONOUT$") 会把**已经指向文件/管道的 stdout 顶掉**，
+     * 输出全跑到控制台里去，重定向的那一头收到的是空文件。
+     * 这一段原来的注释写的是"重定向到文件/管道是好的"，实际相反 ——
+     * 验收脚本一直收不到这个 exe 的输出，只是它只看退出码才没暴露。
+     * 所以先问一句 stdout 是不是磁盘文件或管道，是就什么都别做。 */
+    const HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    const DWORD ftOut = (hOut && hOut != INVALID_HANDLE_VALUE) ? GetFileType(hOut)
+                                                               : FILE_TYPE_UNKNOWN;
+    const bool redirected = (ftOut == FILE_TYPE_DISK || ftOut == FILE_TYPE_PIPE);
+    if (!wantGui && !redirected && AttachConsole(ATTACH_PARENT_PROCESS)) {
         FILE *dummy = nullptr;
         freopen_s(&dummy, "CONOUT$", "w", stdout);
         freopen_s(&dummy, "CONOUT$", "w", stderr);
@@ -427,7 +446,15 @@ int main(int argc, char *argv[])
         } else if (a == QLatin1String("--verify")) {
             refDir = next();
         } else if (a == QLatin1String("--run-resbuilder")) {
-            resbuilderExe = next();
+            /* 【路径可给可不给】打包已经是本 exe 的 --pack 子命令了，正常用法是
+             * 光写 --run-resbuilder。只有下一个参数不像选项时才当路径吃掉，
+             * 免得把 --script 之类的顺手吞了；给了也只是个提示，文件不存在
+             * 就退回起自己（见下面真正调用的地方）。 */
+            if (i + 1 < args.size() && !args.at(i + 1).startsWith(QLatin1Char('-'))) {
+                resbuilderExe = next();
+            } else {
+                resbuilderExe = QStringLiteral("-");   // 非空 = 要跑打包
+            }
         } else if (a == QLatin1String("--script")) {
             script = next();
             scriptSet = true;
@@ -443,11 +470,13 @@ int main(int argc, char *argv[])
                    || a == QLatin1String("--shot-feature")) {
             next();   // 值在界面分支里单独取，这里只是别让它掉进"工程 json"
         } else if (a == QLatin1String("-h") || a == QLatin1String("--help")) {
-            out() << QStringLiteral("用法: QtToolBin <工程.json> [--pj-id N] [--rotate N] [--option-ini 路径]\n"
-                "                [--excel 路径] [--language 0xNN] [--ename ename.h]\n"
-                "                [-o 输出目录] [--verify 参考目录]\n"
-                "                [--run-resbuilder ResBuilder.exe] [--script bat|--no-script]\n"
-                "                [--verify-resxml 工程目录 [--report 文件]]\n");
+            out() << QStringLiteral("用法: UITools --gen <工程文件> [--pj-id N] [--rotate N] [--option-ini 路径]\n"
+                "                     [--excel 路径] [--language 0xNN] [--ename ename.h]\n"
+                "                     [-o 输出目录] [--verify 参考目录]\n"
+                "                     [--run-resbuilder] [--script bat|--no-script]\n"
+                "                     [--verify-resxml 工程目录 [--report 文件]]\n"
+                "  --run-resbuilder 后面的路径可以不给；给了但文件不存在时\n"
+                "  自动退回起本 exe 的 --pack（老脚本传的 ResBuilder.exe 就是这种）\n");
             out().flush();
             return 0;
         } else if (!a.startsWith(QLatin1Char('-'))) {
@@ -600,9 +629,10 @@ int main(int argc, char *argv[])
             }
         }
     }
-    // 多国语言 xls：命令行没给就在工具目录里找唯一的那个
+    /* 多国语言 xls：命令行没给就自己找。先看**工程目录** —— 语言表跟着工程走，
+     * 和 config\pic_lcd\ 里的图片同类；工具目录只是老布局的兜底。 */
     if (opt.excelPath.isEmpty()) {
-        for (const QString &r : toolRoots) {
+        for (const QString &r : QStringList{ projDir } + toolRoots) {
             const QString x = assets::i18nXls(r);
             if (!x.isEmpty()) {
                 opt.excelPath = x;
@@ -692,17 +722,28 @@ int main(int argc, char *argv[])
         resbuilderExe.clear();
     }
     if (!resbuilderExe.isEmpty()) {
-        out() << QStringLiteral("\n调 ResBuilder…\n");
+        /* 打包这一段现在是本 exe 的 --pack 子命令。
+         *
+         * 【--run-resbuilder 后面那个路径还认，但可以不给】老脚本传的是
+         * ...\ResBuilder.exe，那个 exe 已经不存在了；指向一个不存在的文件
+         * 时就退回起自己 --pack，行为完全一样。这样既有的调用不用改也能跑。 */
+        QString exe = resbuilderExe;
+        QStringList extra;
+        if (exe.isEmpty() || !QFile::exists(exe)) {
+            exe = QCoreApplication::applicationFilePath();
+            extra << QStringLiteral("--pack");
+        }
+        out() << QStringLiteral("\n打包资源…\n");
         out().flush();
         QProcess p;
         p.setWorkingDirectory(outDir);
-        p.start(resbuilderExe, QStringList()
+        p.start(exe, extra + QStringList()
                 << dir.absoluteFilePath(QStringLiteral("Resbuilder.xml"))
                 << QStringLiteral("-o") << outDir);
         p.waitForFinished(-1);
         out() << QString::fromLocal8Bit(p.readAllStandardOutput());
         if (p.exitCode() != 0) {
-            out() << QStringLiteral("ResBuilder 返回 %1\n").arg(p.exitCode());
+            out() << QStringLiteral("资源打包返回 %1\n").arg(p.exitCode());
             rc |= 1;
         }
         out().flush();

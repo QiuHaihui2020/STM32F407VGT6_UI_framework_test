@@ -133,9 +133,47 @@ ScenesScreen::~ScenesScreen()
     m_forms.clear();
 }
 
+/**
+ * 画布底图记在哪一个设置键上。
+ *
+ * 【底图是编辑器的参考图，不是工程数据】它只影响你在画布上看到什么，
+ * 不进资源、固件也不知道有这回事。所以和"预览文字""预览配色"一样，
+ * 存进 <工程目录>/Application Data/ui-config，**不写进工程 json**。
+ *
+ * 以前是 setExtra("background_image", 绝对路径)，那有两个毛病：
+ * 往工程 json 里塞了一个这个格式里没有的顶层键，值还是本机绝对路径，
+ * 换台机器就失效；而且从头到尾没有任何地方读它 —— 存了也恢复不出来。
+ *
+ * @return 空表示这一页没名字，记不了。
+ */
+static QString canvasBgKey(const UiNode *page)
+{
+    if (!page || page->name.isEmpty()) {
+        return QString();
+    }
+    const QString dir = PropertyContext::instance().projectDir;
+    const QString proj = dir.isEmpty() ? QStringLiteral("_")
+                                       : QFileInfo(dir).fileName();
+    return QStringLiteral("canvasBg/%1/%2").arg(proj, page->name);
+}
+
 void ScenesScreen::setPage(UiNode *page)
 {
     m_page = page;
+    /* 换页要把这一页自己的底图取回来 —— 不然上一页的底图会留在画布上。 */
+    m_bgImage = QPixmap();
+    const QString key = canvasBgKey(page);
+    if (!key.isEmpty()) {
+        const QString rel = GlobalSettings::value(key).toString();
+        if (!rel.isEmpty()) {
+            const QString dir = PropertyContext::instance().projectDir;
+            const QString abs = QFileInfo(rel).isAbsolute()
+                                ? rel : QDir(dir).absoluteFilePath(rel);
+            if (QFileInfo::exists(abs)) {
+                m_bgImage = QPixmap(abs);
+            }
+        }
+    }
     rebuild();
 }
 
@@ -653,8 +691,16 @@ void ScenesScreen::setShowGrid(bool on)
 void ScenesScreen::setBackgroundImage(const QString &path)
 {
     m_bgImage = path.isEmpty() ? QPixmap() : QPixmap(path);
-    if (m_page) {
-        m_page->setExtra(QStringLiteral("background_image"), path);
+    /* 存成**相对工程目录**的路径，换台机器、整个目录搬走都还找得到。
+     * 跨盘符时 relativeFilePath 会返回绝对路径，那就存绝对的，读的那侧两种都认。 */
+    const QString key = canvasBgKey(m_page);
+    if (!key.isEmpty()) {
+        QString v = path;
+        const QString dir = PropertyContext::instance().projectDir;
+        if (!path.isEmpty() && !dir.isEmpty()) {
+            v = QDir(dir).relativeFilePath(path);
+        }
+        GlobalSettings::setValue(key, v);
     }
     update();
 }

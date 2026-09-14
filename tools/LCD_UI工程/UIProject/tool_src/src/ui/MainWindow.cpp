@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QAbstractSpinBox>
 #include <QWheelEvent>
+#include <QDesktopServices>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
@@ -679,7 +680,9 @@ void MainWindow::refreshPropertyContext(const QString &projectJson)
         xls = QDir(ctx.projectDir).absoluteFilePath(xls);
     }
     if (xls.isEmpty() || !QFileInfo::exists(xls)) {
-        QStringList roots{ m_mgr->toolsRoot() };
+        /* 语言表跟着**工程**走（和 config\pic_lcd\ 里的图片同类，都是这个界面
+         * 的素材），所以先看工程目录；工具目录只是老布局的兜底。 */
+        QStringList roots{ ctx.projectDir, m_mgr->toolsRoot() };
         for (const char *up : { "../tool", "../../tool",
                                 "../../../UIToolkit", "../../../UITools" }) {
             roots << QDir::cleanPath(QDir(ctx.projectDir)
@@ -5068,9 +5071,14 @@ void MainWindow::onChangeBackgroud()
     }
 
     auto *color = new QPushButton(QStringLiteral("修改背景色"), &dlg);
+    /* 【这个按钮是必须的】这个目录不预先创建 —— 工具目录里只留会被写的东西，
+     * 空目录不摆。那人就没法从资源管理器里"找到"它。点一下当场建出来再打开，
+     * 图片拖进去、重开这个对话框就列出来了。 */
+    auto *open = new QPushButton(QStringLiteral("打开图片目录"), &dlg);
     auto *close = new QPushButton(QStringLiteral("关闭"), &dlg);
     auto *row = new QHBoxLayout;
     row->addWidget(color);
+    row->addWidget(open);
     row->addStretch();
     row->addWidget(close);
 
@@ -5084,6 +5092,15 @@ void MainWindow::onChangeBackgroud()
         if (ScenesScreen *s = m_mgr->currentScreen()) {
             s->onChangedBackgroundColor();
         }
+    });
+    connect(open, &QPushButton::clicked, this, [this, &dlg]() {
+        const QString d = assets::canvasDir(m_mgr->toolsRoot());
+        if (!QDir().mkpath(d)) {
+            QMessageBox::warning(&dlg, QStringLiteral("打开图片目录"),
+                                 QStringLiteral("建不了 %1").arg(QDir::toNativeSeparators(d)));
+            return;
+        }
+        QDesktopServices::openUrl(QUrl::fromLocalFile(d));
     });
     connect(close, &QPushButton::clicked, &dlg, &QDialog::accept);
     dlg.exec();

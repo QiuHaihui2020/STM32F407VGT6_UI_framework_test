@@ -52,7 +52,7 @@
                 <endian>LITTLEENDIAN</endian>
                 <paneltype>LCDPANEL</paneltype>
                 <picture_path>NULL</picture_path>
-                <excel_path>../tool/assets/i18n_128_64.xls</excel_path>
+                <excel_path>i18n_128_64.xls</excel_path>
                 <PageList>
                         <Page id="0">
                                 <ColorList>

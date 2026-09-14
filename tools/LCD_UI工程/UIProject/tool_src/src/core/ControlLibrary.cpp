@@ -3,6 +3,7 @@
 #include "AssetPaths.h"
 
 #include <QDir>
+#include <QMap>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -20,15 +21,25 @@ bool ControlLibrary::load(const QString &uiToolsRoot, QString *err)
     }
     const int builtinCount = m_controls.size();
 
-    /* 扩展控件：自定义控件目录里的 *.json。往这个目录丢文件就能加控件，
-     * 缺目录不算错误。 */
-    QDir exDir(assets::widgetsDir(uiToolsRoot));
-    if (exDir.exists()) {
-        const QStringList files = exDir.entryList(QStringList() << QStringLiteral("*.json"),
-                                                  QDir::Files, QDir::Name);
-        for (const QString &fn : files) {
-            loadOne(exDir.filePath(fn), nullptr);   // 单个扩展坏了不拖垮整体
+    /* 扩展控件：内置的（编在 exe 里）+ 磁盘上自定义控件目录里的，两边合并。
+     *
+     * 【同名时外部赢】按文件名去重，外部目录后扫、直接覆盖同名的内置项 ——
+     * 想改内置的 slider，把它拷到磁盘那个目录里改就行，不用碰 exe。
+     * 往那个目录丢文件就能加控件；目录不存在不算错误（还没存过东西而已）。 */
+    QMap<QString, QString> ext;                     // 文件名 -> 完整路径
+    for (const QString &d : { assets::builtinWidgetsDir(),
+                              assets::widgetsDir(uiToolsRoot) }) {
+        QDir dir(d);
+        if (!dir.exists()) {
+            continue;
         }
+        for (const QString &fn : dir.entryList(QStringList() << QStringLiteral("*.json"),
+                                               QDir::Files, QDir::Name)) {
+            ext.insert(fn, dir.filePath(fn));
+        }
+    }
+    for (const QString &p : ext) {
+        loadOne(p, nullptr);                        // 单个扩展坏了不拖垮整体
     }
     for (int i = builtinCount; i < m_controls.size(); ++i) {
         m_controls[i].isExtension = true;

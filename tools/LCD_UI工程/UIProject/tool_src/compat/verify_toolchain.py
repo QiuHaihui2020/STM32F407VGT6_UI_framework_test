@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""整链校验：用 QtToolBin + ResBuilder 跑一遍，和工程目录里现成的产物逐字节对比。
+"""整链校验：用 UITools 的 --gen / --pack 跑一遍，和工程目录里现成的产物逐字节对比。
 
     python verify_toolchain.py <bin 目录> <工程目录> [输出目录]
 
@@ -212,7 +212,7 @@ def main():
         # 生成的那个工程**留下的 —— 谁最后生成就是谁的。
         # 原来取 jsons[0]（字典序＝TFT），一旦有人用 oled 跑过一次 step2，
         # 就变成"拿 TFT 的产物去比 oled 的参考"，报一堆假的不合格。
-        # QtToolBin 自己不带 json 参数时读的就是 project.ini，这里跟它一致。
+        # --gen 自己不带工程参数时读的就是 project.ini，这里跟它一致。
         ini = os.path.join(proj, 'config', 'ini', 'project.ini')
         if os.path.exists(ini):
             for line in io.open(ini, encoding='utf-8', errors='replace'):
@@ -266,7 +266,7 @@ def main():
                   % (prod, len(cur) if cur else 0, len(want)))
 
     # 【跑之前把参考产物拍个快照，跑完原样放回去】
-    # ResBuilder 的产物是"就地"落在工程目录里的（-o 只管得住 QtToolBin），
+    # 打包的产物是"就地"落在工程目录里的（-o 只管得住 --gen 那一半），
     # 于是每跑一次校验，工程目录里那份**参考就被自己的输出顶掉**。
     # 更糟的是拿 oled 跑一次，TFT 的参考就成了 oled 的产物，下次比对
     # 报一堆假的不合格 —— 2026-09-10 就这么把 ename.h 从 8644 顶成 9101。
@@ -292,10 +292,10 @@ def main():
         if restored:
             print('（已把工程目录里被覆盖的参考恢复原样：%s）' % ', '.join(restored))
 
-    cmd = [os.path.join(bindir, 'QtToolBin.exe'), jsonp,
+    cmd = [os.path.join(bindir, 'UITools.exe'), '--gen', jsonp,
            '--ename', os.path.join(proj, 'ename.h'),
            '--excel', xls, '-o', outdir, '--no-script',
-           '--run-resbuilder', os.path.join(bindir, 'ResBuilder.exe')]
+           '--run-resbuilder']
     r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
         restore()
