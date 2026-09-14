@@ -1,6 +1,7 @@
 [Project]
 Size=128*64
-CustomTemplateDir=../../../UIToolkit/control/ex
+CustomTemplateDir=../tool/assets/widgets.d
 Dir=.
 ImageDir=config
-TemplateJson=../../../UIToolkit/control/control.json
+LangugeFile=i18n_128_64.xls
+TemplateJson=

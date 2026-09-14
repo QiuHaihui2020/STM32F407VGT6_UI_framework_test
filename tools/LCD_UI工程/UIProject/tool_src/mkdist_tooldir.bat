@@ -76,6 +76,12 @@ rem          projectdir\screen\      file-association + new-project scripts,
 rem                                  project\ui-config, project\copy_file.bat
 rem          projectdir\newproject\  empty project.ini, pic dir
 rem
+rem      newproject\ is copied SECOND and overwrites same-named files. It used
+rem      to carry its own project\ui-config with the pre-reorg UIToolkit paths,
+rem      which silently clobbered the correct one from screen\ - every new
+rem      project then shipped dead paths. Keep ui-config in screen\ only:
+rem      one copy, no overwrite, no drift.
+rem
 rem      This one is read-only and would qualify for going into the exe, but
 rem      its file names are Chinese and CMake/ninja cannot handle non-ASCII
 rem      paths in a .qrc (the dependency comes out as "??????.bat" and the

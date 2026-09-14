@@ -256,6 +256,11 @@ void ProjectModel::clear()
     m_rootRaw = QJsonObject();
     m_path.clear();
     m_activePage = 0;
+    /* 多国语言表是**每个工程自己的素材**，不清的话会跟着漏进下一个工程：
+     * createDefault() 只设 -name，不碰这个，于是新建出来的工程 lang_excel
+     * 还指着上一个工程的 xls，而且会被 toJsonBytes() 原样写进文件。
+     * load() 紧接着就从 json 里读回来，清了不影响打开。 */
+    m_langExcel.clear();
     m_dirty = false;
 }
 
