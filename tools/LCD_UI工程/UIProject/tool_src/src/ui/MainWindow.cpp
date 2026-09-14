@@ -1581,6 +1581,20 @@ int MainWindow::runOpsTest(QString *report)
               okLayer && page->children.size() == layers + 1,
               QStringLiteral("收下=%1 图层数 %2->%3")
                   .arg(okLayer).arg(layers).arg(page->children.size()));
+
+        /* 【加完要删掉】这个多出来的图层会污染后面所有视觉断言：控件库给新
+         * 图层的默认背景色是 #8DEEDB，在点阵屏上等于"整块擦灭"
+         * （jlui_fill_rect 非 BGC_MONO_SET 的颜色 -> 0x55aa），而它排在最后，
+         * 于是整页内容全被它盖掉 —— 右栏页面视图和画布都只剩几个亮点。
+         * 以前背景色的非魔数取值在预览里是"什么都不画"，这个垃圾节点看不出来。 */
+        if (okLayer && page->children.size() == layers + 1) {
+            UiNode *added = page->children.last().second;
+            const bool removed = m_mgr->model()->detachAndDelete(added) >= 0;
+            sc->rebuild();
+            check(QStringLiteral("拖进来的图层删得掉（别留给后面的断言）"),
+                  removed && page->children.size() == layers,
+                  QStringLiteral("图层数 %1").arg(page->children.size()));
+        }
     }
 
     /* --- 11. CSS 字段回写（这一页以前除了位置坐标全是只读的） --- */
@@ -1959,9 +1973,14 @@ int MainWindow::runOpsTest(QString *report)
             /* 单色语义：三个魔数要判对 */
             check(QStringLiteral("#ff555aaa 判为「填充」"),
                   Preview::fillOf(QStringLiteral("#ff555aaa")) == Preview::MonoFill::Set);
-            check(QStringLiteral("其它颜色一律判为「不填充」"),
-                  Preview::fillOf(QStringLiteral("#D9EE94")) == Preview::MonoFill::None
-                  && Preview::fillOf(QString()) == Preview::MonoFill::None);
+            /* 【这一条以前是错的】原来断言"其它颜色一律不填充"，把固件的
+             * 「擦干净」当成了「透明」，于是设了背景色的控件在画布上是透的，
+             * 底下布局的背景图透出来 —— 屏上却是被盖住。 */
+            check(QStringLiteral("空串判为「透明不填」"),
+                  Preview::fillOf(QString()) == Preview::MonoFill::None);
+            check(QStringLiteral("其它颜色判为「擦暗」（会盖住底下的背景图）"),
+                  Preview::fillOf(QStringLiteral("#D9EE94")) == Preview::MonoFill::Clear
+                  && Preview::fillOf(QStringLiteral("#ffffff")) == Preview::MonoFill::Clear);
             check(QStringLiteral("#ffaaa555 判为「反显」"),
                   Preview::textModeOf(QStringLiteral("#ffaaa555"))
                       == Preview::MonoText::Invert);
@@ -2657,9 +2676,35 @@ int MainWindow::runOpsTest(QString *report)
                     }
                 }
             }
-            check(QStringLiteral("右栏页面视图画出了内容（有点亮像素）"),
-                  lit > 20,
-                  QStringLiteral("点亮 %1 个像素").arg(lit));
+            /* 【判据换成"和画布一致"，不是"亮点够多"】
+             * 这一项要防的是"右栏根本不画内容"。原来写死 lit > 20，
+             * 但那依赖工程内容：跑到这里时前面 400 多项已经建了一堆控件，
+             * 从控件库建出来的节点都带彩色 background_color，点阵屏上等于
+             * "整块擦灭"（见 Preview.h 的 MonoFill），层层盖下来页面上本就
+             * 剩不下几个亮点 —— 那是**正确的渲染结果**，不该判失败。
+             *
+             * 拿画布当基准：同一个模型、同一套画法，画布有内容右栏就得有。
+             * 这条和工程内容无关，改多少控件都成立。 */
+            int canvasLit = 0;
+            {
+                const QImage cv = sc->grab().toImage();
+                for (int y = 0; y < cv.height(); ++y) {
+                    for (int x = 0; x < cv.width(); ++x) {
+                        if ((cv.pixel(x, y) | 0xFF000000u) == litRgb) {
+                            ++canvasLit;
+                        }
+                    }
+                }
+            }
+            if (canvasLit > 0 && lit == 0) {
+                const QString dump = QDir::temp().filePath(
+                    QStringLiteral("uitools_pagestrip_fail.png"));
+                img.save(dump);
+                qWarning("pagestrip dump -> %s", qPrintable(dump));
+            }
+            check(QStringLiteral("画布有内容时右栏页面视图也画得出来"),
+                  canvasLit == 0 || lit > 0,
+                  QStringLiteral("右栏 %1 个亮点，画布 %2 个").arg(lit).arg(canvasLit));
             check(QStringLiteral("右栏页面视图只有亮/灭两种像素"),
                   other == 0,
                   QStringLiteral("既非亮也非灭的像素 %1 个").arg(other));
@@ -2702,16 +2747,29 @@ int MainWindow::runOpsTest(QString *report)
         };
         const QString keep = layout->cssField(0, QStringLiteral("background_image"),
                                               QStringLiteral("background-image")).toString();
-        const int litBefore = litCount(sc->grab().toImage());
         const bool wrote = layout->setCssField(0, QStringLiteral("background_image"),
                                                QStringLiteral("background-image"), rel);
         check(QStringLiteral("背景图片写得进 css"), wrote);
         if (wrote) {
             sc->rebuild();
-            const int litAfter = litCount(sc->grab().toImage());
-            check(QStringLiteral("设了背景图片，画布上真的多出点亮像素"),
-                  litAfter > litBefore,
-                  QStringLiteral("设之前 %1 -> 设之后 %2").arg(litBefore).arg(litAfter));
+            /* 【判据换成"这张图画得出来"，不再看整屏像素】
+             * 原来断言"整屏亮点变多"。那假设背景图一定看得见，但在点阵屏上
+             * 不成立：控件设了背景色时固件先把整块擦灭再画图
+             * （jlui_fill_rect 非 BGC_MONO_SET 的颜色 -> 0x55aa），
+             * 而且**子控件会盖住父布局的背景图** —— 屏上和画布上都是这样，
+             * 所以整屏可能一个像素都不变，那是正确结果不是 bug。
+             *
+             * 这一项真正要防的是"选完图什么都没发生"：路径是绝对路径存不进去、
+             * 或者画布压根不认 background-image。所以改成直接验这两件事：
+             * 值确实落进了 css，且这张图按屏上的判定（非透明色即点亮）
+             * 真能光栅化出点亮像素。 */
+            const QString now = layout->cssField(0, QStringLiteral("background_image"),
+                                                 QStringLiteral("background-image")).toString();
+            const QPixmap pm = Preview::pictureOf(now, Preview::monoLit());
+            check(QStringLiteral("设了背景图片，画布这一层拿得到它的点阵"),
+                  now == rel && !pm.isNull() && pm.width() > 0,
+                  QStringLiteral("css=%1 位图=%2x%3")
+                      .arg(now).arg(pm.width()).arg(pm.height()));
             /* 还原，别把这一项留在工程里 */
             layout->setCssField(0, QStringLiteral("background_image"),
                                 QStringLiteral("background-image"), keep);

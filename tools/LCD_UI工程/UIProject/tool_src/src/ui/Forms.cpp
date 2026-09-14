@@ -328,7 +328,8 @@ void CanvasItem::paintEvent(QPaintEvent *)
         ? m_node->cssField(0, QStringLiteral("background_color"),
                            QStringLiteral("background-color")).toString()
         : QString();
-    const bool fill = Preview::fillOf(bgCss) == Preview::MonoFill::Set;
+    const Preview::MonoFill bgFill = Preview::fillOf(bgCss);
+    const bool fill = bgFill == Preview::MonoFill::Set;
 
     QString txtCss;
     if (m_node) {
@@ -347,6 +348,12 @@ void CanvasItem::paintEvent(QPaintEvent *)
     /* 底：填充 = 点亮成白；反显文字也要先把整块点亮（固件就是先 fill 再挖字） */
     if (fill || tm == Preview::MonoText::Invert) {
         p.fillRect(rect(), Preview::monoLit());
+    } else if (bgFill == Preview::MonoFill::Clear) {
+        /* 【设了背景色 = 先擦干净】固件 jlui_fill_rect 对非 BGC_MONO_SET 的颜色
+         * 是逐点 0x55aa（&= ~BIT），把这块擦成"灭"。所以这个控件会**盖住**底下
+         * 布局的背景图，而不是透明叠加。不画这一笔的话，画布上看到的是叠加，
+         * 和屏上不一致 —— 这正是"图片叠在背景图上"那个现象的成因。 */
+        p.fillRect(rect(), Preview::monoDark());
     }
 
     /* 内容：图片/文字/数字。反显时字要画成"灭"。

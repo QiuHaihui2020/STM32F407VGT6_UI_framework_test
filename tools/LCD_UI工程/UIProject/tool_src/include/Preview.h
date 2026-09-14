@@ -96,10 +96,21 @@ QPixmap contentOf(UiNode *n, const QColor &lit);
  *
  * 实测这套工程里 #ff555aaa 用了 8 次 —— 设计师确实在用这个魔数表示"填充"。
  */
-enum class MonoFill { None, Set };
+/** 背景色在点阵屏上的三种效果。**三种，不是两种** —— 少一种就会把
+ *  "擦干净再画" 画成 "透明叠加"，预览和实机对不上。
+ *
+ *  固件那条链（ui_core_show_rect + jlui_fill_rect）：
+ *    background_color == 0xFFFFFF          -> 根本不 fill        = None
+ *    否则 fill_rect(色)：
+ *        == UI_RGB565(BGC_MONO_SET)        -> 全亮               = Set
+ *        其它任何颜色                       -> 0x55aa -> 全清     = Clear
+ *
+ *  而 StyBuilder::argbTo565() 只有**空串**才输出 0xFFFFFF，任何有效颜色
+ *  都会被降成 565（≤0xFFFF）。所以：空 = 透明，设了色 = 一定会 fill。 */
+enum class MonoFill { None, Clear, Set };
 enum class MonoText { Normal, Invert, Hidden };
 
-/** 背景色字符串 -> 填不填。 */
+/** 背景色字符串 -> 不填 / 擦暗 / 点亮。 */
 MonoFill fillOf(const QString &cssColor);
 /** 文字色字符串 -> 正常/反显/不显示。 */
 MonoText textModeOf(const QString &cssColor);
@@ -117,7 +128,8 @@ bool borderVisible(const QString &cssColor);
 bool isMonoLayer(const UiNode *n);
 
 /* 固件认的三个魔数，写属性时用这几个常量，别在别处再抄一遍字面量 */
-extern const char *const kMonoFillOn;    ///< "#ff555aaa" 背景填充 / 文字不显示 / 边框不画
+extern const char *const kMonoFillOn;    ///< "#ff555aaa" 背景填充(亮) / 文字不显示 / 边框不画
+extern const char *const kMonoFillOff;   ///< "#ff000000" 背景擦除(灭)：会盖住底下的背景图
 extern const char *const kMonoInvert;    ///< "#ffaaa555" 文字反显
 extern const char *const kMonoLit;       ///< "#ffffffff" 普通点亮（工程里 254 处在用）
 

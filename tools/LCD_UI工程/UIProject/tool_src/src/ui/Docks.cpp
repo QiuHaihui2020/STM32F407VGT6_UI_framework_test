@@ -383,10 +383,13 @@ private:
         }
         const Preview::MonoText tm = Preview::textModeOf(txtCss);
 
-        /* 底：只有魔数 0x555AAA 才填充；反显也要先把整块点亮 */
-        if (Preview::fillOf(bgCss) == Preview::MonoFill::Set
-            || tm == Preview::MonoText::Invert) {
+        /* 底：魔数 0x555AAA 填成亮，别的颜色是"擦暗"（会盖住底下的背景图），
+         * 空串才是透明。三种都要画对，见 Preview.h 的 MonoFill。 */
+        const Preview::MonoFill bgFill = Preview::fillOf(bgCss);
+        if (bgFill == Preview::MonoFill::Set || tm == Preview::MonoText::Invert) {
             p.fillRect(box, Preview::monoLit());
+        } else if (bgFill == Preview::MonoFill::Clear) {
+            p.fillRect(box, Preview::monoDark());
         }
 
         /* 背景图片：和画布同一套判定（见 Forms.cpp） */

@@ -899,27 +899,45 @@ void CssPropertyPane::showNode(UiNode *n)
         } else if (ptype == QLatin1String("background-color")) {
             const QString cur = po.value(QStringLiteral("background-color")).toString();
             if (Preview::isMonoLayer(n)) {
-                /* 【单色屏不给取色器】屏上只有亮/灭。固件 jlui_fill_rect 在 MONO
-                 * 下只认一个值：颜色 == 0x555AAA 才填充，其余**一律清除**。
-                 * 也就是说这里放个 RGB 取色器纯属误导 —— 挑了半天绿色，设备上
-                 * 只有"不填充"一种结果。实测这套工程 21 种背景色取值里，只有
-                 * #ff555aaa（8 处）是有效果的。
-                 * 换成两选一，底下写的还是同一个魔数，产物一个字节不变。 */
+                /* 【单色屏不给取色器，但要给全三种】屏上只有亮/灭，放 RGB 取色器
+                 * 纯属误导。但**固件其实有三种行为**，以前这里只给了两种：
+                 *
+                 *   ui_core_show_rect: background_color != 0xffffff 才 fill_rect
+                 *   jlui_fill_rect(MONO): == BGC_MONO_SET ? 0xffff(全亮) : 0x55aa(全灭)
+                 *   而 argbTo565() 只有**空串**才输出 0xFFFFFF
+                 *
+                 *   空串          -> 不 fill          -> 透明，底下的背景图透出来
+                 *   #ff555aaa     -> fill 0xffff      -> 整块点亮
+                 *   其它任何颜色   -> fill 0x55aa      -> 整块擦灭 ← 以前选不出来
+                 *
+                 * 少了第三种的后果：控件没法"盖住"底下布局的背景图，只能叠加。
+                 * 复刻老设备的界面时，字段框正是要先擦干净再画帧的。
+                 * 第三种写 #ff000000（565 后是 0，既不是 0xFFFFFF 也不是魔数）。 */
                 m_box->addWidget(new QLabel(cap.isEmpty() ? QStringLiteral("背景") : cap, this));
                 auto *cb = new QComboBox(this);
                 cb->setFont(monoFont());
-                cb->addItem(QStringLiteral("不填充"));
-                cb->addItem(QStringLiteral("填充"));
-                cb->setCurrentIndex(Preview::fillOf(cur) == Preview::MonoFill::Set ? 1 : 0);
+                cb->addItem(QStringLiteral("不填充（透明）"));
+                cb->addItem(QStringLiteral("填充（亮）"));
+                cb->addItem(QStringLiteral("擦除（灭，盖住底下）"));
+                const Preview::MonoFill mf = Preview::fillOf(cur);
+                cb->setCurrentIndex(mf == Preview::MonoFill::Set ? 1
+                                    : mf == Preview::MonoFill::Clear ? 2 : 0);
                 cb->setToolTip(QStringLiteral(
-                    "单色屏只有亮/灭。填充 = 写 %1（固件 BGC_MONO_SET），"
-                    "不填充 = 清空").arg(QLatin1String(Preview::kMonoFillOn)));
+                    "单色屏只有亮/灭，但填充有三种行为：\n"
+                    "不填充 = 空，底下的背景图透出来（叠加）\n"
+                    "填充   = 写 %1（固件 BGC_MONO_SET），整块点亮\n"
+                    "擦除   = 整块擦灭，会盖住底下的背景图")
+                    .arg(QLatin1String(Preview::kMonoFillOn)));
                 m_box->addWidget(cb);
                 connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
                         [this, pname](int i) {
-                            commitCss(pname, QStringLiteral("background-color"),
-                                      i == 1 ? QString::fromLatin1(Preview::kMonoFillOn)
-                                             : QString());
+                            QString v;
+                            if (i == 1) {
+                                v = QString::fromLatin1(Preview::kMonoFillOn);
+                            } else if (i == 2) {
+                                v = QString::fromLatin1(Preview::kMonoFillOff);
+                            }
+                            commitCss(pname, QStringLiteral("background-color"), v);
                         });
             } else {
                 auto *w = new BackgroundPane(this);

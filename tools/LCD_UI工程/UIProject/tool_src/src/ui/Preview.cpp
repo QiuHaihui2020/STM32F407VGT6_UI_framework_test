@@ -391,6 +391,9 @@ const int k565_AAA555 = to565(QStringLiteral("AAA555"));
 namespace Preview {
 
 const char *const kMonoFillOn = "#ff555aaa";
+/* 擦除态随便挑一个"既不是 0xFFFFFF、也不是魔数"的值即可；取黑最不容易误解。
+ * argbTo565() 会把它降成 565 的 0，固件那边落进 0x55aa 分支 = 整块擦灭。 */
+const char *const kMonoFillOff = "#ff000000";
 const char *const kMonoInvert = "#ffaaa555";
 const char *const kMonoLit    = "#ffffffff";
 
@@ -413,9 +416,21 @@ bool isMonoLayer(const UiNode *n)
 
 MonoFill fillOf(const QString &cssColor)
 {
-    /* jlui_fill_rect: color == BGC_MONO_SET ? 点亮 : 清除
-     * 注意空串（"没设背景色"）也是清除。 */
-    return to565(cssColor) == k565_555AAA ? MonoFill::Set : MonoFill::None;
+    /* 【三种，不是两种】以前这里把「设了颜色」和「没设颜色」都当成不填，
+     * 于是设了背景色的控件在画布上是透明的，底下布局的背景图透出来 ——
+     * 屏上却是先擦干净再画。图片"叠"在背景图上而不是"盖"住它，就是这么来的。
+     *
+     * 固件：ui_core_show_rect() 只在 background_color != 0xffffff 时 fill_rect；
+     *       jlui_fill_rect() 的 MONO 分支
+     *           color == UI_RGB565(BGC_MONO_SET) ? 0xffff(全亮) : 0x55aa(全清)
+     *       draw_point() 收到 0x55aa 是 &= ~BIT，即擦暗。
+     * 而 argbTo565() 只有空串才给 0xFFFFFF，任何有效颜色都降成 565(≤0xFFFF)，
+     * 所以「设了色」必然会 fill。 */
+    const int c = to565(cssColor);
+    if (c < 0) {
+        return MonoFill::None;          // 空串/解析不了 = 透明，不动底下的东西
+    }
+    return c == k565_555AAA ? MonoFill::Set : MonoFill::Clear;
 }
 
 MonoText textModeOf(const QString &cssColor)
