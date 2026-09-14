@@ -2,17 +2,17 @@
  * MainWindow.h
  *
  * 【两个私有槽】
- *     ★ void onChangeBackgroud()                     （名字就这么拼，别改）
- *     ★ void onDobuleClickedImage(QListWidgetItem *)  （同上）
+ *     ★ void onPickCanvasBackground()                     （名字就这么拼，别改）
+ *     ★ void onCanvasBackgroundPicked(QListWidgetItem *)  （同上）
  * 两个名字都保留原样 —— 改了就对不上元数据。
  *
  * 【整体布局】
  *   - **没有菜单栏**，只有一排"图标在上、文字在下"的工具栏按钮，末尾跟一个状态文字标签
  *     （版式见 temp/Snipaste_2026-09-09_08-46-05.jpg）
  *       新建工程(P) 打开工程(O) 保存工程(S) 另存为(A) │ 新建页面(N) 删除当前页(D)
- *       │ 截屏(P) │ 全局设置 工程缩放 │ 关于(I)      初始化编辑环境完成
- *   - 左边两列 dock：TreeDock（结点/属性/ID号 三列树）+ 第二列（控件列表 + 属性区）
- *   - 右边一列 dock：PageView（每页原尺寸渲染 + 标题）
+ *       │ 截屏(P) │ 全局设置 工程缩放 │ 关于(I)      编辑器就绪
+ *   - 左边两列 dock：ObjectTreeDock（结点/属性/ID号 三列树）+ 第二列（控件列表 + 属性区）
+ *   - 右边一列 dock：PageStrip（每页原尺寸渲染 + 标题）
  *   - 中央画布，当前页**左上角对齐**（不是居中）
  *   - 也没有状态栏，状态文字在工具栏里
  */
@@ -26,16 +26,16 @@ class QScrollArea;
 class QLabel;
 class QComboBox;
 class QCloseEvent;
-class findDlg;
+class FindDialog;
 class QDockWidget;
 
-class CanvasManager;
-class TreeDock;
-class PageView;
-class CompoentControls;
-class PropertyTab;
-class ComProperty;
-class BaseForm;
+class EditorSession;
+class ObjectTreeDock;
+class PageStrip;
+class WidgetPalette;
+class PropertyDock;
+class BasicPropertyPane;
+class CanvasItem;
 class UiNode;
 
 class MainWindow : public QMainWindow
@@ -94,20 +94,20 @@ public:
                           QString *report);
 
 protected:
-    /** 退出前问一次（"是否真的退出程序?" + 未保存提示）。 */
+    /** 退出前问一次（"真的要退出吗？" + 未保存提示）。 */
     void closeEvent(QCloseEvent *e) override;
 
     /* 把工程文件（.uiproj / .json）或者工程目录拖进窗口就打开它。
-     * 画布上那套"从控件列表拖控件"是 ScenesScreen 自己处理的，它对不认识的
+     * 画布上那套"从控件列表拖控件"是 CanvasPage 自己处理的，它对不认识的
      * 载荷 ignore()，事件就冒到这一层来，两者不打架。 */
     void dragEnterEvent(QDragEnterEvent *e) override;
     void dropEvent(QDropEvent *e) override;
 
 private slots:
-    /** 右键菜单里的"查找对像"：弹 findDlg，按名字/ID号在树里定位。 */
+    /** 右键菜单里的"查找控件"：弹 FindDialog，按名字/ID号在树里定位。 */
     void onFindObject();
-    void onChangeBackgroud();                          ///< ★
-    void onDobuleClickedImage(QListWidgetItem *a0);    ///< ★
+    void onPickCanvasBackground();                          ///< ★
+    void onCanvasBackgroundPicked(QListWidgetItem *a0);    ///< ★
 
     void onProjectChanged();
     /** 只刷标题（工程名 + 改过没存的那个 *）。 */
@@ -130,16 +130,16 @@ private:
     void buildDocks();
     void applyAppStyle();
 
-    CanvasManager    *m_mgr = nullptr;
+    EditorSession    *m_mgr = nullptr;
     QScrollArea      *m_scroll = nullptr;
     QWidget          *m_canvasHost = nullptr;
-    TreeDock         *m_tree = nullptr;
-    PageView         *m_pages = nullptr;
+    ObjectTreeDock         *m_tree = nullptr;
+    PageStrip         *m_pages = nullptr;
     QDockWidget      *m_sideDock = nullptr;    ///< 第二列：控件列表 + 属性区
-    CompoentControls *m_components = nullptr;
-    PropertyTab      *m_prop = nullptr;
-    ComProperty      *m_com = nullptr;
-    findDlg          *m_find = nullptr;        ///< 查找对像框，非模态，复用同一个
+    WidgetPalette *m_components = nullptr;
+    PropertyDock      *m_prop = nullptr;
+    BasicPropertyPane      *m_com = nullptr;
+    FindDialog          *m_find = nullptr;        ///< 查找控件框，非模态，复用同一个
     QComboBox        *m_zoomBox = nullptr;     ///< 工具栏末尾的缩放下拉
     QComboBox        *m_screenBox = nullptr;   ///< 「当前画面」下拉
     QLabel           *m_screenCap = nullptr;   ///< 上面那行「当前画面 2/5」

@@ -1,4 +1,4 @@
-/* ProgressDlg.h ——
+/* ProgressBox.h ——
  * 生成资源、批量转换图片这类耗时操作的进度框。
  */
 #ifndef PROGRESSDLG_H
@@ -9,13 +9,13 @@
 class QProgressBar;
 class QLabel;
 
-class ProgressDlg : public BaseDialog
+class ProgressBox : public BaseDialog
 {
     Q_OBJECT
 
 public:
-    explicit ProgressDlg(QWidget *parent = nullptr);
-    ~ProgressDlg() override;
+    explicit ProgressBox(QWidget *parent = nullptr);
+    ~ProgressBox() override;
 
     void setRange(int lo, int hi);
     void setValue(int v);

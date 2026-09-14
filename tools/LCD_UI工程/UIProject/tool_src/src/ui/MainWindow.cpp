@@ -26,10 +26,10 @@
 #include "UiTheme.h"
 #include "GlobalSettings.h"
 #include "Preview.h"
-#include "findDlg.h"
-#include "I18nLanguage.h"
-#include "ImageFileDialog.h"
-#include "ImageListView.h"
+#include "FindDialog.h"
+#include "StringPicker.h"
+#include "ImagePicker.h"
+#include "ImageStrip.h"
 #include "ToolBinWindow.h"
 
 #include <QAction>
@@ -70,7 +70,7 @@ MainWindow::MainWindow(QWidget *parent)
      * 四列 263 / 232 / 927 / 255。 */
     resize(1694, 1032);
 
-    m_mgr = new CanvasManager(this);
+    m_mgr = new EditorSession(this);
 
     /* 中央：可滚动的画布宿主。画布贴左上角，不居中。 */
     m_canvasHost = new QWidget(this);
@@ -88,19 +88,22 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_mgr->attachHost(m_canvasHost);
 
-    connect(m_mgr, &CanvasManager::projectChanged,  this, &MainWindow::onProjectChanged);
-    connect(m_mgr, &CanvasManager::pagesChanged,    this, &MainWindow::onProjectChanged);
-    connect(m_mgr, &CanvasManager::currentPageChanged, this,
+    connect(m_mgr, &EditorSession::projectChanged,  this, &MainWindow::onProjectChanged);
+    connect(m_mgr, &EditorSession::pagesChanged,    this, &MainWindow::onProjectChanged);
+    connect(m_mgr, &EditorSession::currentPageChanged, this,
             [this](int) { onProjectChanged(); });
-    connect(m_mgr, &CanvasManager::nodeSelected,    this, &MainWindow::onNodeSelected);
-    connect(m_mgr, &CanvasManager::statusMessage,   this, &MainWindow::onStatusMessage);
+    connect(m_mgr, &EditorSession::nodeSelected,    this, &MainWindow::onNodeSelected);
+    connect(m_mgr, &EditorSession::statusMessage,   this, &MainWindow::onStatusMessage);
     /* 右键删/粘/挪层之后，树和页面栏要跟着重来 */
-    connect(m_mgr, &CanvasManager::structureChanged, this, &MainWindow::onProjectChanged);
+    connect(m_mgr, &EditorSession::structureChanged, this, &MainWindow::onProjectChanged);
     /* 脏标志一变就刷标题上那个 * —— 拖控件、改参数、保存，走的都是这一条 */
-    connect(m_mgr, &CanvasManager::dirtyChanged, this,
+    connect(m_mgr, &EditorSession::dirtyChanged, this,
             [this](bool) { refreshTitle(); });
-    connect(m_mgr, &CanvasManager::findRequested,    this, &MainWindow::onFindObject);
-    connect(m_mgr, &CanvasManager::controlDropped, this,
+    /* 另存为换了文件名，标题里的工程名也要跟着换 */
+    connect(m_mgr, &EditorSession::projectFileChanged, this,
+            [this](const QString &) { refreshTitle(); });
+    connect(m_mgr, &EditorSession::findRequested,    this, &MainWindow::onFindObject);
+    connect(m_mgr, &EditorSession::controlDropped, this,
             [this](UiNode *parent, const QString &cls, const QString &type,
                    const QPoint &pos) {
                 m_components->createDropped(parent, cls, type, pos);
@@ -123,7 +126,7 @@ void MainWindow::applyAppStyle()
 void MainWindow::buildDocks()
 {
     /* --- 第一列：对象树 --- */
-    m_tree = new TreeDock(this);
+    m_tree = new ObjectTreeDock(this);
     m_tree->setManager(m_mgr);
     m_tree->setMinimumWidth(160);
     addDockWidget(Qt::LeftDockWidgetArea, m_tree);
@@ -140,12 +143,12 @@ void MainWindow::buildDocks()
     sideLay->setContentsMargins(2, 2, 2, 2);
     sideLay->setSpacing(4);
 
-    m_components = new CompoentControls(side);
+    m_components = new WidgetPalette(side);
     m_components->setManager(m_mgr);
     m_components->setFixedHeight(304);   // 实测 y=84..388
     sideLay->addWidget(m_components, 0);
 
-    /* 属性区：ID号(ComProperty) -> CSS属性_0(PropertyTab) -> 控件专有属性
+    /* 属性区：ID号(BasicPropertyPane) -> CSS属性_0(PropertyDock) -> 控件专有属性
      * 上下次序就按这个来。 */
     auto *propArea = new BaseScrollArea(side);
     auto *propHost = new QWidget;
@@ -153,8 +156,8 @@ void MainWindow::buildDocks()
     propLay->setContentsMargins(2, 2, 2, 2);
     propLay->setSpacing(3);
 
-    m_com = new ComProperty(propHost);
-    m_prop = new PropertyTab(propHost);
+    m_com = new BasicPropertyPane(propHost);
+    m_prop = new PropertyDock(propHost);
     /* ID号 常驻在页签之上 —— 它是控件的身份，切页签不该看不见 */
     propLay->addWidget(m_com, 0);
     propLay->addWidget(m_prop, 0);
@@ -172,7 +175,7 @@ void MainWindow::buildDocks()
     splitDockWidget(m_tree, m_sideDock, Qt::Horizontal);
 
     /* --- 右列：页面 + 当前页的布局，两列并排 --- */
-    m_pages = new PageView(this);
+    m_pages = new PageStrip(this);
     m_pages->setManager(m_mgr);
     m_pages->setMinimumWidth(320);
     addDockWidget(Qt::RightDockWidgetArea, m_pages);
@@ -184,15 +187,15 @@ void MainWindow::buildDocks()
     resizeDocks({ m_tree, m_sideDock }, { 263, 232 }, Qt::Horizontal);
     resizeDocks({ m_pages }, { 370 }, Qt::Horizontal);
 
-    connect(m_tree, &TreeDock::nodeActivated, this, &MainWindow::onNodeSelected);
-    connect(m_components, &CompoentControls::nodeCreated, this,
+    connect(m_tree, &ObjectTreeDock::nodeActivated, this, &MainWindow::onNodeSelected);
+    connect(m_components, &WidgetPalette::nodeCreated, this,
             [this](UiNode *) { onProjectChanged(); });
     /* 【属性面板改了也要算"工程改过"】以前这两条只刷界面，没置模型的脏标志
      * —— UiNode::markDirty() 只管到节点（够回写用），传不到 ProjectModel。
      * 而标题上那个 * 和退出时"要不要保存"两处看的都是 ProjectModel::dirty()，
      * 结果改完参数既不显示 *、退出也不提示，一不小心就白改。 */
-    connect(m_prop, &PropertyTab::nodeEdited, this, [this](UiNode *) {
-        if (ScenesScreen *s = m_mgr->currentScreen()) {
+    connect(m_prop, &PropertyDock::nodeEdited, this, [this](UiNode *) {
+        if (CanvasPage *s = m_mgr->currentScreen()) {
             s->rebuild();
         }
         m_tree->reload();
@@ -208,7 +211,7 @@ void MainWindow::buildDocks()
     /* 【只重画，不置脏】"预览文字"只存在工具配置里，工程数据没动过，
      * 所以不能走 markDirty —— 否则标题平白带上 *、退出还问要不要保存。 */
     /* [全局设置]里改了点阵屏预览配色：右栏那些页面图也要重画一遍 */
-    connect(m_mgr, &CanvasManager::previewStyleChanged, this, [this]() {
+    connect(m_mgr, &EditorSession::previewStyleChanged, this, [this]() {
         /* [全局设置] 里改了界面配色就当场换掉整份样式表 —— 和点阵屏预览配色
          * 一样即改即见，不用重启。这两样都只影响界面长相，不进任何产物。 */
         /* 图标也得跟着换 —— 深色底下主色墨要换成浅的，否则整排图标
@@ -221,7 +224,7 @@ void MainWindow::buildDocks()
         m_pages->reload();
     });
     connect(m_com, &BaseProperty::previewOnlyChanged, this, [this]() {
-        if (ScenesScreen *s = m_mgr->currentScreen()) {
+        if (CanvasPage *s = m_mgr->currentScreen()) {
             s->rebuild();
         }
         m_pages->reload();
@@ -288,13 +291,13 @@ void MainWindow::buildToolBar()
     aExport->setShortcut(QKeySequence(Qt::Key_F5));
     tb->addSeparator();
     QAction *aShot   = addAct("screenshot.png", tr("截屏(P)"));
-    aShot->setToolTip(QStringLiteral("截取程序的界面,并保存成PNG图片"));
+    aShot->setToolTip(QStringLiteral("把当前界面存成 PNG 图片"));
     tb->addSeparator();
     QAction *aGlobal = addAct("settings.png", tr("全局设置"));
-    aGlobal->setToolTip(QStringLiteral("软件的全局设置,需要重启软件后生效."));
+    aGlobal->setToolTip(QStringLiteral("全局设置。改完要重开软件才生效。"));
     QAction *aZoom   = addAct("resize.png", tr("工程缩放"));
     aZoom->setToolTip(QStringLiteral(
-        "对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零."));
+        "按比例缩放整页。不成比例的话会截断，坐标也会被清零。"));
     tb->addSeparator();
     QAction *aAbout  = addAct("about.png", tr("关于(I)"));
 
@@ -367,7 +370,7 @@ void MainWindow::buildToolBar()
                 }
             });
     /* Ctrl+滚轮改了倍率，下拉要跟上；用 QSignalBlocker 免得又绕回去 */
-    connect(m_mgr, &CanvasManager::zoomChanged, this, [this](int z) {
+    connect(m_mgr, &EditorSession::zoomChanged, this, [this](int z) {
         const int i = m_zoomBox->findData(z);
         QSignalBlocker b(m_zoomBox);
         if (i >= 0) {
@@ -380,7 +383,7 @@ void MainWindow::buildToolBar()
     auto *aHidden = new QAction(tr("显示隐藏项"), this);
     aHidden->setCheckable(true);
     aHidden->setToolTip(tr("连属性里标了「默认隐藏」的控件也画出来"));
-    connect(aHidden, &QAction::toggled, m_mgr, &CanvasManager::setShowHidden);
+    connect(aHidden, &QAction::toggled, m_mgr, &EditorSession::setShowHidden);
     viewLay->addWidget(compactBtn(aHidden));
 
     auto *aSolo = new QAction(tr("单独预览"), this);
@@ -388,7 +391,7 @@ void MainWindow::buildToolBar()
     aSolo->setChecked(true);
     aSolo->setToolTip(tr("只画选中项所属的那一个顶层布局。这套工程一页里有 1~9 个"
                          "整屏布局互相盖死，不这么干什么都看不清"));
-    connect(aSolo, &QAction::toggled, m_mgr, &CanvasManager::setSolo);
+    connect(aSolo, &QAction::toggled, m_mgr, &EditorSession::setSolo);
     viewLay->addWidget(compactBtn(aSolo));
 
     auto *aChrome = new QAction(tr("隐藏辅助线"), this);
@@ -403,7 +406,7 @@ void MainWindow::buildToolBar()
     /* 画面导航：单独预览一次只看一个，得能快速切，不然找"音量界面在哪个布局"
      * 要去树里一个个猜。版式和上面的「预览缩放」一致 —— 标题在上、下拉在下。
      * 【没有左右箭头】下拉本身就能直接跳到任意一个，箭头是多余的一步；
-     * CanvasManager::stepScreen() 保留（--ops-test 里在测它，内部走 gotoScreen）。 */
+     * EditorSession::stepScreen() 保留（--ops-test 里在测它，内部走 gotoScreen）。 */
     viewLay->addWidget(makeVSep(viewBar));
 
     auto *screenCol = new QWidget(viewBar);
@@ -422,14 +425,14 @@ void MainWindow::buildToolBar()
     screenLay->addWidget(m_screenBox);
     viewLay->addWidget(screenCol);
     connect(m_screenBox, QOverload<int>::of(&QComboBox::activated),
-            m_mgr, &CanvasManager::gotoScreen);
-    connect(m_mgr, &CanvasManager::screenListChanged, this, &MainWindow::refreshScreenLabel);
+            m_mgr, &EditorSession::gotoScreen);
+    connect(m_mgr, &EditorSession::screenListChanged, this, &MainWindow::refreshScreenLabel);
 
 
     tb->addWidget(viewBar);
 
     /* 状态文字挂在工具栏末尾，不做独立状态栏 */
-    m_status = new QLabel(tr("初始化编辑环境完成"), tb);
+    m_status = new QLabel(tr("编辑器就绪"), tb);
     m_status->setContentsMargins(10, 0, 6, 0);
     m_status->setStyleSheet(QStringLiteral("color: #1A4FA0;"));
     /* 【必须限宽】状态文字长短不定。一旦这一排的合计 sizeHint 超出窗口宽度，
@@ -447,18 +450,18 @@ void MainWindow::buildToolBar()
     aOpen->setShortcut(QKeySequence::Open);
     aSave->setShortcut(QKeySequence::Save);
 
-    connect(aNew,     &QAction::triggered, m_mgr, &CanvasManager::onCreateNewProject);
-    connect(aOpen,    &QAction::triggered, m_mgr, &CanvasManager::onOpenProject);
-    connect(aSave,    &QAction::triggered, m_mgr, &CanvasManager::onSaveProject);
-    connect(aSaveAs,  &QAction::triggered, m_mgr, &CanvasManager::onSaveAsProject);
+    connect(aNew,     &QAction::triggered, m_mgr, &EditorSession::onCreateNewProject);
+    connect(aOpen,    &QAction::triggered, m_mgr, &EditorSession::onOpenProject);
+    connect(aSave,    &QAction::triggered, m_mgr, &EditorSession::onSaveProject);
+    connect(aSaveAs,  &QAction::triggered, m_mgr, &EditorSession::onSaveAsProject);
     connect(aExport,  &QAction::triggered, this,  &MainWindow::onExportResource);
-    connect(aShot,    &QAction::triggered, m_mgr, &CanvasManager::onSshoot);
-    connect(aGlobal,  &QAction::triggered, m_mgr, &CanvasManager::onGlobalBtn);
-    connect(aZoom,    &QAction::triggered, m_mgr, &CanvasManager::onZoomProject);
-    connect(aAbout,   &QAction::triggered, m_mgr, &CanvasManager::onAboutBtn);
+    connect(aShot,    &QAction::triggered, m_mgr, &EditorSession::onSshoot);
+    connect(aGlobal,  &QAction::triggered, m_mgr, &EditorSession::onGlobalBtn);
+    connect(aZoom,    &QAction::triggered, m_mgr, &EditorSession::onZoomProject);
+    connect(aAbout,   &QAction::triggered, m_mgr, &EditorSession::onAboutBtn);
     /* 这两个是 private slot，用字符串连接走 moc 元调用 */
-    connect(aNewPage, SIGNAL(triggered()), m_mgr, SLOT(onCreateNewScenesScreen()));
-    connect(aDelPage, SIGNAL(triggered()), m_mgr, SLOT(onDelCurrentScenesScreen()));
+    connect(aNewPage, SIGNAL(triggered()), m_mgr, SLOT(onCreateNewPage()));
+    connect(aDelPage, SIGNAL(triggered()), m_mgr, SLOT(onDeleteCurrentPage()));
 
     /* 不常用的入口放右键菜单里，不占工具栏的位置 */
     addAction(aNew);
@@ -466,10 +469,10 @@ void MainWindow::buildToolBar()
     connect(aDump, &QAction::triggered, this, &MainWindow::onDumpSty);
     addAction(aDump);
     auto *aBg = new QAction(tr("画布背景色…"), this);
-    connect(aBg, &QAction::triggered, this, &MainWindow::onChangeBackgroud);
+    connect(aBg, &QAction::triggered, this, &MainWindow::onPickCanvasBackground);
     addAction(aBg);
     auto *aGrid = new QAction(tr("网格开关"), this);
-    connect(aGrid, &QAction::triggered, m_mgr, &CanvasManager::onSelectGrid);
+    connect(aGrid, &QAction::triggered, m_mgr, &EditorSession::onSelectGrid);
     addAction(aGrid);
     auto *aExportUi = new QAction(tr("资源导出设置…"), this);
     aExportUi->setToolTip(tr("弹 UIToolBin 那一页：工程ID / 不重新生成资源 / "
@@ -497,12 +500,12 @@ void MainWindow::closeEvent(QCloseEvent *e)
      * 一起吞掉 —— 模型没被标脏，工具会以为没什么可存的。 */
     EditorOps::commitPendingEdit();
 
-    /* ★ 退出要问两次：先"是否真的退出程序?"，再问没保存的改动。
+    /* ★ 退出要问两次：先"真的要退出吗？"，再问没保存的改动。
      * 之前是直接关，改了一下午的东西点个叉就没了。 */
     QMessageBox box(this);
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(QStringLiteral("退出程序"));
-    box.setText(QStringLiteral("是否真的退出程序?"));
+    box.setText(QStringLiteral("真的要退出吗？"));
     QAbstractButton *quit = box.addButton(QStringLiteral("退出"), QMessageBox::AcceptRole);
     box.addButton(QStringLiteral("取消"), QMessageBox::RejectRole);
     box.exec();
@@ -612,8 +615,8 @@ void MainWindow::dropEvent(QDropEvent *e)
 void MainWindow::onFindObject()
 {
     if (!m_find) {
-        m_find = new findDlg(this);
-        connect(m_find, &findDlg::findNext, this, [this](const QString &kw) {
+        m_find = new FindDialog(this);
+        connect(m_find, &FindDialog::findNext, this, [this](const QString &kw) {
             UiNode *hit = nullptr;
             for (UiNode *page : m_mgr->model()->pages()) {
                 page->forEach([&](UiNode *n) {
@@ -730,11 +733,19 @@ void MainWindow::onProjectChanged()
 
 void MainWindow::refreshTitle()
 {
-    /* 标题：UI编辑工具(Build:<构建日期>) <工程名>；改过没存就带一个 *。
+    /* 标题：UI编辑工具(Build:<构建日期>) <工程文件名>；改过没存就带一个 *。
      * 构建日期用 __DATE__，编译那天定死，不是运行时的今天 —— 这样用户报
-     * 问题时报的标题就能对上是哪个版本。 */
+     * 问题时报的标题就能对上是哪个版本。
+     *
+     * 显示的是**打开的那个文件的名字**，不是 json 里的 "-name"。一个工程目录
+     * 下常有好几个 .uiproj（一屏一个），它们多半是互相另存出来的，"-name"
+     * 还留着最早那份的值 —— 拿它做标题，打开哪个都显示同一个名字，分不出
+     * 当前在编哪一屏。"-name" 是工程数据，照原样读写，只是不拿来当标题。 */
+    const QString path = m_mgr->model()->filePath();
+    const QString shown = path.isEmpty() ? m_mgr->model()->name()
+                                         : QFileInfo(path).completeBaseName();
     setWindowTitle(tr("UI编辑工具(Build:%1) %2%3")
-                   .arg(common::buildDate(), m_mgr->model()->name(),
+                   .arg(common::buildDate(), shown,
                         m_mgr->model()->dirty() ? QStringLiteral(" *") : QString()));
 }
 
@@ -806,7 +817,7 @@ int MainWindow::dumpPreviewForTest(const QString &dir)
 
 bool MainWindow::selectNthNodeForTest(int n)
 {
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (!s) {
         return false;
     }
@@ -841,12 +852,12 @@ bool MainWindow::selectNthNodeForTest(int n)
         }
     }
 
-    // 路径一：在对象树里点一下（TreeDock::onItemPressed 就是这一句）
+    // 路径一：在对象树里点一下（ObjectTreeDock::onItemPressed 就是这一句）
     s->selectNode(node);
 
     // 路径二：在画布上直接点那个控件 —— 发真的鼠标事件，把
-    // BaseForm::mousePressEvent + ScenesScreen::eventFilter 一起覆盖到
-    if (BaseForm *f = s->formFor(node)) {
+    // CanvasItem::mousePressEvent + CanvasPage::eventFilter 一起覆盖到
+    if (CanvasItem *f = s->formFor(node)) {
         const QPoint c(f->width() / 2, f->height() / 2);
         QMouseEvent press(QEvent::MouseButtonPress, c, f->mapToGlobal(c),
                           Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
@@ -943,13 +954,13 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
         if (!firstOf(pg, "NewLayer")) {
             onNodeSelected(pg);
             m_components->onCreateNewLayer();
-            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
         }
         UiNode *la = firstOf(pg, "NewLayer");
         if (la && !firstOf(pg, "NewLayout")) {
             onNodeSelected(la);
             m_components->onCreateNewLayout();
-            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
         }
         return pg;
     };
@@ -1044,7 +1055,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
             }
             UiNode *box = lo->children.last().second;
             place(box, 0, b.y, 128, b.h);
-            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
 
             for (int i = 0; i < 2; ++i) {
                 onNodeSelected(box);
@@ -1054,7 +1065,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
                     break;
                 }
                 UiNode *item = box->children.last().second;
-                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+                if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
                 /* 每一项里放一张图 + 一段文字 */
                 onNodeSelected(item);
                 m_components->createControl(QStringLiteral("NewFrame"),
@@ -1066,7 +1077,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
                           qMin(16, item->rect.height()));
                     dressImage(im);
                 }
-                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+                if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
                 onNodeSelected(item);
                 m_components->createControl(QStringLiteral("NewFrame"),
                                             QStringLiteral("Text"),
@@ -1077,7 +1088,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
                           qMax(1, item->rect.width() - 16),
                           qMin(16, item->rect.height()));
                 }
-                if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+                if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
             }
             trace(QStringLiteral("  页1 %1 完").arg(b.type));
             log << QStringLiteral("页1 %1 带 %2 项").arg(b.type)
@@ -1100,7 +1111,7 @@ int MainWindow::makeSampleProject(const QString &path, const QString &picDir,
         UiNode *inner = lo->children.isEmpty() ? nullptr : lo->children.last().second;
         if (inner) {
             place(inner, 0, 0, 128, 32);
-            if (ScenesScreen *ss = m_mgr->currentScreen()) { ss->rebuild(); }
+            if (CanvasPage *ss = m_mgr->currentScreen()) { ss->rebuild(); }
             int x = 0;
             for (const ControlTemplate &t : lib->controls()) {
                 if (t.cls != QLatin1String("NewFrame")) {
@@ -1233,11 +1244,11 @@ int MainWindow::runOpsTest(QString *report)
     /* 【别死盯当前页】activePage 是工程里存的，用户上次停在哪一页就是哪一页 ——
      * 新建一个空页面存盘之后，当前页就是那个空页，整套测试直接报"缺样本"。
      * 这里挑第一个凑齐图层/布局/控件样本的页来测。 */
-    ScenesScreen *sc = nullptr;
+    CanvasPage *sc = nullptr;
     UiNode *page = nullptr;
     UiNode *layer = nullptr, *layout = nullptr, *frame = nullptr, *list = nullptr;
     for (int pi = 0; pi < m_mgr->model()->pages().size(); ++pi) {
-        ScenesScreen *cand = m_mgr->screen(pi);
+        CanvasPage *cand = m_mgr->screen(pi);
         if (!cand || !cand->page()) {
             continue;
         }
@@ -1291,7 +1302,7 @@ int MainWindow::runOpsTest(QString *report)
                                 QStringLiteral("文字"));
     check(QStringLiteral("选中图层时建控件被拦下"),
           countNodes(page) == before
-          && EditorOps::lastMessage() == QStringLiteral("请选择一个布局或者新建一个并选中它."),
+          && EditorOps::lastMessage() == QStringLiteral("先选中一个布局，或者新建一个再选中。"),
           EditorOps::lastMessage());
 
     /* --- 2. 选中布局就能建，而且键/属性要对 --- */
@@ -1332,7 +1343,7 @@ int MainWindow::runOpsTest(QString *report)
     /* --- 4. 复制/粘贴的容器限制 --- */
     sc->rebuild();
     EditorOps::copyToClip(frame);
-    BaseForm *frameForm = sc->formFor(frame);
+    CanvasItem *frameForm = sc->formFor(frame);
     check(QStringLiteral("画布上找得到样本控件"), frameForm != nullptr);
     if (frameForm) {
         before = countNodes(page);
@@ -1341,10 +1352,10 @@ int MainWindow::runOpsTest(QString *report)
         check(QStringLiteral("往非布局上粘贴被拦下"),
               countNodes(page) == before
               && EditorOps::lastMessage()
-                 == QStringLiteral("当前的选中的对像不支持剪切板里的对像粘贴,请选择一个<布局>对像."),
+                 == QStringLiteral("选中的这个装不下粘贴的内容，先选一个布局。"),
               EditorOps::lastMessage());
     }
-    if (BaseForm *layoutForm = sc->formFor(layout)) {
+    if (CanvasItem *layoutForm = sc->formFor(layout)) {
         const int n0 = layout->children.size();
         layoutForm->doPaste();                   // 往布局上贴
         check(QStringLiteral("往布局上粘贴成功"), layout->children.size() == n0 + 1);
@@ -1372,7 +1383,7 @@ int MainWindow::runOpsTest(QString *report)
     if (!layout->children.isEmpty()) {
         UiNode *victim = layout->children.last().second;
         const int n0 = layout->children.size();
-        if (BaseForm *f = sc->formFor(victim)) {
+        if (CanvasItem *f = sc->formFor(victim)) {
             f->onDeleteMe();
             check(QStringLiteral("删除（确认框在无人值守下按<删除>算）"),
                   layout->children.size() == n0 - 1);
@@ -1391,11 +1402,11 @@ int MainWindow::runOpsTest(QString *report)
      * 半透明白、选中框和 8 个缩放手柄是蓝色、像素网格是灰，都不属于这两种。
      * 开着的时候则必然有别的颜色。
      *
-     * 【抓整页，别抓单个 BaseForm】BaseForm 没开 autoFillBackground，
+     * 【抓整页，别抓单个 CanvasItem】CanvasItem 没开 autoFillBackground，
      * QWidget::grab() 不会先清底，没画到的地方是未初始化内存 —— 拿它算像素
-     * 等于测垃圾，开关翻不翻数字都一样。ScenesScreen 会 fillRect(m_bg)。
+     * 等于测垃圾，开关翻不翻数字都一样。CanvasPage 会 fillRect(m_bg)。
      * 页面四周那圈 QFrame::Box 边框不是内容，往里缩 2px 避开。 */
-    if (ScenesScreen *sc2 = m_mgr->currentScreen()) {
+    if (CanvasPage *sc2 = m_mgr->currentScreen()) {
         auto offPalette = [](const QImage &im) {
             const QRgb l = Preview::monoLit().rgb();
             const QRgb d = Preview::monoDark().rgb();
@@ -1410,8 +1421,8 @@ int MainWindow::runOpsTest(QString *report)
             }
             return n;
         };
-        /* 【别在这儿改倍率】setZoom() 会让每一页 rebuild()，把所有 BaseForm
-         * 删了重建 —— 本函数里别处还攥着 BaseForm 指针，改完就是野指针，
+        /* 【别在这儿改倍率】setZoom() 会让每一页 rebuild()，把所有 CanvasItem
+         * 删了重建 —— 本函数里别处还攥着 CanvasItem 指针，改完就是野指针，
          * 实测直接 0xC0000005/0xC0000374。像素网格要 >=300% 才画，这里看不到，
          * 但虚线描边和 8 个手柄在 100% 一样在，够判定了。 */
         const QVector<UiNode *> allScreens2 = sc2->screens();
@@ -1433,7 +1444,7 @@ int MainWindow::runOpsTest(QString *report)
 
     /* --- 7. 宽高不能为零 --- */
     sc->rebuild();
-    if (BaseForm *f = sc->formFor(frame)) {
+    if (CanvasItem *f = sc->formFor(frame)) {
         const QRect g0 = f->geometry();
         QSpinBox spin;
         spin.setObjectName(QStringLiteral("spinW"));
@@ -1442,12 +1453,12 @@ int MainWindow::runOpsTest(QString *report)
          * 不会发 valueChanged，测的就成了空气。 */
         spin.setValue(g0.width() > 0 ? g0.width() : 7);
         QObject::connect(&spin, QOverload<int>::of(&QSpinBox::valueChanged),
-                         f, &BaseForm::onXYWHChangedValue);
+                         f, &CanvasItem::onXYWHChangedValue);
         EditorOps::clearLastMessage();
         spin.setValue(0);
         check(QStringLiteral("宽度设 0 被拦下且几何没变"),
               f->geometry() == g0
-              && EditorOps::lastMessage() == QStringLiteral("宽高不能设置为零."),
+              && EditorOps::lastMessage() == QStringLiteral("宽和高不能设成 0。"),
               QStringLiteral("原几何=%1x%2 现=%3x%4 提示=[%5]")
                   .arg(g0.width()).arg(g0.height())
                   .arg(f->geometry().width()).arg(f->geometry().height())
@@ -1507,7 +1518,7 @@ int MainWindow::runOpsTest(QString *report)
     /* --- 10. 拖放建控件（手册里的主要手势） --- */
     sc->rebuild();
     {
-        BaseForm *lf = sc->formFor(layout);
+        CanvasItem *lf = sc->formFor(layout);
         check(QStringLiteral("画布上找得到目标布局"), lf != nullptr);
         if (lf) {
             /* 落点取布局自己的中心：取 (3,4) 那种边角容易压在别的控件上，
@@ -1526,11 +1537,11 @@ int MainWindow::runOpsTest(QString *report)
                   landed ? landed->cls : QString());
             if (landed && !landed->children.isEmpty()) {
                 UiNode *drop = landed->children.last().second;
-                /* 【必须重新取 BaseForm】拖放建出了新节点 = 结构变了，画布会
+                /* 【必须重新取 CanvasItem】拖放建出了新节点 = 结构变了，画布会
                  * 整体 rebuild()，上面那个 lf 已经从画布上摘下来了 ——
                  * 再拿它 mapTo(sc, …) 会一路往上找不到 sc，走到空指针。 */
-                BaseForm *lf2 = sc->formFor(layout);
-                BaseForm *landedForm = sc->formFor(landed);
+                CanvasItem *lf2 = sc->formFor(layout);
+                CanvasItem *landedForm = sc->formFor(landed);
                 check(QStringLiteral("结构变化后画布上还找得到这两个布局"),
                       lf2 != nullptr && landedForm != nullptr);
                 if (lf2 && landedForm) {
@@ -1623,7 +1634,7 @@ int MainWindow::runOpsTest(QString *report)
      * 一度在拖动里把坐标夹到 [0,父级尺寸]，
      * 那是凭空多出来的限制，会把用户已有的负坐标改掉。这条守着它别再回来。 */
     sc->rebuild();
-    if (BaseForm *f = sc->formFor(frame)) {
+    if (CanvasItem *f = sc->formFor(frame)) {
         const QRect g0 = f->geometry();
         f->setGeometry(QRect(-7, -11, qMax(1, g0.width()), qMax(1, g0.height())));
         f->syncRectToNode();
@@ -1727,7 +1738,7 @@ int MainWindow::runOpsTest(QString *report)
         if (hidden) {
             /* 先选个别处，确认它是藏着的 */
             onNodeSelected(layer);
-            BaseForm *hf = sc->formFor(hidden);
+            CanvasItem *hf = sc->formFor(hidden);
             check(QStringLiteral("默认隐藏的节点画布上不显示"),
                   hf && !hf->isVisible());
 
@@ -1750,7 +1761,7 @@ int MainWindow::runOpsTest(QString *report)
                     }
                     ++sibs;
                     sib.second->forEach([&](UiNode *x) {
-                        if (BaseForm *sf = sc->formFor(x)) {
+                        if (CanvasItem *sf = sc->formFor(x)) {
                             if (sf->isVisible()) {
                                 ++shown;
                             }
@@ -1793,7 +1804,7 @@ int MainWindow::runOpsTest(QString *report)
         }
 
         /* 眼睛：手动藏了之后，点别的节点不能把它放回来 */
-        if (BaseForm *ff = sc->formFor(frame)) {
+        if (CanvasItem *ff = sc->formFor(frame)) {
             onNodeSelected(frame);
             sc->toggleUserHidden(frame);
             check(QStringLiteral("眼睛能把节点藏起来"),
@@ -1813,7 +1824,7 @@ int MainWindow::runOpsTest(QString *report)
         check(QStringLiteral("缩放 400% 生效"), m_mgr->zoom() == 400);
         check(QStringLiteral("缩放不改坐标数据"),
               frame->rectOf(0) == r1 && m_mgr->model()->toJsonBytes() == beforeZoom);
-        if (BaseForm *ff2 = sc->formFor(frame)) {
+        if (CanvasItem *ff2 = sc->formFor(frame)) {
             check(QStringLiteral("画布上的控件真的放大了 4 倍"),
                   ff2->width() == qMax(1, r1.width() * 4),
                   QStringLiteral("宽 %1 -> %2（期望 %3）")
@@ -1882,7 +1893,7 @@ int MainWindow::runOpsTest(QString *report)
                 if (lst && lst->subForms().size() >= 2) {
                     lst->setFirstVisible(1);       // 走一次 relayoutRows
                     lst->setFirstVisible(0);
-                    const QVector<BaseForm *> rows = lst->subForms();
+                    const QVector<CanvasItem *> rows = lst->subForms();
                     const bool vert = rows.at(0)->y() != rows.at(1)->y();
                     const int got = vert ? rows.at(0)->height() : rows.at(0)->width();
                     check(QStringLiteral("放大后列表行高跟着倍率走"),
@@ -2031,7 +2042,7 @@ int MainWindow::runOpsTest(QString *report)
     onNodeSelected(frame);
     {
         /* 【三块都要扫】m_dyn 不是 m_com 的子对象（它排在 CSS属性 页签下面，
-         * 见 ComProperty 构造里的说明）。只扫 m_com 的话，动态区那些
+         * 见 BasicPropertyPane 构造里的说明）。只扫 m_com 的话，动态区那些
          * spin / 下拉框一个都测不到 —— 而"滚轮误改"最容易出事的恰恰是那儿
          * （默认高亮行号、滚动方式、点亮/反显…）。 */
         QVector<QWidget *> roots{ m_com, m_prop };
@@ -2105,7 +2116,7 @@ int MainWindow::runOpsTest(QString *report)
             /* 面板上"点亮/反显/不显示"那种下拉框，按选项文字认出来 */
             QVector<QComboBox *> cbs;
             /* m_dyn 不是 m_com 的子对象（它排在 CSS属性 页签下面，见
-             * ComProperty 构造里的说明），得从 dynamicSection() 里找 */
+             * BasicPropertyPane 构造里的说明），得从 dynamicSection() 里找 */
             for (QComboBox *cb : m_com->dynCombosForTest()) {
                 if (cb->count() == 3
                     && cb->itemText(0) == QStringLiteral("点亮")
@@ -2563,7 +2574,7 @@ int MainWindow::runOpsTest(QString *report)
         check(QStringLiteral("工程里找得到真实存在的图片来验缩略图"),
               !relPic.isEmpty(), relPic);
         if (!relPic.isEmpty()) {
-            ImageFileDialog dlg;
+            ImagePicker dlg;
             dlg.setProjectDir(ctx.projectDir);
             dlg.setSelected(QStringList{ relPic });
             check(QStringLiteral("图片编辑：已选列表带缩略图"),
@@ -2602,7 +2613,7 @@ int MainWindow::runOpsTest(QString *report)
         }
 
         if (!ctx.excelPath.isEmpty() && QFileInfo::exists(ctx.excelPath)) {
-            I18nLanguage dlg;
+            StringPicker dlg;
             QString err;
             if (dlg.loadExcel(ctx.excelPath, &err)) {
                 dlg.setSelected(QStringList{ QStringLiteral("m1") });
@@ -2659,11 +2670,11 @@ int MainWindow::runOpsTest(QString *report)
      * 出过的问题：这一行点开的是系统文件对话框，回来的是**绝对路径**，
      * 而工程 json 里存的是 "config/pic_lcd/v_block.bmp" 这种相对工程目录的
      * 形式；再加上画布压根没画 background-image —— 用户选完图什么都没发生，
-     * 看着就是"设置不了"。这里点开的是 ImageListView（标题
-     * "图片编辑(双击选中图片并更新到控件)"，见 docs/UI_BEHAVIOR.md 8.6）。 */
+     * 看着就是"设置不了"。这里点开的是 ImageStrip（标题
+     * "选图片（双击换到控件上）"，见 docs/UI_BEHAVIOR.md 8.6）。 */
     {
         const QString projDir = QFileInfo(m_mgr->model()->filePath()).absolutePath();
-        ImageListView dlg(this);
+        ImageStrip dlg(this);
         dlg.setProjectDir(projDir);
         check(QStringLiteral("背景图片弹窗列得出图片"),
               dlg.imageCountForTest() > 0,
@@ -2791,7 +2802,7 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18j. 新建的控件必须自带一个唯一的 ID 号 ---
-     * 建出来的控件"唯一ID号"必须是填好的（BaseForm / BaseForm_1 / …），
+     * 建出来的控件"唯一ID号"必须是填好的（CanvasItem / BaseForm_1 / …），
      * 空着的话生成资源时它拿不到 ename.h 里的宏，业务代码引用不到。 */
     {
         onNodeSelected(layout);
@@ -3049,7 +3060,7 @@ int MainWindow::runOpsTest(QString *report)
      * 所以断言的重点是：隐藏的布局也得画出真内容（forceRoot 生效），
      * 而且这一列和下拉框是同一份数据、点了就同步。 */
     {
-        ScenesScreen *sc0 = m_mgr->currentScreen();
+        CanvasPage *sc0 = m_mgr->currentScreen();
         const QVector<UiNode *> screens = sc0 ? sc0->screens() : QVector<UiNode *>();
         check(QStringLiteral("右列张数 = 当前页的顶层布局数"),
               m_pages && m_pages->layoutCountForTest() == screens.size(),
@@ -3113,7 +3124,7 @@ int MainWindow::runOpsTest(QString *report)
             emit m_pages->layoutActivated(hidden);      // 只是确认信号存在
             m_mgr->gotoScreen(hidden);
             QApplication::processEvents();
-            ScenesScreen *sc1 = m_mgr->currentScreen();
+            CanvasPage *sc1 = m_mgr->currentScreen();
             check(QStringLiteral("点右列那张 = 切到那个画面（和下拉框同步）"),
                   sc1 && sc1->currentScreenIndex() == hidden,
                   QStringLiteral("现在是第 %1 个")
@@ -3138,7 +3149,7 @@ int MainWindow::runOpsTest(QString *report)
             m_mgr->setCurrentPage(p1);
             m_pages->reloadLayouts();
             QApplication::processEvents();
-            ScenesScreen *s1 = m_mgr->currentScreen();
+            CanvasPage *s1 = m_mgr->currentScreen();
             const int want = s1 ? s1->screens().size() : -1;
             check(QStringLiteral("换页之后右列跟着换"),
                   m_pages->layoutCountForTest() == want,
@@ -3151,7 +3162,7 @@ int MainWindow::runOpsTest(QString *report)
     }
 
     /* --- 18n. 像素网格要盖在内容之上 ---
-     * 网格原来画在 ScenesScreen::paintEvent 里，那是父控件的背景，Qt 之后才画
+     * 网格原来画在 CanvasPage::paintEvent 里，那是父控件的背景，Qt 之后才画
      * 子控件；点亮的像素不透明，就把网格盖掉了 —— 只有熄灭的地方看得见网格。
      * 现在挪到铺满画布的覆盖层上、raise 到最上面。
      *
@@ -3159,7 +3170,7 @@ int MainWindow::runOpsTest(QString *report)
      * 同一画面关网格抓一张、开网格抓一张，凡是关网格时点亮的那些像素里，
      * 必须有一部分被网格改掉了 —— 否则就是又被内容盖住了。 */
     {
-        ScenesScreen *sc = m_mgr->currentScreen();
+        CanvasPage *sc = m_mgr->currentScreen();
         if (sc) {
             const int  z0 = sc->zoom();
             const bool g0 = sc->showGrid();
@@ -3346,7 +3357,7 @@ int MainWindow::runOpsTest(QString *report)
                         continue;
                     }
                     sib.second->forEach([&](UiNode *x) {
-                        if (BaseForm *sf = sc->formFor(x)) {
+                        if (CanvasItem *sf = sc->formFor(x)) {
                             if (sf->isVisible()) {
                                 ++shown;
                             }
@@ -3723,7 +3734,7 @@ int MainWindow::runOpsTest(QString *report)
         QString rel;
         if (img) {
             /* 挑工程里现成的一张图，走和属性面板同一个弹窗 */
-            ImageListView dlg(this);
+            ImageStrip dlg(this);
             dlg.setProjectDir(QFileInfo(m_mgr->model()->filePath()).absolutePath());
             if (dlg.pickForTest(0)) {
                 rel = dlg.selected();
@@ -3751,9 +3762,9 @@ int MainWindow::runOpsTest(QString *report)
 
             sc->rebuild();
             onNodeSelected(img);
-            BaseForm *hf = sc->formFor(hl);
-            BaseForm *rf = sc->formFor(row);
-            BaseForm *imf = sc->formFor(img);
+            CanvasItem *hf = sc->formFor(hl);
+            CanvasItem *rf = sc->formFor(row);
+            CanvasItem *imf = sc->formFor(img);
             check(QStringLiteral("画布上三层都建出来了"),
                   hf && rf && imf);
             if (hf && rf && imf) {
@@ -3896,7 +3907,7 @@ int MainWindow::runOpsTest(QString *report)
         /* 画布上的行控件也得跟着变（倍率 100 时就是 1:1） */
         sc->rebuild();
         if (!list->children.isEmpty()) {
-            BaseForm *rf = sc->formFor(list->children.first().second);
+            CanvasItem *rf = sc->formFor(list->children.first().second);
             const QRect want = EditorOps::cellRectFor(list, 0);
             const int z = qMax(1, sc->zoom());
             check(QStringLiteral("画布上第一行的尺寸也跟着变"),
@@ -4983,7 +4994,7 @@ void MainWindow::refreshScreenLabel()
     QSignalBlocker block(m_screenBox);
     m_screenBox->clear();
 
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     const QVector<UiNode *> all = s ? s->screens() : QVector<UiNode *>();
     const int i = s ? s->currentScreenIndex() : -1;
     if (all.isEmpty()) {
@@ -5024,7 +5035,7 @@ void MainWindow::onNodeSelected(UiNode *node)
     if (m_pages) {
         m_pages->reloadLayouts();
     }
-    if (ScenesScreen *s = m_mgr->currentScreen()) {
+    if (CanvasPage *s = m_mgr->currentScreen()) {
         s->selectNode(node);
     }
 }
@@ -5046,10 +5057,10 @@ void MainWindow::onStatusMessage(const QString &msg)
  * "修改背景" —— 从工具目录的 assets/canvas/ 里挑一张铺到画布底下。
  *
  * 对话框里给一段说明（HTML），把目录说清楚：图片放进去才列得出来，
- * 而且只认 JPG。双击列表里的一项就应用 —— 那正是 onDobuleClickedImage()
+ * 而且只认 JPG。双击列表里的一项就应用 —— 那正是 onCanvasBackgroundPicked()
  * 这个槽的用途。
  */
-void MainWindow::onChangeBackgroud()
+void MainWindow::onPickCanvasBackground()
 {
     QDialog dlg(this);
     dlg.setWindowTitle(QStringLiteral("修改背景"));
@@ -5087,9 +5098,9 @@ void MainWindow::onChangeBackgroud()
     root->addWidget(list, 1);
     root->addLayout(row);
 
-    connect(list, &QListWidget::itemDoubleClicked, this, &MainWindow::onDobuleClickedImage);
+    connect(list, &QListWidget::itemDoubleClicked, this, &MainWindow::onCanvasBackgroundPicked);
     connect(color, &QPushButton::clicked, this, [this]() {
-        if (ScenesScreen *s = m_mgr->currentScreen()) {
+        if (CanvasPage *s = m_mgr->currentScreen()) {
             s->onChangedBackgroundColor();
         }
     });
@@ -5106,13 +5117,13 @@ void MainWindow::onChangeBackgroud()
     dlg.exec();
 }
 
-void MainWindow::onDobuleClickedImage(QListWidgetItem *a0)
+void MainWindow::onCanvasBackgroundPicked(QListWidgetItem *a0)
 {
     if (!a0) {
         return;
     }
     const QString path = a0->data(Qt::UserRole).toString();
-    if (ScenesScreen *s = m_mgr->currentScreen()) {
+    if (CanvasPage *s = m_mgr->currentScreen()) {
         s->setBackgroundImage(path);
     }
     onStatusMessage(a0->text());

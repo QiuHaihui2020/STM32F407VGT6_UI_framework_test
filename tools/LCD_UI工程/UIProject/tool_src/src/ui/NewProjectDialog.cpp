@@ -1,4 +1,4 @@
-#include "ProjectDialog.h"
+#include "NewProjectDialog.h"
 #include "AppIcon.h"
 
 #include <QLineEdit>
@@ -16,7 +16,7 @@
 #include <QIcon>
 #include <QMessageBox>
 
-ProjectDialog::ProjectDialog(QWidget *parent)
+NewProjectDialog::NewProjectDialog(QWidget *parent)
     : QDialog(parent)
 {
     setObjectName(QStringLiteral("ProjectDialog"));
@@ -65,8 +65,8 @@ ProjectDialog::ProjectDialog(QWidget *parent)
     auto *pushButton = new QPushButton(AppIcon::get(QStringLiteral("browse.png")),
                                        QStringLiteral("打开多国语言文件"), this);
     pushButton->setObjectName(QStringLiteral("pushButton"));   // ★ 名字决定自动连接
-    /* 这一栏的默认内容是"行车记录仪.xls"（一个样例表名） */
-    m_filestatus = new QLabel(QStringLiteral("行车记录仪.xls"), this);
+    /* 这一栏的默认内容是"多国语言表.xls"（一个样例表名） */
+    m_filestatus = new QLabel(QStringLiteral("多国语言表.xls"), this);
     m_filestatus->setObjectName(QStringLiteral("filestatus"));
     langRow->addWidget(pushButton);
     langRow->addWidget(m_filestatus, 1);
@@ -83,7 +83,7 @@ ProjectDialog::ProjectDialog(QWidget *parent)
     m_buttonBox->addButton(QStringLiteral("取消"), QDialogButtonBox::RejectRole);
     verticalLayout->addWidget(m_buttonBox);
 
-    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &ProjectDialog::onAccepted);
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &NewProjectDialog::onAccepted);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     /* 原程序靠 connectSlotsByName 把 pushButton 接到 on_pushButton_clicked()。
@@ -93,19 +93,19 @@ ProjectDialog::ProjectDialog(QWidget *parent)
     resize(420, 360);
 }
 
-ProjectDialog::~ProjectDialog() = default;
+NewProjectDialog::~NewProjectDialog() = default;
 
-QString ProjectDialog::projectName() const
+QString NewProjectDialog::projectName() const
 {
     return m_prjname->text().trimmed();
 }
 
-QSize ProjectDialog::pageSize() const
+QSize NewProjectDialog::pageSize() const
 {
     return QSize(m_spinBox->value(), m_spinBox2->value());
 }
 
-void ProjectDialog::onAccepted()
+void NewProjectDialog::onAccepted()
 {
     if (projectName().isEmpty()) {
         m_prjname->setFocus();
@@ -114,7 +114,7 @@ void ProjectDialog::onAccepted()
     accept();
 }
 
-void ProjectDialog::on_pushButton_clicked()
+void NewProjectDialog::on_pushButton_clicked()
 {
     const QString f = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择多国语言文件"), QString(),
@@ -124,7 +124,7 @@ void ProjectDialog::on_pushButton_clicked()
     }
     if (!QFileInfo::exists(f)) {
         QMessageBox::warning(this, QStringLiteral("警告"),
-                             QStringLiteral("多国语言文件不存在"));
+                             QStringLiteral("找不到这个语言表文件"));
         return;
     }
     m_langXls = f;

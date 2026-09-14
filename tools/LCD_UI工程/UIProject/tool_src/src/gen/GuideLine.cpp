@@ -1,8 +1,8 @@
-#include "HVLineWidget.h"
+#include "GuideLine.h"
 
 #include <QPainter>
 
-HVLineWidget::HVLineWidget(QWidget *parent)
+GuideLine::GuideLine(QWidget *parent)
     : QWidget(parent)
 {
     setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -10,16 +10,16 @@ HVLineWidget::HVLineWidget(QWidget *parent)
     setAttribute(Qt::WA_TranslucentBackground);
 }
 
-HVLineWidget::~HVLineWidget() = default;
+GuideLine::~GuideLine() = default;
 
-void HVLineWidget::setCross(const QPoint &p)
+void GuideLine::setCross(const QPoint &p)
 {
     m_cross = p;
     setVisible(p.x() >= 0 && p.y() >= 0);
     update();
 }
 
-void HVLineWidget::paintEvent(QPaintEvent *e)
+void GuideLine::paintEvent(QPaintEvent *e)
 {
     Q_UNUSED(e)
     if (m_cross.x() < 0 || m_cross.y() < 0) {

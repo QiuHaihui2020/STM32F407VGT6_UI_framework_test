@@ -1,6 +1,6 @@
 #include "BaseDialog.h"
 #include "AppIcon.h"
-#include "ActionList.h"
+#include "EventActionDialog.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -28,7 +28,7 @@ QStringList enumKeys(const QJsonArray &en)
 
 } // namespace
 
-ActionList::ActionList(QWidget *parent)
+EventActionDialog::EventActionDialog(QWidget *parent)
     : BaseDialog(parent)
 {
     setWindowTitle(QStringLiteral("事件动作"));
@@ -49,21 +49,21 @@ ActionList::ActionList(QWidget *parent)
     root->addWidget(box);
 
     connect(m_table, &QWidget::customContextMenuRequested,
-            this, &ActionList::onCustomContextMenu);
+            this, &EventActionDialog::onCustomContextMenu);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
-ActionList::~ActionList() = default;
+EventActionDialog::~EventActionDialog() = default;
 
-bool ActionList::setActionPropertyChecked(const QJsonValue &v, QString *error)
+bool EventActionDialog::setActionPropertyChecked(const QJsonValue &v, QString *error)
 {
-    /* ★ 类型校验（"格式错误" + "格式错误,必须是数组类型"）。
+    /* ★ 类型校验（"格式错误" + "格式不对：这里要的是数组"）。
      * 事件属性在工程 json 里必须是数组；写成对象或标量说明这个控件模板坏了，
      * 硬着头皮往下读只会得到一张空表，用户还以为是自己没配过事件。 */
     if (!v.isArray()) {
         if (error) {
-            *error = QStringLiteral("格式错误,必须是数组类型");
+            *error = QStringLiteral("格式不对：这里要的是数组");
         }
         return false;
     }
@@ -71,7 +71,7 @@ bool ActionList::setActionPropertyChecked(const QJsonValue &v, QString *error)
     return true;
 }
 
-void ActionList::setActionProperty(const QJsonArray &arr)
+void EventActionDialog::setActionProperty(const QJsonArray &arr)
 {
 
     m_template = QJsonArray();
@@ -100,14 +100,14 @@ void ActionList::setActionProperty(const QJsonArray &arr)
     }
 }
 
-void ActionList::addRow(const QJsonObject &v)
+void EventActionDialog::addRow(const QJsonObject &v)
 {
     const int r = m_table->rowCount();
     m_table->insertRow(r);
     fillRow(r, v);
 }
 
-void ActionList::fillRow(int row, const QJsonObject &v)
+void EventActionDialog::fillRow(int row, const QJsonObject &v)
 {
     auto *ev = new QComboBox(m_table);
     ev->addItems(enumKeys(m_eventEnum));
@@ -136,7 +136,7 @@ void ActionList::fillRow(int row, const QJsonObject &v)
     m_table->setCellWidget(row, 3, ar);
 }
 
-QJsonArray ActionList::actionProperty() const
+QJsonArray EventActionDialog::actionProperty() const
 {
     QJsonArray values;
     for (int r = 0; r < m_table->rowCount(); ++r) {
@@ -177,7 +177,7 @@ QJsonArray ActionList::actionProperty() const
     return out;
 }
 
-void ActionList::onCustomContextMenu(QPoint pos)
+void EventActionDialog::onCustomContextMenu(QPoint pos)
 {
     /* 六项：插入行 / 删除当前行 / 上移一行 / 移到顶部 /
      * 下移一行 / 移到底部。之前是我自己起的"添加/删除/上移/下移"。 */

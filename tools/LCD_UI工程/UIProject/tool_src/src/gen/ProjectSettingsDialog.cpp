@@ -1,6 +1,6 @@
 #include "BaseDialog.h"
 #include "AppIcon.h"
-#include "ConfigProject.h"
+#include "ProjectSettingsDialog.h"
 
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -30,7 +30,7 @@ const char *const kLangs[22] = {
 
 } // namespace
 
-ConfigProject::ConfigProject(QWidget *parent)
+ProjectSettingsDialog::ProjectSettingsDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("工程设置"));
@@ -74,42 +74,42 @@ ConfigProject::ConfigProject(QWidget *parent)
     root->addLayout(btns);
     root->addWidget(box);
 
-    connect(openfile, &QPushButton::clicked, this, &ConfigProject::on_openfile_clicked);
-    connect(selAll, &QPushButton::clicked, this, &ConfigProject::on_lang_selectall_clicked);
-    connect(dselAll, &QPushButton::clicked, this, &ConfigProject::on_lang_dselectall_clicked);
-    connect(re, &QPushButton::clicked, this, &ConfigProject::on_lang_re_clicked);
+    connect(openfile, &QPushButton::clicked, this, &ProjectSettingsDialog::on_openfile_clicked);
+    connect(selAll, &QPushButton::clicked, this, &ProjectSettingsDialog::on_lang_selectall_clicked);
+    connect(dselAll, &QPushButton::clicked, this, &ProjectSettingsDialog::on_lang_dselectall_clicked);
+    connect(re, &QPushButton::clicked, this, &ProjectSettingsDialog::on_lang_re_clicked);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     refreshFileStatus();
 }
 
-ConfigProject::~ConfigProject() = default;
+ProjectSettingsDialog::~ProjectSettingsDialog() = default;
 
-void ConfigProject::setProjectName(const QString &n)
+void ProjectSettingsDialog::setProjectName(const QString &n)
 {
     m_prjname->setText(n);
 }
 
-QString ConfigProject::projectName() const
+QString ProjectSettingsDialog::projectName() const
 {
     return m_prjname->text().trimmed();
 }
 
-void ConfigProject::setExcelPath(const QString &p)
+void ProjectSettingsDialog::setExcelPath(const QString &p)
 {
     m_excel = p;
     refreshFileStatus();
 }
 
-void ConfigProject::setLanguageMask(quint32 mask)
+void ProjectSettingsDialog::setLanguageMask(quint32 mask)
 {
     for (int i = 0; i < m_viewLang->count(); ++i) {
         m_viewLang->item(i)->setCheckState((mask >> i) & 1u ? Qt::Checked : Qt::Unchecked);
     }
 }
 
-quint32 ConfigProject::languageMask() const
+quint32 ProjectSettingsDialog::languageMask() const
 {
     quint32 m = 0;
     for (int i = 0; i < m_viewLang->count(); ++i) {
@@ -120,10 +120,10 @@ quint32 ConfigProject::languageMask() const
     return m;
 }
 
-void ConfigProject::refreshFileStatus()
+void ProjectSettingsDialog::refreshFileStatus()
 {
     if (m_excel.isEmpty()) {
-        m_filestatus->setText(QStringLiteral("多国语言文件不存在"));
+        m_filestatus->setText(QStringLiteral("找不到这个语言表文件"));
         return;
     }
     if (!QFileInfo::exists(m_excel)) {
@@ -141,7 +141,7 @@ void ConfigProject::refreshFileStatus()
     m_filestatus->setText(tr("%1\n共 %2 条 ResID").arg(m_excel).arg(qMax(0, rows - 1)));
 }
 
-void ConfigProject::on_openfile_clicked()
+void ProjectSettingsDialog::on_openfile_clicked()
 {
     const QString f = QFileDialog::getOpenFileName(
         this, QStringLiteral("选择多国语言文件"), m_excel,
@@ -152,21 +152,21 @@ void ConfigProject::on_openfile_clicked()
     }
 }
 
-void ConfigProject::on_lang_selectall_clicked()
+void ProjectSettingsDialog::on_lang_selectall_clicked()
 {
     for (int i = 0; i < m_viewLang->count(); ++i) {
         m_viewLang->item(i)->setCheckState(Qt::Checked);
     }
 }
 
-void ConfigProject::on_lang_dselectall_clicked()
+void ProjectSettingsDialog::on_lang_dselectall_clicked()
 {
     for (int i = 0; i < m_viewLang->count(); ++i) {
         m_viewLang->item(i)->setCheckState(Qt::Unchecked);
     }
 }
 
-void ConfigProject::on_lang_re_clicked()
+void ProjectSettingsDialog::on_lang_re_clicked()
 {
     for (int i = 0; i < m_viewLang->count(); ++i) {
         QListWidgetItem *it = m_viewLang->item(i);

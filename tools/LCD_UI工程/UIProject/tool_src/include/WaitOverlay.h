@@ -1,4 +1,4 @@
-/* BusyIndicator.h ——
+/* WaitOverlay.h ——
  *
  * 一个无边框的转圈提示。onRotate() 是定时器槽 —— 拿 QTimer
  * 每 80 ms 转一格，所以这个槽才会出现在元数据里。
@@ -10,13 +10,13 @@
 
 class QTimer;
 
-class BusyIndicator : public QDialog
+class WaitOverlay : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit BusyIndicator(QWidget *parent = nullptr);
-    ~BusyIndicator() override;
+    explicit WaitOverlay(QWidget *parent = nullptr);
+    ~WaitOverlay() override;
 
     void setText(const QString &t);
 

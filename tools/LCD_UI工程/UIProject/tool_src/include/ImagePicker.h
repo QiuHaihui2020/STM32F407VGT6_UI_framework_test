@@ -1,4 +1,4 @@
-/* ImageFileDialog.h ——
+/* ImagePicker.h ——
  * 界面控件名：treeView / listView …。
  *
  * 用途：编辑控件的图片列表属性（json 里 -type 为 piclist / arrlist 的那些，
@@ -17,13 +17,13 @@ class QFileSystemModel;
 class QTreeView;
 class QListWidget;
 
-class ImageFileDialog : public QDialog
+class ImagePicker : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit ImageFileDialog(QWidget *parent = nullptr);
-    ~ImageFileDialog() override;
+    explicit ImagePicker(QWidget *parent = nullptr);
+    ~ImagePicker() override;
 
     /// 工程目录；左侧目录树的根，也是相对路径的基准
     void setProjectDir(const QString &dir);

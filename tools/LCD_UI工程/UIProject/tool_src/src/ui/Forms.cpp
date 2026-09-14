@@ -23,11 +23,11 @@
 #include <QDir>
 #include <QFile>
 
-/* ===================== SizeHandleRect ===================== */
+/* ===================== ResizeHandle ===================== */
 
 static const int kHandleSize = 6;
 
-SizeHandleRect::SizeHandleRect(QWidget *parent, Direction d, QWidget *target)
+ResizeHandle::ResizeHandle(QWidget *parent, Direction d, QWidget *target)
     : QWidget(parent), m_dir(d), m_target(target)
 {
     setFixedSize(kHandleSize, kHandleSize);
@@ -39,9 +39,9 @@ SizeHandleRect::SizeHandleRect(QWidget *parent, Direction d, QWidget *target)
     setCursor(cursors[int(d)]);
 }
 
-SizeHandleRect::~SizeHandleRect() = default;
+ResizeHandle::~ResizeHandle() = default;
 
-void SizeHandleRect::updatePosition()
+void ResizeHandle::updatePosition()
 {
     if (!m_target || !parentWidget()) {
         return;
@@ -63,7 +63,7 @@ void SizeHandleRect::updatePosition()
     raise();
 }
 
-void SizeHandleRect::paintEvent(QPaintEvent *)
+void ResizeHandle::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.fillRect(rect(), QColor(0x2b, 0x7d, 0xd1));
@@ -71,7 +71,7 @@ void SizeHandleRect::paintEvent(QPaintEvent *)
     p.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
-void SizeHandleRect::mousePressEvent(QMouseEvent *e)
+void ResizeHandle::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() != Qt::LeftButton || !m_target) {
         QWidget::mousePressEvent(e);
@@ -82,7 +82,7 @@ void SizeHandleRect::mousePressEvent(QMouseEvent *e)
     m_startGeo    = m_target->geometry();
 }
 
-void SizeHandleRect::mouseMoveEvent(QMouseEvent *e)
+void ResizeHandle::mouseMoveEvent(QMouseEvent *e)
 {
     if (!m_dragging || !m_target) {
         return;
@@ -106,11 +106,11 @@ void SizeHandleRect::mouseMoveEvent(QMouseEvent *e)
     if (g.height() < 1) {
         g.setHeight(1);
     }
-    /* 只保下限，不夹位置：坐标可以是负的（见 BaseForm::mouseMoveEvent 的说明）。 */
+    /* 只保下限，不夹位置：坐标可以是负的（见 CanvasItem::mouseMoveEvent 的说明）。 */
     m_target->setGeometry(g);
 }
 
-void SizeHandleRect::mouseReleaseEvent(QMouseEvent *e)
+void ResizeHandle::mouseReleaseEvent(QMouseEvent *e)
 {
     if (!m_dragging) {
         QWidget::mouseReleaseEvent(e);
@@ -120,42 +120,42 @@ void SizeHandleRect::mouseReleaseEvent(QMouseEvent *e)
     emit mouseButtonReleased(m_startGeo, m_target ? m_target->geometry() : m_startGeo);
 }
 
-/* ===================== FormResizer ===================== */
+/* ===================== ResizeFrame ===================== */
 
-FormResizer::FormResizer(QWidget *parent)
+ResizeFrame::ResizeFrame(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
     m_lastGeo = geometry();
 }
 
-FormResizer::~FormResizer()
+ResizeFrame::~ResizeFrame()
 {
     /* 手柄挂在父控件上，Qt 不会跟着本对象一起销毁 —— 不删的话它们会留在
      * 画布上，m_target 还指着刚释放的本对象。画布每缩放一次都会 rebuild，
      * 孤儿手柄越攒越多，之后任何一次重绘/截图都在踩已释放内存。 */
-    for (const QPointer<SizeHandleRect> &h : m_handles) {
+    for (const QPointer<ResizeHandle> &h : m_handles) {
         delete h.data();                 // QPointer 已置空的（父控件先走）跳过
     }
     m_handles.clear();
 }
 
-void FormResizer::createHandles()
+void ResizeFrame::createHandles()
 {
     if (!m_handles.isEmpty() || !parentWidget()) {
         return;
     }
     for (int i = 0; i < 8; ++i) {
-        auto *h = new SizeHandleRect(parentWidget(), SizeHandleRect::Direction(i), this);
-        connect(h, &SizeHandleRect::mouseButtonReleased,
+        auto *h = new ResizeHandle(parentWidget(), ResizeHandle::Direction(i), this);
+        connect(h, &ResizeHandle::mouseButtonReleased,
                 this, [this](QRect oldGeo, QRect) { notifyGeometryChanged(oldGeo); });
         m_handles.append(h);
     }
 }
 
-void FormResizer::layoutHandles()
+void ResizeFrame::layoutHandles()
 {
-    for (const QPointer<SizeHandleRect> &h : m_handles) {
+    for (const QPointer<ResizeHandle> &h : m_handles) {
         if (!h) {
             continue;
         }
@@ -164,7 +164,7 @@ void FormResizer::layoutHandles()
     }
 }
 
-void FormResizer::setShowChrome(bool on)
+void ResizeFrame::setShowChrome(bool on)
 {
     if (m_showChrome == on) {
         return;
@@ -174,7 +174,7 @@ void FormResizer::setShowChrome(bool on)
     update();
 }
 
-void FormResizer::setSelected(bool on)
+void ResizeFrame::setSelected(bool on)
 {
     m_selected = on;
     if (on) {
@@ -185,19 +185,19 @@ void FormResizer::setSelected(bool on)
     update();
 }
 
-void FormResizer::resizeEvent(QResizeEvent *e)
+void ResizeFrame::resizeEvent(QResizeEvent *e)
 {
     QWidget::resizeEvent(e);
     layoutHandles();
 }
 
-void FormResizer::moveEvent(QMoveEvent *e)
+void ResizeFrame::moveEvent(QMoveEvent *e)
 {
     QWidget::moveEvent(e);
     layoutHandles();
 }
 
-void FormResizer::notifyGeometryChanged(const QRect &oldGeo)
+void ResizeFrame::notifyGeometryChanged(const QRect &oldGeo)
 {
     const QRect now = geometry();
     if (now == oldGeo) {
@@ -208,19 +208,19 @@ void FormResizer::notifyGeometryChanged(const QRect &oldGeo)
     emit formWindowSizeChanged(oldGeo, now);
 }
 
-/* ===================== BaseForm ===================== */
+/* ===================== CanvasItem ===================== */
 
-BaseForm::BaseForm(QWidget *parent)
-    : FormResizer(parent)
+CanvasItem::CanvasItem(QWidget *parent)
+    : ResizeFrame(parent)
 {
     setAutoFillBackground(false);
     setAttribute(Qt::WA_TranslucentBackground, false);
 }
 
-BaseForm::~BaseForm() = default;
+CanvasItem::~CanvasItem() = default;
 
 /** 控件的"对齐方式"（element_css 里的 align 枚举）。 */
-Qt::Alignment BaseForm::contentAlign() const
+Qt::Alignment CanvasItem::contentAlign() const
 {
     if (!m_node) {
         return Qt::AlignLeft;
@@ -236,12 +236,12 @@ Qt::Alignment BaseForm::contentAlign() const
     return Qt::AlignLeft;
 }
 
-QColor BaseForm::frameColor() const
+QColor CanvasItem::frameColor() const
 {
     return QColor(0x60, 0x60, 0x60);
 }
 
-void BaseForm::bind(UiNode *node)
+void CanvasItem::bind(UiNode *node)
 {
     m_node = node;
     if (m_node) {
@@ -250,12 +250,12 @@ void BaseForm::bind(UiNode *node)
     }
 }
 
-void BaseForm::setDisplayZoom(int percent)
+void CanvasItem::setDisplayZoom(int percent)
 {
     m_zoom = qBound(25, percent, 800);
 }
 
-void BaseForm::syncRectToNode()
+void CanvasItem::syncRectToNode()
 {
     if (!m_node) {
         return;
@@ -277,7 +277,7 @@ void BaseForm::syncRectToNode()
     m_node->markDirty();
 }
 
-void BaseForm::syncRectFromNode()
+void CanvasItem::syncRectFromNode()
 {
     if (!m_node || !m_node->rect.isValid()) {
         return;
@@ -313,7 +313,7 @@ static QColor cssBackground(UiNode *n)
     return QColor();
 }
 
-void BaseForm::paintEvent(QPaintEvent *)
+void CanvasItem::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, false);
@@ -445,7 +445,7 @@ void BaseForm::paintEvent(QPaintEvent *)
  *
  * 用途只有一个：画布上给它画个占位框，让人看得见、摸得着（见 paintEvent）。
  */
-bool BaseForm::isContentEmpty() const
+bool CanvasItem::isContentEmpty() const
 {
     if (!m_node) {
         return false;
@@ -467,7 +467,7 @@ bool BaseForm::isContentEmpty() const
 }
 
 /** 画 css 里的"内边框线"。单色屏下颜色只决定画不画。 */
-void BaseForm::paintBorder(QPainter &p)
+void CanvasItem::paintBorder(QPainter &p)
 {
     if (!m_node) {
         return;
@@ -510,7 +510,7 @@ void BaseForm::paintBorder(QPainter &p)
     p.restore();
 }
 
-void BaseForm::mousePressEvent(QMouseEvent *e)
+void CanvasItem::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(e);
@@ -522,7 +522,7 @@ void BaseForm::mousePressEvent(QMouseEvent *e)
     setSelected(true);
 }
 
-void BaseForm::mouseMoveEvent(QMouseEvent *e)
+void CanvasItem::mouseMoveEvent(QMouseEvent *e)
 {
     if (!m_moving) {
         return;
@@ -536,7 +536,7 @@ void BaseForm::mouseMoveEvent(QMouseEvent *e)
     move(m_startGeo.topLeft() + d);
 }
 
-void BaseForm::mouseReleaseEvent(QMouseEvent *e)
+void CanvasItem::mouseReleaseEvent(QMouseEvent *e)
 {
     Q_UNUSED(e)
     if (!m_moving) {
@@ -549,13 +549,13 @@ void BaseForm::mouseReleaseEvent(QMouseEvent *e)
 
 /* ===================== 右键菜单 ===================== */
 
-QVector<BaseForm *> BaseForm::subForms() const
+QVector<CanvasItem *> CanvasItem::subForms() const
 {
-    return QVector<BaseForm *>::fromList(
-        findChildren<BaseForm *>(QString(), Qt::FindDirectChildrenOnly));
+    return QVector<CanvasItem *>::fromList(
+        findChildren<CanvasItem *>(QString(), Qt::FindDirectChildrenOnly));
 }
 
-void BaseForm::contextMenuEvent(QContextMenuEvent *e)
+void CanvasItem::contextMenuEvent(QContextMenuEvent *e)
 {
     /* 右键先把自己选中，再弹菜单 —— 不然菜单里的"删除当前-xxx"说的是
      * 上一个选中的东西，点下去删错。 */
@@ -564,7 +564,7 @@ void BaseForm::contextMenuEvent(QContextMenuEvent *e)
     e->accept();
 }
 
-void BaseForm::showContextMenu(const QPoint &globalPos)
+void CanvasItem::showContextMenu(const QPoint &globalPos)
 {
     if (!m_node) {
         return;
@@ -579,7 +579,7 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
 
     /* 这两项的文字随当前状态在"显示/隐藏"之间翻 —— 四条串
      * （显示同类容器 / 显示 / 隐藏同类容器 / 隐藏）就是两个开关的两种文字。 */
-    const QVector<BaseForm *> subs = subForms();
+    const QVector<CanvasItem *> subs = subForms();
     const bool subShown = !subs.isEmpty() && subs.first()->isVisible();
     QAction *aSub  = subs.isEmpty()
                      ? nullptr
@@ -599,7 +599,7 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
     QAction *aBottom = menu.addAction(QStringLiteral("移到底层"));
     menu.addSeparator();
 
-    QAction *aFind = menu.addAction(QStringLiteral("查找对像"));
+    QAction *aFind = menu.addAction(QStringLiteral("查找控件"));
 
     QAction *c = menu.exec(globalPos);
     if (!c) {
@@ -610,11 +610,11 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
     } else if (c == aSave) {
         saveAsTemplate();
     } else if (aSub && c == aSub) {
-        for (BaseForm *f : subs) {
+        for (CanvasItem *f : subs) {
             emit userHideRequested(f->node());
         }
     } else if (c == aSelf) {
-        /* 交给画布记账，理由同 TreeDock::onSwapShowHideObject */
+        /* 交给画布记账，理由同 ObjectTreeDock::onSwapShowHideObject */
         emit userHideRequested(m_node);
     } else if (c == aCopy) {
         EditorOps::copyToClip(m_node);
@@ -634,7 +634,7 @@ void BaseForm::showContextMenu(const QPoint &globalPos)
 }
 
 /** 粘贴。谁能收、收不了说什么，见 EditorOps 里那几条提示语。 */
-void BaseForm::doPaste()
+void CanvasItem::doPaste()
 {
     if (EditorOps::clipEmpty()) {
         return;
@@ -642,12 +642,12 @@ void BaseForm::doPaste()
     if (!EditorOps::acceptsChild(m_node)) {
         /* 选中的不是布局 */
         EditorOps::tip(this, QStringLiteral(
-            "当前的选中的对像不支持剪切板里的对像粘贴,请选择一个<布局>对像."));
+            "选中的这个装不下粘贴的内容，先选一个布局。"));
         return;
     }
     if (!EditorOps::pasteInto(m_node)) {
         /* 是布局，但剪贴板里那个东西不能往布局里塞（比如整个图层） */
-        EditorOps::tip(this, QStringLiteral("当前类型容器不接受粘贴!"));
+        EditorOps::tip(this, QStringLiteral("这个容器收不了剪贴板里的东西。"));
         return;
     }
     emit structureChanged();
@@ -660,7 +660,7 @@ void BaseForm::doPaste()
  * 那个拼写错误），ControlLibrary 启动时扫这个目录，下次就出现在
  * "自定义控件" 那一组里。
  */
-void BaseForm::saveAsTemplate()
+void CanvasItem::saveAsTemplate()
 {
     if (!m_node) {
         return;
@@ -698,7 +698,7 @@ void BaseForm::saveAsTemplate()
 
 /* --- 属性面板过来的槽。签名固定，行为按原工具的语义重写 --- */
 
-void BaseForm::onXYWHChangedValue(int v)
+void CanvasItem::onXYWHChangedValue(int v)
 {
     /* 发信号的 spinBox 用 objectName 区分是 x / y / w / h，
      * 这是原工具的做法：四个 spinBox 接同一个槽。 */
@@ -717,7 +717,7 @@ void BaseForm::onXYWHChangedValue(int v)
          * —— 用户敲了 0，界面上还显示 0，存进去却是 1，下次打开数字自己变了。
          * 直接拦下来告诉用户，别自作主张。 */
         if (v == 0) {
-            EditorOps::tip(this, QStringLiteral("宽高不能设置为零."));
+            EditorOps::tip(this, QStringLiteral("宽和高不能设成 0。"));
             return;
         }
         if (which == QLatin1String("spinW")) {
@@ -734,12 +734,12 @@ void BaseForm::onXYWHChangedValue(int v)
     notifyGeometryChanged(old);
 }
 
-void BaseForm::onSwapViewObject()
+void CanvasItem::onSwapViewObject()
 {
     setVisible(!isVisible());
 }
 
-void BaseForm::onClearJsonValue()
+void CanvasItem::onClearJsonValue()
 {
     if (!m_node) {
         return;
@@ -754,7 +754,7 @@ void BaseForm::onClearJsonValue()
     update();
 }
 
-void BaseForm::onTextChanged(QString str)
+void CanvasItem::onTextChanged(QString str)
 {
     if (!m_node) {
         return;
@@ -769,12 +769,12 @@ void BaseForm::onTextChanged(QString str)
     update();
 }
 
-void BaseForm::onTextSelected()
+void CanvasItem::onTextSelected()
 {
     setSelected(true);
 }
 
-void BaseForm::onNumberChanged(int num)
+void CanvasItem::onNumberChanged(int num)
 {
     if (!m_node) {
         return;
@@ -788,7 +788,7 @@ void BaseForm::onNumberChanged(int num)
     }
 }
 
-void BaseForm::onEnumItemChanged(QString txt)
+void CanvasItem::onEnumItemChanged(QString txt)
 {
     if (!m_node) {
         return;
@@ -802,7 +802,7 @@ void BaseForm::onEnumItemChanged(QString txt)
     }
 }
 
-void BaseForm::onColorButtonClicked()
+void CanvasItem::onColorButtonClicked()
 {
     if (!m_node) {
         return;
@@ -821,7 +821,7 @@ void BaseForm::onColorButtonClicked()
     update();
 }
 
-void BaseForm::onBorderChangedValue(int v)
+void CanvasItem::onBorderChangedValue(int v)
 {
     if (!m_node) {
         return;
@@ -834,7 +834,7 @@ void BaseForm::onBorderChangedValue(int v)
     update();
 }
 
-void BaseForm::onBackgroundImageDialog()
+void CanvasItem::onBackgroundImageDialog()
 {
     if (!m_node) {
         return;
@@ -852,15 +852,15 @@ void BaseForm::onBackgroundImageDialog()
     update();
 }
 
-void BaseForm::onActionDialog()
+void CanvasItem::onActionDialog()
 {
-    /* 这里该弹 ActionList 对话框编辑 element_event_action。
+    /* 这里该弹 EventActionDialog 对话框编辑 element_event_action。
      * 这一段的二进制布局还没定下来，先不做。 */
     QMessageBox::information(this, tr("事件动作"),
                              tr("事件动作编辑尚未实现。"));
 }
 
-void BaseForm::onDeleteMe()
+void CanvasItem::onDeleteMe()
 {
     if (!m_node || !m_node->parent) {
         deleteLater();
@@ -888,7 +888,7 @@ void BaseForm::onDeleteMe()
     deleteLater();
 }
 
-void BaseForm::onListImageChanged(QString a0)
+void CanvasItem::onListImageChanged(QString a0)
 {
     if (!m_node) {
         return;
@@ -903,15 +903,15 @@ void BaseForm::onListImageChanged(QString a0)
 
 /* ===================== 五个子类 ===================== */
 
-NewLayer::NewLayer(QWidget *parent) : BaseForm(parent) {}
+NewLayer::NewLayer(QWidget *parent) : CanvasItem(parent) {}
 NewLayer::~NewLayer() = default;
 QColor NewLayer::frameColor() const { return QColor(0x1f, 0x6f, 0xb5); }
-void NewLayer::onDeleteMe() { BaseForm::onDeleteMe(); }
+void NewLayer::onDeleteMe() { CanvasItem::onDeleteMe(); }
 
-NewLayout::NewLayout(QWidget *parent) : BaseForm(parent) {}
+NewLayout::NewLayout(QWidget *parent) : CanvasItem(parent) {}
 NewLayout::~NewLayout() = default;
 QColor NewLayout::frameColor() const { return QColor(0x2e, 0x8b, 0x57); }
-void NewLayout::onDeleteMe() { BaseForm::onDeleteMe(); }
+void NewLayout::onDeleteMe() { CanvasItem::onDeleteMe(); }
 
 void NewLayout::onBeComeTemplateWidget()
 {
@@ -927,15 +927,15 @@ void NewLayout::onBeComeTemplateWidget()
     }
 }
 
-NewFrame::NewFrame(QWidget *parent) : BaseForm(parent) {}
+NewFrame::NewFrame(QWidget *parent) : CanvasItem(parent) {}
 NewFrame::~NewFrame() = default;
 QColor NewFrame::frameColor() const { return QColor(0xb5, 0x5f, 0x1f); }
-void NewFrame::onDeleteMe() { BaseForm::onDeleteMe(); }
+void NewFrame::onDeleteMe() { CanvasItem::onDeleteMe(); }
 
-NewList::NewList(QWidget *parent) : BaseForm(parent) {}
+NewList::NewList(QWidget *parent) : CanvasItem(parent) {}
 NewList::~NewList() = default;
 QColor NewList::frameColor() const { return QColor(0x7a, 0x3f, 0xb5); }
-void NewList::onDeleteMe() { BaseForm::onDeleteMe(); }
+void NewList::onDeleteMe() { CanvasItem::onDeleteMe(); }
 
 /** 竖列表 = 一行行往下排，横列表 = 一列列往右排。orientation 决定叫法。 */
 static bool listIsVertical(UiNode *n)
@@ -1073,14 +1073,14 @@ void NewList::setOrientation(bool vertical)
  */
 void NewList::wheelEvent(QWheelEvent *e)
 {
-    const QVector<BaseForm *> rows = subForms();
+    const QVector<CanvasItem *> rows = subForms();
     if (rows.isEmpty()) {
-        BaseForm::wheelEvent(e);
+        CanvasItem::wheelEvent(e);
         return;
     }
     const int delta = e->angleDelta().y();
     if (delta == 0) {
-        BaseForm::wheelEvent(e);
+        CanvasItem::wheelEvent(e);
         return;
     }
     setFirstVisible(m_first + (delta > 0 ? -1 : 1));
@@ -1089,7 +1089,7 @@ void NewList::wheelEvent(QWheelEvent *e)
 
 void NewList::setFirstVisible(int i)
 {
-    const QVector<BaseForm *> rows = subForms();
+    const QVector<CanvasItem *> rows = subForms();
     const int maxFirst = qMax(0, rows.size() - 1);
     const int want = qBound(0, i, maxFirst);
     if (want == m_first) {
@@ -1099,7 +1099,7 @@ void NewList::setFirstVisible(int i)
     relayoutRows();
 }
 
-bool BaseForm::reflowCells()
+bool CanvasItem::reflowCells()
 {
     if (!m_node) {
         return false;
@@ -1119,21 +1119,21 @@ bool BaseForm::reflowCells()
     return changed;
 }
 
-void BaseForm::cellParamsChanged()
+void CanvasItem::cellParamsChanged()
 {
     reflowCells();
     /* 【必须往上发一次】只 update() 的话，重画的只有这个控件自己：各行还在
      * 老位置老尺寸（relayoutRows 只有滚轮翻行时才跑），右栏预览不知道，
      * 工程也不算改过。走 structureChanged 这条现成的路 —— 画布照新参数
      * 整个重建（重建里 onSubtreeBuilt() 会把行摆好），树和页面栏跟着刷，
-     * CanvasManager 顺手置脏。 */
+     * EditorSession 顺手置脏。 */
     update();
     emit structureChanged();
 }
 
 void NewList::resizeEvent(QResizeEvent *e)
 {
-    BaseForm::resizeEvent(e);
+    CanvasItem::resizeEvent(e);
     /* 列表一改大小，格子也跟着变（水平列表的行高 = 列表高） */
     relayoutRows();
 }
@@ -1143,12 +1143,12 @@ void NewList::relayoutRows()
     if (!m_node) {
         return;
     }
-    const QVector<BaseForm *> rows = subForms();
+    const QVector<CanvasItem *> rows = subForms();
     const bool vert = listIsVertical(m_node);
     /* 【行高/间隔也要乘倍率】sizehw / space 是工程里的 1:1 逻辑像素，而这里
      * 摆的是**屏幕**坐标。以前直接拿来用，放大之后列表外框和别的控件都按倍率
      * 变大了，行却还是原尺寸 —— 一滚轮就露馅：行高和周围对不上。
-     * 和 BaseForm::syncRectFromNode() 用同一套换算，别在这儿自成一派。 */
+     * 和 CanvasItem::syncRectFromNode() 用同一套换算，别在这儿自成一派。 */
     const int z = qMax(1, displayZoom());
     const int size = qMax(1, m_node->extraValue(QStringLiteral("sizehw")).toInt(16)
                              * z / 100);
@@ -1156,7 +1156,7 @@ void NewList::relayoutRows()
     const int step = size + space;
 
     for (int i = 0; i < rows.size(); ++i) {
-        BaseForm *r = rows.at(i);
+        CanvasItem *r = rows.at(i);
         const int off = (i - m_first) * step;
         if (vert) {
             r->move(r->x(), off);
@@ -1206,10 +1206,10 @@ void NewList::appendTypeActions(QMenu &menu)
     connect(aHorz, &QAction::triggered, this, [this]() { setOrientation(false); });
 }
 
-NewGrid::NewGrid(QWidget *parent) : BaseForm(parent) {}
+NewGrid::NewGrid(QWidget *parent) : CanvasItem(parent) {}
 NewGrid::~NewGrid() = default;
 QColor NewGrid::frameColor() const { return QColor(0xb5, 0x1f, 0x5f); }
-void NewGrid::onDeleteMe() { BaseForm::onDeleteMe(); }
+void NewGrid::onDeleteMe() { CanvasItem::onDeleteMe(); }
 
 /* 【说清楚不确定的地方】NewGrid 在 SmallColorTFT.json 里一个实例
  * 都没有（277 个节点：NewFrame 175 / NewLayout 85 / NewList 14 / NewLayer 3），
@@ -1335,7 +1335,7 @@ void NewGrid::appendTypeActions(QMenu &menu)
 
 /* ===================== 工厂 ===================== */
 
-BaseForm *createFormForClass(const QString &cls, QWidget *parent)
+CanvasItem *createFormForClass(const QString &cls, QWidget *parent)
 {
     if (cls == QLatin1String("NewLayer")) {
         return new NewLayer(parent);

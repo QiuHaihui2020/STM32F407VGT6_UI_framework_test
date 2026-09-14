@@ -171,7 +171,7 @@ public:
      * 【为什么要传模板】图层/布局的几何和样式全在
      * property[-name=="element_css"] 里。以前这里是手搭一个只有 rect 的节点，
      * 生成 .sty 时那两条记录**连 css 块都没有** —— 固件没有几何也没有样式，
-     * 烧进去整屏不显示。和 CompoentControls::appendChild 里踩过的是同一个坑，
+     * 烧进去整屏不显示。和 WidgetPalette::appendChild 里踩过的是同一个坑，
      * 那边的结论就是"必须从模板整份克隆"。
      */
     void createDefault(const QString &projName, const QSize &pageSize,
@@ -194,6 +194,9 @@ public:
     QVector<UiNode *> &pages() { return m_pages; }
 
     QString  filePath() const { return m_path; }
+    /** 另存为之后改指到新文件。save() 是 const 的，不会自己改这个。
+     *  纯粹是"当前编的是哪个文件"，和工程内容无关，所以不置脏。 */
+    void     setFilePath(const QString &p) { m_path = p; }
     bool     dirty() const { return m_dirty; }
     void     setDirty(bool d) { m_dirty = d; }
 
@@ -214,12 +217,12 @@ public:
      *
      * 规则：base 本身没被占就用 base，否则 base_1 / base_2 … 往后找。
      * 默认 base 是 "BaseForm" —— 它紧挨着
-     * 'Ename is empty'(0xc94f3b)，同一编译单元（ComProperty/CssProperty）里
+     * 'Ename is empty'(0xc94f3b)，同一编译单元（BasicPropertyPane/CssPropertyPane）里
      * 还有格式串 '%1_%2'；实机工程里新建的图层/布局拿到的正是
      * BaseForm_1 / BaseForm_2。
      *
      * @note 比较**不分大小写** —— ename.h 里的宏名是全大写的，
-     *       BaseForm 和 BASEFORM 会撞成同一个宏。
+     *       CanvasItem 和 BASEFORM 会撞成同一个宏。
      */
     QString uniqueEname(const QString &base = QStringLiteral("BaseForm")) const;
     /** n 在全工程里的序号（非页节点，前序遍历）。找不到返回 -1。 */

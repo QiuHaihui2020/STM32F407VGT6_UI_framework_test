@@ -1,5 +1,5 @@
 /*
- * ProjectDialog.h —— 新建工程对话框
+ * NewProjectDialog.h —— 新建工程对话框
  *
  * 【槽】
  *     ★ public  slot void onAccepted()
@@ -7,7 +7,7 @@
  * 后者是 Qt 的自动连接命名（connectSlotsByName），说明界面上存在一个
  * objectName == "pushButton" 的按钮。
  *
- * 【界面还原】ProjectDialog.ui 被 uic 编译进了 exe，控件名以 QStringLiteral
+ * 【界面还原】NewProjectDialog.ui 被 uic 编译进了 exe，控件名以 QStringLiteral
  * 形式残留在 .rdata 里，用 compat/strlit_scan.py 抓到的原始顺序是：
  *     buttonBox, label_3, prjname, layoutWidget2, verticalLayout,
  *     pushButton, ":/icons/browse.png", view_lang, filestatus,
@@ -28,13 +28,13 @@ class QLabel;
 class QListWidget;
 class QDialogButtonBox;
 
-class ProjectDialog : public QDialog
+class NewProjectDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit ProjectDialog(QWidget *parent = nullptr);
-    ~ProjectDialog() override;
+    explicit NewProjectDialog(QWidget *parent = nullptr);
+    ~NewProjectDialog() override;
 
     QString projectName() const;
     QSize   pageSize() const;

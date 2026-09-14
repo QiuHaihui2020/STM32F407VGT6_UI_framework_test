@@ -1,12 +1,12 @@
 #include "Property.h"
 #include "AppIcon.h"
 
-#include "ActionList.h"
+#include "EventActionDialog.h"
 #include "EditorOps.h"
 #include "Preview.h"
-#include "I18nLanguage.h"
-#include "ImageFileDialog.h"
-#include "ImageListView.h"
+#include "StringPicker.h"
+#include "ImagePicker.h"
+#include "ImageStrip.h"
 
 #include <QJsonArray>
 #include <QMessageBox>
@@ -256,22 +256,22 @@ BaseScrollArea::BaseScrollArea(QWidget *parent)
 
 BaseScrollArea::~BaseScrollArea() = default;
 
-/* ===================== DragButton ===================== */
+/* ===================== HandleButton ===================== */
 
-DragButton::DragButton(QWidget *parent)
+HandleButton::HandleButton(QWidget *parent)
     : QPushButton(parent)
 {
 }
 
-DragButton::~DragButton() = default;
+HandleButton::~HandleButton() = default;
 
-void DragButton::mousePressEvent(QMouseEvent *e)
+void HandleButton::mousePressEvent(QMouseEvent *e)
 {
     m_press = e->pos();
     QPushButton::mousePressEvent(e);
 }
 
-void DragButton::mouseMoveEvent(QMouseEvent *e)
+void HandleButton::mouseMoveEvent(QMouseEvent *e)
 {
     if (!(e->buttons() & Qt::LeftButton) || m_type.isEmpty()) {
         QPushButton::mouseMoveEvent(e);
@@ -413,7 +413,7 @@ FileEdit::FileEdit(QWidget *parent)
 
     /* 【必须用自带的图片弹窗，不能用系统文件对话框】
      *
-     * 点"背景图片"要弹 ImageListView（标题"图片编辑(双击选中图片并更新
+     * 点"背景图片"要弹 ImageStrip（标题"图片编辑(双击选中图片并更新
      * 到控件)"，左目录树右缩略图，双击选中），和图片列表那个弹窗一个版式。
      *
      * 更要命的是路径形式：工程 json 里存的是**相对工程目录**的
@@ -422,7 +422,7 @@ FileEdit::FileEdit(QWidget *parent)
      * 相对路径去 picId 表里查号的），等于设了个寂寞。 */
     auto choose = [this]() {
         const PropertyContext &ctx = PropertyContext::instance();
-        ImageListView dlg(this);
+        ImageStrip dlg(this);
         dlg.setProjectDir(ctx.projectDir);
         dlg.setSelected(m_path);
         if (dlg.exec() != QDialog::Accepted || dlg.selected().isEmpty()) {
@@ -491,9 +491,9 @@ void FileEdit::refreshFace()
     m_main->setToolTip(m_path);
 }
 
-/* ===================== Backgroud ===================== */
+/* ===================== BackgroundPane ===================== */
 
-Backgroud::Backgroud(QWidget *parent)
+BackgroundPane::BackgroundPane(QWidget *parent)
     : QWidget(parent)
 {
     auto *lay = new QHBoxLayout(this);
@@ -528,9 +528,9 @@ Backgroud::Backgroud(QWidget *parent)
     });
 }
 
-Backgroud::~Backgroud() = default;
+BackgroundPane::~BackgroundPane() = default;
 
-void Backgroud::setColor(const QColor &c)
+void BackgroundPane::setColor(const QColor &c)
 {
     m_color = c;
     if (c.isValid()) {
@@ -764,7 +764,7 @@ void BaseProperty::showNode(UiNode *n)
     m_node = n;
 }
 
-/* ===================== CssProperty ===================== */
+/* ===================== CssPropertyPane ===================== */
 
 static QComboBox *labeledCombo(QVBoxLayout *box, QWidget *owner,
                                const QString &caption, const QStringList &items)
@@ -778,12 +778,12 @@ static QComboBox *labeledCombo(QVBoxLayout *box, QWidget *owner,
     return cb;
 }
 
-CssProperty::CssProperty(QWidget *parent)
+CssPropertyPane::CssPropertyPane(QWidget *parent)
     : BaseProperty(parent)
 {
 }
 
-CssProperty::~CssProperty() = default;
+CssPropertyPane::~CssPropertyPane() = default;
 
 /**
  * 把面板上的一次改动写回 element_css.struct[m_state]。
@@ -793,7 +793,7 @@ CssProperty::~CssProperty() = default;
  * 改了都不落盘，存出来还是老值。加载时 setXxx() 也会触发信号，所以要用
  * m_loading 挡一道，否则一选中控件就把自己标脏。
  */
-void CssProperty::commitCss(const QString &propName, const QString &key,
+void CssPropertyPane::commitCss(const QString &propName, const QString &key,
                             const QJsonValue &value)
 {
     if (m_loading || !m_node) {
@@ -804,7 +804,7 @@ void CssProperty::commitCss(const QString &propName, const QString &key,
     }
 }
 
-void CssProperty::clearRows()
+void CssPropertyPane::clearRows()
 {
     m_pos = nullptr;
     while (m_box->count() > 0) {
@@ -820,7 +820,7 @@ void CssProperty::clearRows()
  * caption / -type / enum / 默认值全来自工程 json（源头是 control.json）。
  * "对齐方式 / 默认隐藏 / 位置坐标 / 背景颜色 / 背景图片 /
  * 内边框线"就是这么来的 —— 写死反而会和别的控件对不上。 */
-QStringList CssProperty::rowsForTest() const
+QStringList CssPropertyPane::rowsForTest() const
 {
     QStringList v;
     if (!m_box) {
@@ -840,7 +840,7 @@ QStringList CssProperty::rowsForTest() const
     return v;
 }
 
-void CssProperty::showNode(UiNode *n)
+void CssPropertyPane::showNode(UiNode *n)
 {
     BaseProperty::showNode(n);
     clearRows();
@@ -922,10 +922,10 @@ void CssProperty::showNode(UiNode *n)
                                              : QString());
                         });
             } else {
-                auto *w = new Backgroud(this);
+                auto *w = new BackgroundPane(this);
                 w->setColor(QColor(cur));
                 m_box->addWidget(w);
-                connect(w, &Backgroud::colorChanged, this, [this, pname](const QColor &c) {
+                connect(w, &BackgroundPane::colorChanged, this, [this, pname](const QColor &c) {
                     /* 空串 = 没有背景色 */
                     commitCss(pname, QStringLiteral("background-color"),
                               c.isValid() ? c.name() : QString());
@@ -1020,9 +1020,9 @@ PropertyContext &PropertyContext::instance()
     return ctx;
 }
 
-/* ===================== ComProperty ===================== */
+/* ===================== BasicPropertyPane ===================== */
 
-ComProperty::ComProperty(QWidget *parent)
+BasicPropertyPane::BasicPropertyPane(QWidget *parent)
     : BaseProperty(parent)
 {
     m_box->addWidget(new QLabel(tr("ID号"), this));
@@ -1058,16 +1058,16 @@ ComProperty::ComProperty(QWidget *parent)
     });
 }
 
-ComProperty::~ComProperty() = default;
+BasicPropertyPane::~BasicPropertyPane() = default;
 
-CalloutTip *ComProperty::tip() const
+CalloutTip *BasicPropertyPane::tip() const
 {
     /* 全进程一个就够：同一时刻只会指着一个输入框说话。 */
     static CalloutTip *s_tip = new CalloutTip;
     return s_tip;
 }
 
-bool ComProperty::warningTipFitsForTest()
+bool BasicPropertyPane::warningTipFitsForTest()
 {
     if (m_tipText.isEmpty() || !m_tipAnchor) {
         return true;
@@ -1078,7 +1078,7 @@ bool ComProperty::warningTipFitsForTest()
     return ok;
 }
 
-void ComProperty::setWarning(QLabel *mark, QWidget *anchor, const QString &msg)
+void BasicPropertyPane::setWarning(QLabel *mark, QWidget *anchor, const QString &msg)
 {
     if (!mark) {
         return;
@@ -1105,7 +1105,7 @@ void ComProperty::setWarning(QLabel *mark, QWidget *anchor, const QString &msg)
     }
 }
 
-QPixmap ComProperty::warningTipPixmapForTest()
+QPixmap BasicPropertyPane::warningTipPixmapForTest()
 {
     if (m_tipText.isEmpty() || !m_tipAnchor) {
         return QPixmap();
@@ -1116,7 +1116,7 @@ QPixmap ComProperty::warningTipPixmapForTest()
     return pm;
 }
 
-bool ComProperty::eventFilter(QObject *o, QEvent *e)
+bool BasicPropertyPane::eventFilter(QObject *o, QEvent *e)
 {
     /* 面板上那个 ⚠：点一下（或鼠标移上去）把气泡再叫出来 —— 气泡会自动收，
      * 收了之后总得有办法看回去。 */
@@ -1132,7 +1132,7 @@ bool ComProperty::eventFilter(QObject *o, QEvent *e)
     return BaseProperty::eventFilter(o, e);
 }
 
-void ComProperty::clearDynamic()
+void BasicPropertyPane::clearDynamic()
 {
     while (m_dynFormRes->count() > 0) {
         QLayoutItem *it = m_dynFormRes->takeAt(0);
@@ -1151,7 +1151,7 @@ void ComProperty::clearDynamic()
     }
 }
 
-void ComProperty::typeIdForTest(const QString &text)
+void BasicPropertyPane::typeIdForTest(const QString &text)
 {
     if (!m_id) {
         return;
@@ -1160,12 +1160,12 @@ void ComProperty::typeIdForTest(const QString &text)
     m_id->setText(text);          // setText 不发 editingFinished，正是要模拟的状态
 }
 
-QString ComProperty::idTextForTest() const
+QString BasicPropertyPane::idTextForTest() const
 {
     return m_id ? m_id->text() : QString();
 }
 
-QList<QComboBox *> ComProperty::dynCombosForTest() const
+QList<QComboBox *> BasicPropertyPane::dynCombosForTest() const
 {
     QList<QComboBox *> v;
     for (QWidget *w : dynamicSections()) {
@@ -1176,7 +1176,7 @@ QList<QComboBox *> ComProperty::dynCombosForTest() const
     return v;
 }
 
-QList<QLabel *> ComProperty::dynLabelsForTest() const
+QList<QLabel *> BasicPropertyPane::dynLabelsForTest() const
 {
     QList<QLabel *> v;
     for (QWidget *w : dynamicSections()) {
@@ -1187,7 +1187,7 @@ QList<QLabel *> ComProperty::dynLabelsForTest() const
     return v;
 }
 
-QStringList ComProperty::dynRowsForTest(PropSection sec) const
+QStringList BasicPropertyPane::dynRowsForTest(PropSection sec) const
 {
     QStringList v;
     QFormLayout *f = (sec == SecResource) ? m_dynFormRes : m_dynForm;
@@ -1203,14 +1203,14 @@ QStringList ComProperty::dynRowsForTest(PropSection sec) const
     return v;
 }
 
-QStringList ComProperty::dynRowsForTest() const
+QStringList BasicPropertyPane::dynRowsForTest() const
 {
     /* 【默认给两页合起来的】面板自检(18x) 比的是"json 里该有的行有没有
      * 都铺出来"，拆成两页之后必须两页合起来看，否则每一页都会报"漏行"。 */
     return dynRowsForTest(SecBasic) + dynRowsForTest(SecResource);
 }
 
-void ComProperty::showNode(UiNode *n)
+void BasicPropertyPane::showNode(UiNode *n)
 {
     BaseProperty::showNode(n);
     clearDynamic();
@@ -1322,9 +1322,9 @@ void ComProperty::showNode(UiNode *n)
                         });
                 dynForm->addRow(cap, cb);
             } else {
-                auto *w = new Backgroud(dynHost);
+                auto *w = new BackgroundPane(dynHost);
                 w->setColor(QColor(cur));
-                connect(w, &Backgroud::colorChanged, this,
+                connect(w, &BackgroundPane::colorChanged, this,
                         [commit, ckey](const QColor &c) {
                             const QString val = c.isValid() ? c.name(QColor::HexArgb)
                                                             : QString();
@@ -1661,7 +1661,7 @@ void ComProperty::showNode(UiNode *n)
 
 /* ---- 三个"开子对话框"的按钮 ---------------------------------------------
  * 图片列表 / 文字列表 / 事件动作在 json 里都是数组，塞不进一行编辑框。
- * 所以各开一个独立窗口（ImageFileDialog / I18nLanguage / ActionList），
+ * 所以各开一个独立窗口（ImagePicker / StringPicker / EventActionDialog），
  * 按钮上直接显示当前条目数，省得点进去才知道有没有配。 */
 
 static QStringList jsonToStringList(const QJsonArray &a)
@@ -1673,7 +1673,7 @@ static QStringList jsonToStringList(const QJsonArray &a)
     return out;
 }
 
-int ComProperty::previewIndexOf(const UiProperty &p) const
+int BasicPropertyPane::previewIndexOf(const UiProperty &p) const
 {
     const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
     if (lst.isEmpty()) {
@@ -1700,7 +1700,7 @@ int ComProperty::previewIndexOf(const UiProperty &p) const
 }
 
 /** 列表条目下拉框：图片给缩略图 + 文件名，文字给"内容#ResID"。 */
-QComboBox *ComProperty::makeEntryCombo(const UiProperty &p, bool isText)
+QComboBox *BasicPropertyPane::makeEntryCombo(const UiProperty &p, bool isText)
 {
     const QJsonArray lst = p.raw.value(QStringLiteral("list")).toArray();
     auto *cb = new QComboBox(m_dyn);
@@ -1734,7 +1734,7 @@ QComboBox *ComProperty::makeEntryCombo(const UiProperty &p, bool isText)
     return cb;
 }
 
-QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
+QWidget *BasicPropertyPane::makeListButton(const UiProperty &p, const QString &cap,
                                      const CommitFn &commit)
 {
     auto *box = new QWidget(m_dyn);
@@ -1768,7 +1768,7 @@ QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
     const QJsonArray init = lst;
     connect(btn, &QPushButton::clicked, this, [this, btn, init, maxLen, cap, commit]() {
         const PropertyContext &ctx = PropertyContext::instance();
-        ImageFileDialog dlg(this);
+        ImagePicker dlg(this);
         dlg.setWindowTitle(cap);
         dlg.setProjectDir(ctx.projectDir);
         dlg.setMaxCount(maxLen);
@@ -1790,7 +1790,7 @@ QWidget *ComProperty::makeListButton(const UiProperty &p, const QString &cap,
     return box;
 }
 
-QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap,
+QWidget *BasicPropertyPane::makeTextListButton(const UiProperty &p, const QString &cap,
                                          const CommitFn &commit)
 {
     auto *box = new QWidget(m_dyn);
@@ -1826,7 +1826,7 @@ QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap
     const QJsonArray init = lst;
     connect(btn, &QPushButton::clicked, this, [this, btn, init, maxLen, cap, commit]() {
         const PropertyContext &ctx = PropertyContext::instance();
-        I18nLanguage dlg(this);
+        StringPicker dlg(this);
         dlg.setWindowTitle(cap);
         dlg.setMaxCount(maxLen);
         QString err;
@@ -1867,7 +1867,7 @@ QWidget *ComProperty::makeTextListButton(const UiProperty &p, const QString &cap
     return box;
 }
 
-QPushButton *ComProperty::makeActionButton(const UiProperty &p, const CommitFn &commit)
+QPushButton *BasicPropertyPane::makeActionButton(const UiProperty &p, const CommitFn &commit)
 {
     auto *btn = new QPushButton(m_dyn);
     btn->setFont(monoFont());
@@ -1881,7 +1881,7 @@ QPushButton *ComProperty::makeActionButton(const UiProperty &p, const CommitFn &
     }
     btn->setText(tr("%1 条事件…").arg(n));
     connect(btn, &QPushButton::clicked, this, [this, btn, arr, commit]() {
-        ActionList dlg(this);
+        EventActionDialog dlg(this);
         dlg.setObjectNames(PropertyContext::instance().objectNames);
         QString fmtErr;
         if (!dlg.setActionPropertyChecked(arr, &fmtErr)) {

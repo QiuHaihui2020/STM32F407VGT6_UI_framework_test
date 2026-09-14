@@ -1,6 +1,6 @@
 #include "BaseDialog.h"
 #include "AppIcon.h"
-#include "I18nLanguage.h"
+#include "StringPicker.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -16,7 +16,7 @@
 #include "XlsReader.h"
 #include <QFileInfo>
 
-I18nLanguage::I18nLanguage(QWidget *parent)
+StringPicker::StringPicker(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("显示列表"));
@@ -61,7 +61,7 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     m_fontSize->setRange(0, 9999);
     m_fontSize->setToolTip(QStringLiteral("9999 内的整数"));
     auto *fontRow = new QHBoxLayout;
-    fontRow->addWidget(new QLabel(QStringLiteral("字号(0 表示默认):"), this));
+    fontRow->addWidget(new QLabel(QStringLiteral("字号（0 = 默认）："), this));
     fontRow->addWidget(m_fontSize);
     fontRow->addStretch();
 
@@ -78,13 +78,13 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     root->addLayout(row, 1);
     root->addWidget(box);
 
-    connect(selAll, &QPushButton::clicked, this, &I18nLanguage::on_item_selectall_clicked);
-    connect(dselAll, &QPushButton::clicked, this, &I18nLanguage::on_item_dselectall_clicked);
-    connect(re, &QPushButton::clicked, this, &I18nLanguage::on_item_re_clicked);
-    connect(up, &QPushButton::clicked, this, &I18nLanguage::onBtnUpClicked);
-    connect(down, &QPushButton::clicked, this, &I18nLanguage::onBtnDownClicked);
+    connect(selAll, &QPushButton::clicked, this, &StringPicker::on_item_selectall_clicked);
+    connect(dselAll, &QPushButton::clicked, this, &StringPicker::on_item_dselectall_clicked);
+    connect(re, &QPushButton::clicked, this, &StringPicker::on_item_re_clicked);
+    connect(up, &QPushButton::clicked, this, &StringPicker::onBtnUpClicked);
+    connect(down, &QPushButton::clicked, this, &StringPicker::onBtnDownClicked);
     connect(m_filter, &QLineEdit::textChanged, this, [this]() { applyFilter(); });
-    connect(m_itemWidget, &QListWidget::clicked, this, &I18nLanguage::onItemSelected);
+    connect(m_itemWidget, &QListWidget::clicked, this, &StringPicker::onItemSelected);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
@@ -115,9 +115,9 @@ I18nLanguage::I18nLanguage(QWidget *parent)
     });
 }
 
-I18nLanguage::~I18nLanguage() = default;
+StringPicker::~StringPicker() = default;
 
-bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
+bool StringPicker::loadExcel(const QString &xlsPath, QString *error)
 {
     /* 失败的三种情形：
      *   文件不在        -> "XLS文件找不到."
@@ -175,7 +175,7 @@ bool I18nLanguage::loadExcel(const QString &xlsPath, QString *error)
     return true;
 }
 
-void I18nLanguage::setSelected(const QStringList &ids)
+void StringPicker::setSelected(const QStringList &ids)
 {
     m_itemSelected->clear();
     for (const QString &id : ids) {
@@ -191,18 +191,18 @@ void I18nLanguage::setSelected(const QStringList &ids)
     }
 }
 
-QString I18nLanguage::labelOf(const QString &id) const
+QString StringPicker::labelOf(const QString &id) const
 {
     /* 表还没读进来（或这条 ResID 表里没有）就退回裸 ResID —— 总比空着强 */
     return m_labelOfId.value(id, id);
 }
 
-QString I18nLanguage::idOf(const QListWidgetItem *it)
+QString StringPicker::idOf(const QListWidgetItem *it)
 {
     return it ? it->data(Qt::UserRole).toString() : QString();
 }
 
-void I18nLanguage::addSelectedId(const QString &id, int at)
+void StringPicker::addSelectedId(const QString &id, int at)
 {
     auto *it = new QListWidgetItem(labelOf(id));
     it->setData(Qt::UserRole, id);          // 值永远是纯 ResID
@@ -213,13 +213,13 @@ void I18nLanguage::addSelectedId(const QString &id, int at)
     }
 }
 
-QString I18nLanguage::selectedLabelForTest(int i) const
+QString StringPicker::selectedLabelForTest(int i) const
 {
     const QListWidgetItem *it = m_itemSelected->item(i);
     return it ? it->text() : QString();
 }
 
-QStringList I18nLanguage::selected() const
+QStringList StringPicker::selected() const
 {
     QStringList out;
     for (int i = 0; i < m_itemSelected->count(); ++i) {
@@ -228,7 +228,7 @@ QStringList I18nLanguage::selected() const
     return out;
 }
 
-void I18nLanguage::applyFilter()
+void StringPicker::applyFilter()
 {
     const QString f = m_filter->text().trimmed();
     for (int i = 0; i < m_itemWidget->count(); ++i) {
@@ -237,7 +237,7 @@ void I18nLanguage::applyFilter()
     }
 }
 
-void I18nLanguage::on_item_selectall_clicked()
+void StringPicker::on_item_selectall_clicked()
 {
     for (int i = 0; i < m_itemWidget->count(); ++i) {
         QListWidgetItem *it = m_itemWidget->item(i);
@@ -247,14 +247,14 @@ void I18nLanguage::on_item_selectall_clicked()
     }
 }
 
-void I18nLanguage::on_item_dselectall_clicked()
+void StringPicker::on_item_dselectall_clicked()
 {
     for (int i = 0; i < m_itemWidget->count(); ++i) {
         m_itemWidget->item(i)->setCheckState(Qt::Unchecked);
     }
 }
 
-void I18nLanguage::on_item_re_clicked()
+void StringPicker::on_item_re_clicked()
 {
     for (int i = 0; i < m_itemWidget->count(); ++i) {
         QListWidgetItem *it = m_itemWidget->item(i);
@@ -265,7 +265,7 @@ void I18nLanguage::on_item_re_clicked()
     }
 }
 
-void I18nLanguage::onItemSelected(QModelIndex index)
+void StringPicker::onItemSelected(QModelIndex index)
 {
     // 点行也当成切换勾选，省一次瞄准复选框的操作
     QListWidgetItem *it = m_itemWidget->item(index.row());
@@ -274,7 +274,7 @@ void I18nLanguage::onItemSelected(QModelIndex index)
     }
 }
 
-void I18nLanguage::moveCurrent(int delta)
+void StringPicker::moveCurrent(int delta)
 {
     const int r = m_itemSelected->currentRow();
     const int to = r + delta;
@@ -286,22 +286,22 @@ void I18nLanguage::moveCurrent(int delta)
     m_itemSelected->setCurrentRow(to);
 }
 
-void I18nLanguage::onBtnUpClicked()
+void StringPicker::onBtnUpClicked()
 {
     moveCurrent(-1);
 }
 
-void I18nLanguage::onBtnDownClicked()
+void StringPicker::onBtnDownClicked()
 {
     moveCurrent(1);
 }
 
-int I18nLanguage::fontSize() const
+int StringPicker::fontSize() const
 {
     return m_fontSize ? m_fontSize->value() : 0;
 }
 
-void I18nLanguage::setFontSize(int px)
+void StringPicker::setFontSize(int px)
 {
     if (m_fontSize) {
         m_fontSize->setValue(px);

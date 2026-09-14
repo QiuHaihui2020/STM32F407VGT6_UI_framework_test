@@ -5,13 +5,13 @@
  *
  *   ┌────────────────────────────────────────────────────────────────────┐
  *   │ [新建工程][打开工程][保存工程][另存为]│[新建页面][删除当前页]│[截屏]│ │
- *   │ [全局设置][工程缩放]│[关于]   初始化编辑环境完成                    │  ← 只有工具栏，没有菜单栏
+ *   │ [全局设置][工程缩放]│[关于]   编辑器就绪                    │  ← 只有工具栏，没有菜单栏
  *   ├──────────┬──────────────┬──────────────────────────┬───────────────┤
  *   │ 结点│属性│ID号          │                          │  页面_0 渲染   │
  *   │ 图层_0  NewLayer  BT_LA │  控件列表 ┌────────────┐ │  页面_1 渲染   │
  *   │  布局_1 NewLayout BT_LA │   [ 图层 ]              │ │  页面_2 渲染   │
  *   │   电池电量_2 NewFrame   │   [ 布局 ]              │ │               │
- *   │   文字_3     NewFrame   │   电池电量│图片          │ │  ← PageView   │
+ *   │   文字_3     NewFrame   │   电池电量│图片          │ │  ← PageStrip   │
  *   │   ...                   │   文字   │时间          │ │               │
  *   │                         │   数字   │表格控件      │ │               │
  *   │                         │   垂直列表│水平列表     │ │               │
@@ -22,7 +22,7 @@
  *   │                         │ 对齐方式...  │          │               │
  *   │ 控件数量: 277           │ 位置坐标...  │          │               │
  *   └──────────┴──────────────┴──────────────────────────┴───────────────┘
- *      TreeDock      控件列表+属性区(第二列)      中央画布      PageView
+ *      ObjectTreeDock      控件列表+属性区(第二列)      中央画布      PageStrip
  *
  * 配色：面板绿 #C0DCC0、属性区 #CEE2CE、
  * 列表内白底 #F1F1F1、画布灰 #F0F0F0。
@@ -49,21 +49,21 @@ class QLabel;
 class QWidget;
 
 class UiNode;
-class CanvasManager;
-class ComProperty;
-class CssProperty;
+class EditorSession;
+class BasicPropertyPane;
+class CssPropertyPane;
 class BaseScrollArea;
 
 /** 左侧对象树：三列 结点 / 属性 / ID号，容器行带"眼睛"开关，底部显示控件总数。 */
-class TreeDock : public QDockWidget
+class ObjectTreeDock : public QDockWidget
 {
     Q_OBJECT
 
 public:
-    explicit TreeDock(QWidget *parent = nullptr);
-    ~TreeDock() override;
+    explicit ObjectTreeDock(QWidget *parent = nullptr);
+    ~ObjectTreeDock() override;
 
-    void setManager(CanvasManager *m) { m_mgr = m; }
+    void setManager(EditorSession *m) { m_mgr = m; }
     void reload();
     void selectNode(UiNode *n);
     /** 树上当前高亮的那个节点；没有就是 nullptr。ops-test 用。 */
@@ -85,19 +85,19 @@ private:
 
     QTreeWidget   *m_tree = nullptr;
     QLabel        *m_count = nullptr;
-    CanvasManager *m_mgr = nullptr;
+    EditorSession *m_mgr = nullptr;
 };
 
 /** 右侧页面栏：每页按实际尺寸渲染一遍，下方是可改名的标题。 */
-class PageView : public QDockWidget
+class PageStrip : public QDockWidget
 {
     Q_OBJECT
 
 public:
-    explicit PageView(QWidget *parent = nullptr);
-    ~PageView() override;
+    explicit PageStrip(QWidget *parent = nullptr);
+    ~PageStrip() override;
 
-    void setManager(CanvasManager *m) { m_mgr = m; }
+    void setManager(EditorSession *m) { m_mgr = m; }
     void reload();
 
     /**
@@ -142,21 +142,21 @@ private:
     QListWidget       *m_layouts = nullptr;
     QWidget           *m_brace = nullptr;      ///< 两列中间那个大括号
     QVector<UiNode *>  m_layoutNodes;
-    CanvasManager     *m_mgr = nullptr;
+    EditorSession     *m_mgr = nullptr;
     bool               m_loading = false;
 };
 
 /** "控件列表" 组框：图层 / 布局 两个大按钮 + 控件网格 + 自定义控件。
  *  数据来自工具目录的 assets/widgets.json 与 assets/widgets.d/*.json。 */
-class CompoentControls : public QGroupBox
+class WidgetPalette : public QGroupBox
 {
     Q_OBJECT
 
 public:
-    explicit CompoentControls(QWidget *parent = nullptr);
-    ~CompoentControls() override;
+    explicit WidgetPalette(QWidget *parent = nullptr);
+    ~WidgetPalette() override;
 
-    void setManager(CanvasManager *m) { m_mgr = m; }
+    void setManager(EditorSession *m) { m_mgr = m; }
     void reload();
     /** 当前选中的节点。新建限制是"看你选中的是什么"，所以必须知道它。 */
     void setCurrentNode(UiNode *n) { m_current = n; }
@@ -168,7 +168,7 @@ signals:
     void nodeCreated(UiNode *node);
 
 public slots:
-    void onCreateCompoentToCanvas();   ///< ★
+    void onCreateWidgetOnCanvas();   ///< ★
     void onCreateCustomWidget();       ///< ★
     void onCreateNewLayout();          ///< ★
     void onCreateNewLayer();           ///< ★
@@ -192,7 +192,7 @@ private:
     BaseScrollArea *m_area = nullptr;
     QWidget        *m_grid = nullptr;
     QGroupBox      *m_custom = nullptr;
-    CanvasManager  *m_mgr = nullptr;
+    EditorSession  *m_mgr = nullptr;
     UiNode         *m_current = nullptr;   ///< 当前选中节点，新建限制据此判断
 };
 
@@ -206,18 +206,18 @@ private:
  * 因为背景/边框挪到资源页之后两页都受状态影响，状态选择器不能再藏在
  * 其中一页里。取舍见 docs/UI_BEHAVIOR.md §17。
  *
- * 每一页 = CssProperty(该分区) + ComProperty 专有属性区的那一半。
+ * 每一页 = CssPropertyPane(该分区) + BasicPropertyPane 专有属性区的那一半。
  */
-class PropertyTab : public QWidget
+class PropertyDock : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit PropertyTab(QWidget *parent = nullptr);
-    ~PropertyTab() override;
+    explicit PropertyDock(QWidget *parent = nullptr);
+    ~PropertyDock() override;
 
     void showNode(UiNode *n);
-    /** 把 ComProperty 专有属性区的两半装进对应页签。 */
+    /** 把 BasicPropertyPane 专有属性区的两半装进对应页签。 */
     void setDynamicSections(QWidget *basic, QWidget *resource);
 
     /** 当前 CSS 状态（原来的 "CSS属性_N" 的 N）。 */
@@ -262,7 +262,7 @@ private:
     QWidget     *m_stateRow = nullptr;   ///< "CSS状态: [▾]" 那一行，右键菜单挂整行
     QComboBox   *m_stateCb = nullptr;
     QTabWidget  *m_tabs = nullptr;
-    CssProperty *m_css[SecCount] = { nullptr, nullptr };
+    CssPropertyPane *m_css[SecCount] = { nullptr, nullptr };
     QVBoxLayout *m_pageLay[SecCount] = { nullptr, nullptr };
     UiNode      *m_node = nullptr;
     int          m_state = 0;

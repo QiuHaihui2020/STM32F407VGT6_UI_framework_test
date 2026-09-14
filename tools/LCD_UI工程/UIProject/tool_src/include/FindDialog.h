@@ -1,4 +1,4 @@
-/* findDlg.h ——
+/* FindDialog.h ——
  * 控件名：label / lineEdit / pushButton
  *
  * 用途：按 ename 或名字在对象树里找控件。找到就发 found()，由主窗口去选中。
@@ -10,13 +10,13 @@
 
 class QLineEdit;
 
-class findDlg : public QDialog
+class FindDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit findDlg(QWidget *parent = nullptr);
-    ~findDlg() override;
+    explicit FindDialog(QWidget *parent = nullptr);
+    ~FindDialog() override;
 
     QString keyword() const;
 

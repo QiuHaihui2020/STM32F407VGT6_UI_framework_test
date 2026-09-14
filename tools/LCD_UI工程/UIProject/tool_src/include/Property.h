@@ -3,20 +3,20 @@
  *
  * 【面板结构】第二列下半部分的属性区是这么排的：
  *     ID号   [BACKLIGHT_VALUE_LIST]
- *     ┌ CSS属性_0 ┐                       <- PropertyTab (QTabWidget)
+ *     ┌ CSS属性_0 ┐                       <- PropertyDock (QTabWidget)
  *     │ 对齐方式  [ALIGN_CENTER   ▼]
  *     │ 默认隐藏  [false          ▼]
  *     │ 标志      [ELM_FLAG_NORMAL▼]
  *     │ 位置坐标  ┌ X / Y / 宽度 / 高度 ┐   <- Position (QGroupBox)
- *     │ [背景颜色][🖌]                      <- Backgroud
+ *     │ [背景颜色][🖌]                      <- BackgroundPane
  *     │ [背景图片][🖌]                      <- FileEdit
  *     │ 内边框线  ┌ 左/上/右/下 + [边框] ┐   <- Border (QGroupBox)
  *     └
  *     滚动方式   [SCROLL         ▼]        <- 控件专有属性，来自 control.json
  *     默认高亮行号 [0]
- * 对应的类：BaseProperty / ComProperty / CssProperty /
- * Position / Border / Backgroud / FileEdit（signal filePathChanged）/
- * DragButton / BaseScrollArea。
+ * 对应的类：BaseProperty / BasicPropertyPane / CssPropertyPane /
+ * Position / Border / BackgroundPane / FileEdit（signal filePathChanged）/
+ * HandleButton / BaseScrollArea。
  */
 #ifndef PROPERTY_H
 #define PROPERTY_H
@@ -55,12 +55,12 @@ public:
 };
 
 /** 控件列表里那些"拖到画布上"的按钮。 */
-class DragButton : public QPushButton
+class HandleButton : public QPushButton
 {
     Q_OBJECT
 public:
-    explicit DragButton(QWidget *parent = nullptr);
-    ~DragButton() override;
+    explicit HandleButton(QWidget *parent = nullptr);
+    ~HandleButton() override;
 
     void setPayload(const QString &cls, const QString &type)
     {
@@ -105,12 +105,12 @@ private:
 };
 
 /** "背景颜色" 行。 */
-class Backgroud : public QWidget
+class BackgroundPane : public QWidget
 {
     Q_OBJECT
 public:
-    explicit Backgroud(QWidget *parent = nullptr);
-    ~Backgroud() override;
+    explicit BackgroundPane(QWidget *parent = nullptr);
+    ~BackgroundPane() override;
 
     QColor color() const { return m_color; }
     void   setColor(const QColor &c);
@@ -265,12 +265,12 @@ enum PropSection {
     SecCount = 2
 };
 
-class CssProperty : public BaseProperty
+class CssPropertyPane : public BaseProperty
 {
     Q_OBJECT
 public:
-    explicit CssProperty(QWidget *parent = nullptr);
-    ~CssProperty() override;
+    explicit CssPropertyPane(QWidget *parent = nullptr);
+    ~CssPropertyPane() override;
 
     /** 本页只铺哪一个分区的字段。 */
     void setSection(PropSection s) { m_section = s; }
@@ -296,19 +296,19 @@ private:
 };
 
 /** 通用属性：ID号 + 由 control.json 的 property[] 动态生成的控件专有项。 */
-class ComProperty : public BaseProperty
+class BasicPropertyPane : public BaseProperty
 {
     Q_OBJECT
 public:
-    explicit ComProperty(QWidget *parent = nullptr);
-    ~ComProperty() override;
+    explicit BasicPropertyPane(QWidget *parent = nullptr);
+    ~BasicPropertyPane() override;
 
     void showNode(UiNode *n) override;
 
     /**
      * 控件专有属性的容器，一个分区一个。
      *
-     * 由外层（PropertyTab）摆进对应的页签里；ComProperty 本体只显示
+     * 由外层（PropertyDock）摆进对应的页签里；BasicPropertyPane 本体只显示
      * 最上面那个常驻的 "ID号"。
      */
     QWidget *dynamicSection(PropSection s) const

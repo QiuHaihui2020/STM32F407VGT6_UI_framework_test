@@ -2,17 +2,17 @@
  * EditorOps.h —— 编辑器的"操作与限制"集中处
  *
  * 【为什么单独一个文件】编辑限制（谁能挂到谁下面、剪贴板能往哪儿贴、
- * 删除要不要确认）会被 CompoentControls / BaseForm / TreeDock 三处用到，
+ * 删除要不要确认）会被 WidgetPalette / CanvasItem / ObjectTreeDock 三处用到，
  * 但规则是同一套。收在这里三处调同一份，免得各写一遍再各错一遍。
  *
- * 【提示语】沿用用户已经熟悉的说法（包括"对像"这种写法），换工具不用重新适应：
- *     "请选择一个布局或者新建一个并选中它."          -> 建控件要先选中布局
- *     "请选择一个图层或者新建一个图层,并选中它."      -> 建布局要先选中图层
- *     "当前类型容器不接受粘贴!"                       -> 只有布局收粘贴
- *     "剪切板里的对像支持粘贴到当前容器上,请选择一个<布局>对像."
- *     "当前的选中的对像不支持剪切板里的对像粘贴,请选择一个<布局>对像."
- *     "你真的要删除当前%1吗?删除之后不可以撤消,请选择<删除>删除."
- *     "宽高不能设置为零."
+ * 【提示语】规则就这几条，话都写在这儿，三处调同一份：
+ *     "先选中一个布局，或者新建一个再选中。"          -> 建控件要先选中布局
+ *     "先选中一个图层，或者新建一个再选中。"      -> 建布局要先选中图层
+ *     "这个容器收不了剪贴板里的东西。"                       -> 只有布局收粘贴
+ *     "剪贴板里的东西能粘到布局里，先选一个布局。"
+ *     "选中的这个装不下粘贴的内容，先选一个布局。"
+ *     "真的要删除%1吗？删掉之后没法撤消。"
+ *     "宽和高不能设成 0。"
  */
 #ifndef EDITOROPS_H
 #define EDITOROPS_H
@@ -31,7 +31,7 @@ namespace EditorOps {
 
 /* ---- 拖拽 ------------------------------------------------------------
  * 手册里建控件的**主要手势**是拖："点击图层并拖动到绘制面板上新建一个图层"、
- * "点击并拖动 slider 控件到布局上"。DragButton 打包的就是这个 MIME 类型，
+ * "点击并拖动 slider 控件到布局上"。HandleButton 打包的就是这个 MIME 类型，
  * 载荷是 "<-class>|<-type>"。 */
 const char *const kControlMime = "application/x-uitools-control";
 
@@ -87,20 +87,20 @@ bool acceptsLayout(const UiNode *n);
 /** 能不能往它下面挂一个**普通控件**（NewFrame）：只有布局。 */
 bool acceptsWidget(const UiNode *n);
 
-/** 能不能往它下面收粘贴。那三条提示语写死了"请选择一个<布局>对像"。 */
+/** 能不能往它下面收粘贴。那三条提示语都写死了"先选一个布局"。 */
 bool acceptsChild(const UiNode *n);
 
 /* ---- 点按钮建东西时，孩子到底挂到谁下面 ------------------------------
  * 规则如下：
  *
  *   「新建控件」
- *       选中为空                       -> 提示"请选择一个布局或者新建一个并选中它."
+ *       选中为空                       -> 提示"先选中一个布局，或者新建一个再选中。"
  *       选中是 NewLayer                -> 同上提示
  *       选中是 NewFrame/NewList/NewGrid -> 挂到**它的父级**（当兄弟，不钻进去）
  *       其它（NewLayout）              -> 挂到它自己
  *
  *   「新建布局」
- *       选中为空                       -> 提示"请选择一个图层或者新建一个图层,并选中它."
+ *       选中为空                       -> 提示"先选中一个图层，或者新建一个再选中。"
  *       选中是 NewLayout               -> 挂到它自己（布局套布局，既有工程里 3 例）
  *       选中是 NewLayer                -> 挂到它自己
  *       选中是 NewFrame/NewList        -> 挂到**它的父级**
@@ -151,7 +151,7 @@ QRect cellRectFor(const UiNode *container, int index);
  *
  * 【别想当然写 "widget"】SmallColorTFT.json 里根本没有 widget 这个键，
  * 全工程只用三个（277 个节点统计出来的实际组合）：
- *     ScenesScreen --layer--------> NewLayer
+ *     CanvasPage --layer--------> NewLayer
  *     NewLayer     --layout-------> NewLayout
  *     NewLayout    --layout-------> NewFrame / NewLayout / NewList
  *     NewList      --listwidget---> NewLayout   （列表的行模板，两个工程共 165 个）
@@ -189,7 +189,7 @@ bool confirmDelete(QWidget *parent, const QString &what);
 
 /* ---- Z 序 ------------------------------------------------------------
  * 画布上的叠放次序 = 节点在 parent->children 里的次序（后建的盖在上面，
- * 见 ScenesScreen::buildRecursive），所以挪层就是挪数组下标。 */
+ * 见 CanvasPage::buildRecursive），所以挪层就是挪数组下标。 */
 enum ZMove { ZTop, ZUp, ZDown, ZBottom };
 bool moveZ(UiNode *n, ZMove how);
 
@@ -217,7 +217,7 @@ void reassignEnames(UiNode *sub, UiNode *parent);
  *
  * 【为什么不能顺着 UiNode::parent 往上爬】爬到页节点就到头了（页的 parent
  * 是 nullptr），跨页的 ename 根本扫不到：在页 0 的列表里加一行，分到的
- * BaseForm 会和页 1、页 3 里已有的撞车。
+ * CanvasItem 会和页 1、页 3 里已有的撞车。
  */
 void setModel(ProjectModel *m);
 
@@ -229,7 +229,7 @@ QString uniqueName(const UiNode *parent, const QString &base);
  *
  * 【为什么要单独抽出来】建出来的东西名字要是**中文 caption 加序号**
  * （图层_0 / 布局_1 / 文字_48），序号是**跨页连着走的全局计数**。
- * 以前只有 CompoentControls::appendChild() 这一条路照做，列表右键「添加行」
+ * 以前只有 WidgetPalette::appendChild() 这一条路照做，列表右键「添加行」
  * 那条路是自己现搭一个 `-name: "NewLayout"`，于是同一个工程里冒出英文名。
  *
  * @param caption 控件的中文名（布局 / 文字 / 图片…）；空的话退回 "控件"
@@ -240,8 +240,8 @@ QString defaultNodeName(const QString &caption);
  * 把控件模板库交给 EditorOps。
  *
  * 【为什么要这一手】"建一个控件"这件事有两条入口：控件栏那条走
- * CompoentControls（它自己拿得到 ControlLibrary），列表右键「添加行」那条
- * 在 BaseForm 里，够不着任何管理器。以前那条路就自己现搭一个
+ * WidgetPalette（它自己拿得到 ControlLibrary），列表右键「添加行」那条
+ * 在 CanvasItem 里，够不着任何管理器。以前那条路就自己现搭一个
  * `{-class,-type,-name}` 的空壳 —— 一条属性都没有，属性面板上空空如也，
  * 生成资源时既没几何也没样式。两条路必须用**同一份模板**。
  */

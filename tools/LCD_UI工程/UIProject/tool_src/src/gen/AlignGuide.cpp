@@ -1,8 +1,8 @@
-#include "GridHelpLine.h"
+#include "AlignGuide.h"
 
 #include <QPainter>
 
-GridHelpLine::GridHelpLine(QWidget *parent)
+AlignGuide::AlignGuide(QWidget *parent)
     : QWidget(parent)
 {
     // 纯覆盖层：不吃鼠标事件，也不画自己的背景
@@ -11,15 +11,15 @@ GridHelpLine::GridHelpLine(QWidget *parent)
     setAttribute(Qt::WA_TranslucentBackground);
 }
 
-GridHelpLine::~GridHelpLine() = default;
+AlignGuide::~AlignGuide() = default;
 
-void GridHelpLine::setStep(int px)
+void AlignGuide::setStep(int px)
 {
     m_step = qMax(1, px);
     update();
 }
 
-void GridHelpLine::paintEvent(QPaintEvent *e)
+void AlignGuide::paintEvent(QPaintEvent *e)
 {
     Q_UNUSED(e)
     if (m_step <= 1) {

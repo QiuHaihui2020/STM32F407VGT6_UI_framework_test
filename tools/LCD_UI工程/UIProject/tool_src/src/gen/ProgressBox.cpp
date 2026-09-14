@@ -1,10 +1,10 @@
-#include "ProgressDlg.h"
+#include "ProgressBox.h"
 
 #include <QLabel>
 #include <QProgressBar>
 #include <QVBoxLayout>
 
-ProgressDlg::ProgressDlg(QWidget *parent)
+ProgressBox::ProgressBox(QWidget *parent)
     : BaseDialog(parent)
 {
     setWindowTitle(tr("请稍候"));
@@ -20,19 +20,19 @@ ProgressDlg::ProgressDlg(QWidget *parent)
     root->addWidget(m_bar);
 }
 
-ProgressDlg::~ProgressDlg() = default;
+ProgressBox::~ProgressBox() = default;
 
-void ProgressDlg::setRange(int lo, int hi)
+void ProgressBox::setRange(int lo, int hi)
 {
     m_bar->setRange(lo, hi);
 }
 
-void ProgressDlg::setValue(int v)
+void ProgressBox::setValue(int v)
 {
     m_bar->setValue(v);
 }
 
-void ProgressDlg::setText(const QString &t)
+void ProgressBox::setText(const QString &t)
 {
     m_label->setText(t);
 }

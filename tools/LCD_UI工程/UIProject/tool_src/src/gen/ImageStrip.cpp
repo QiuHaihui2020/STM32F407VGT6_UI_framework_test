@@ -1,5 +1,5 @@
 #include "BaseDialog.h"
-#include "ImageListView.h"
+#include "ImageStrip.h"
 
 #include <QDialogButtonBox>
 #include <QDir>
@@ -51,11 +51,11 @@ QIcon thumbOf(const QString &absPath)
 
 } // namespace
 
-ImageListView::ImageListView(QWidget *parent)
+ImageStrip::ImageStrip(QWidget *parent)
     : QDialog(parent)
 {
     /* 标题 */
-    setWindowTitle(QStringLiteral("图片编辑(双击选中图片并更新到控件)"));
+    setWindowTitle(QStringLiteral("选图片（双击换到控件上）"));
     resize(720, 460);
 
     /* ---- 左：目录树 ---- */
@@ -89,7 +89,7 @@ ImageListView::ImageListView(QWidget *parent)
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     /* 提示语 */
-    auto *hint = new QLabel(QStringLiteral("双击选中图片并更新到控件显示."), this);
+    auto *hint = new QLabel(QStringLiteral("双击一张图，就把它换到控件上。"), this);
 
     auto *left = new QVBoxLayout;
     left->setContentsMargins(0, 0, 0, 0);
@@ -105,7 +105,7 @@ ImageListView::ImageListView(QWidget *parent)
     root->addWidget(hint);
     root->addWidget(box);
 
-    connect(m_tree, &QTreeView::clicked, this, &ImageListView::onTreeViewClicked);
+    connect(m_tree, &QTreeView::clicked, this, &ImageStrip::onTreeViewClicked);
     /* 双击即选中并关闭 —— 标题上写的就是这个行为 */
     connect(m_list, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *it) {
         takeItem(it);
@@ -113,9 +113,9 @@ ImageListView::ImageListView(QWidget *parent)
     });
 }
 
-ImageListView::~ImageListView() = default;
+ImageStrip::~ImageStrip() = default;
 
-void ImageListView::takeItem(QListWidgetItem *it)
+void ImageStrip::takeItem(QListWidgetItem *it)
 {
     if (!it) {
         return;
@@ -129,7 +129,7 @@ void ImageListView::takeItem(QListWidgetItem *it)
                  : QDir::fromNativeSeparators(QDir(m_projectDir).relativeFilePath(abs));
 }
 
-void ImageListView::setProjectDir(const QString &dir)
+void ImageStrip::setProjectDir(const QString &dir)
 {
     m_projectDir = dir;
     // 图片一般都在 <工程>/config 下；没有就退回工程目录本身
@@ -140,14 +140,14 @@ void ImageListView::setProjectDir(const QString &dir)
     setRootDir(root);
 }
 
-void ImageListView::setRootDir(const QString &dir)
+void ImageStrip::setRootDir(const QString &dir)
 {
     m_dirModel->setRootPath(dir);
     m_tree->setRootIndex(m_dirModel->index(dir));
     showDir(dir);
 }
 
-void ImageListView::setSelected(const QString &rel)
+void ImageStrip::setSelected(const QString &rel)
 {
     m_selected = rel;
     if (rel.isEmpty()) {
@@ -177,7 +177,7 @@ void ImageListView::setSelected(const QString &rel)
     }
 }
 
-void ImageListView::showDir(const QString &absDir)
+void ImageStrip::showDir(const QString &absDir)
 {
     m_list->clear();
     const QDir d(absDir);
@@ -190,14 +190,14 @@ void ImageListView::showDir(const QString &absDir)
     emit loadImageDone();
 }
 
-void ImageListView::onTreeViewClicked(QModelIndex a0)
+void ImageStrip::onTreeViewClicked(QModelIndex a0)
 {
     if (a0.isValid()) {
         showDir(m_dirModel->filePath(a0));
     }
 }
 
-bool ImageListView::pickForTest(int n)
+bool ImageStrip::pickForTest(int n)
 {
     if (n < 0 || n >= m_list->count()) {
         return false;
@@ -207,7 +207,7 @@ bool ImageListView::pickForTest(int n)
     return !m_selected.isEmpty();
 }
 
-int ImageListView::imageCountForTest() const
+int ImageStrip::imageCountForTest() const
 {
     return m_list->count();
 }

@@ -1,4 +1,4 @@
-/* GridHelpLine.h ——
+/* AlignGuide.h ——
  * 画布上的像素网格层：透明、不吃鼠标事件，只负责画格子。
  */
 #ifndef GRIDHELPLINE_H
@@ -6,13 +6,13 @@
 
 #include <QWidget>
 
-class GridHelpLine : public QWidget
+class AlignGuide : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit GridHelpLine(QWidget *parent = nullptr);
-    ~GridHelpLine() override;
+    explicit AlignGuide(QWidget *parent = nullptr);
+    ~AlignGuide() override;
 
     void setStep(int px);
     int  step() const { return m_step; }

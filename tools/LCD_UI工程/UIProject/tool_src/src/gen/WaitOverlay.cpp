@@ -1,9 +1,9 @@
-#include "BusyIndicator.h"
+#include "WaitOverlay.h"
 
 #include <QPainter>
 #include <QTimer>
 
-BusyIndicator::BusyIndicator(QWidget *parent)
+WaitOverlay::WaitOverlay(QWidget *parent)
     : QDialog(parent)
 {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Dialog);
@@ -11,37 +11,37 @@ BusyIndicator::BusyIndicator(QWidget *parent)
     setFixedSize(140, 140);
     m_timer = new QTimer(this);
     m_timer->setInterval(80);
-    connect(m_timer, &QTimer::timeout, this, &BusyIndicator::onRotate);
+    connect(m_timer, &QTimer::timeout, this, &WaitOverlay::onRotate);
 }
 
-BusyIndicator::~BusyIndicator() = default;
+WaitOverlay::~WaitOverlay() = default;
 
-void BusyIndicator::setText(const QString &t)
+void WaitOverlay::setText(const QString &t)
 {
     m_text = t;
     update();
 }
 
-void BusyIndicator::onStart()
+void WaitOverlay::onStart()
 {
     m_angle = 0;
     m_timer->start();
     show();
 }
 
-void BusyIndicator::onStop()
+void WaitOverlay::onStop()
 {
     m_timer->stop();
     hide();
 }
 
-void BusyIndicator::onRotate()
+void WaitOverlay::onRotate()
 {
     m_angle = (m_angle + 30) % 360;
     update();
 }
 
-void BusyIndicator::paintEvent(QPaintEvent *e)
+void WaitOverlay::paintEvent(QPaintEvent *e)
 {
     Q_UNUSED(e)
     QPainter p(this);

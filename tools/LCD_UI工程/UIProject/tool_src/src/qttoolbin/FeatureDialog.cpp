@@ -387,7 +387,7 @@ void FeatureDialog::refreshSelectedMask()
 }
 
 /* 上移/下移要把整行（含单元格里的下拉框）搬走。QTableWidget 不支持整行连
- * cellWidget 一起搬，只能取值再重建两行 —— 和 ActionList 里那两个按钮一样。 */
+ * cellWidget 一起搬，只能取值再重建两行 —— 和 EventActionDialog 里那两个按钮一样。 */
 void FeatureDialog::onMoveUp()
 {
     const int r = m_tab->currentRow();

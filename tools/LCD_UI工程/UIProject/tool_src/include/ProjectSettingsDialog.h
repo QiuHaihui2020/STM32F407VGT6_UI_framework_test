@@ -1,4 +1,4 @@
-/* ConfigProject.h ——
+/* ProjectSettingsDialog.h ——
  * 控件名：prjname / openfile / view_lang / filestatus /
  * lang_selectall / lang_dselectall / lang_re
  *
@@ -16,13 +16,13 @@ class QLineEdit;
 class QLabel;
 class QListWidget;
 
-class ConfigProject : public QDialog
+class ProjectSettingsDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit ConfigProject(QWidget *parent = nullptr);
-    ~ConfigProject() override;
+    explicit ProjectSettingsDialog(QWidget *parent = nullptr);
+    ~ProjectSettingsDialog() override;
 
     void    setProjectName(const QString &n);
     QString projectName() const;

@@ -2,10 +2,10 @@
  * Canvas.h —— 画布（页面）与画布管理器
  *
  * 【两个类】
- *   ScenesScreen  : QFrame    slot onChangedBackgroundColor()
- *   CanvasManager : QObject   Q_PROPERTY(QSize mPageSize) + 13 个槽
+ *   CanvasPage  : QFrame    slot onChangedBackgroundColor()
+ *   EditorSession : QObject   Q_PROPERTY(QSize mPageSize) + 13 个槽
  *
- * CanvasManager 是 QObject 而不是 QWidget —— 它是"文档 + 动作"的
+ * EditorSession 是 QObject 而不是 QWidget —— 它是"文档 + 动作"的
  * 中枢：新建/打开/保存工程、增删页面、全局设置、缩放、截图，主窗口的菜单和
  * 工具栏直接连到它的槽上。本次重写保持这个职责划分。
  */
@@ -24,7 +24,7 @@
 #include "ProjectModel.h"
 #include "ControlLibrary.h"
 
-class BaseForm;
+class CanvasItem;
 class UiNode;
 class QContextMenuEvent;
 class QDragEnterEvent;
@@ -32,14 +32,14 @@ class QDragMoveEvent;
 class QDropEvent;
 class QWheelEvent;
 
-/** 一页画布。工程树上的一个 page 节点对应一个 ScenesScreen。 */
-class ScenesScreen : public QFrame
+/** 一页画布。工程树上的一个 page 节点对应一个 CanvasPage。 */
+class CanvasPage : public QFrame
 {
     Q_OBJECT
 
 public:
-    explicit ScenesScreen(QWidget *parent = nullptr);
-    ~ScenesScreen() override;
+    explicit CanvasPage(QWidget *parent = nullptr);
+    ~CanvasPage() override;
 
     void     setPage(UiNode *page);
     UiNode  *page() const { return m_page; }
@@ -82,7 +82,7 @@ public:
     QVector<UiNode *> screens() const;
     /** 当前正在预览的是第几个画面（没有就返回 -1）。 */
     int  currentScreenIndex() const;
-    BaseForm *formFor(UiNode *node) const { return m_forms.value(node, nullptr); }
+    CanvasItem *formFor(UiNode *node) const { return m_forms.value(node, nullptr); }
     /** 当前选中的节点（改倍率要能验证它没被弄丢）。 */
     UiNode *selectedNode() const { return m_selected; }
 
@@ -116,15 +116,15 @@ public:
     void setBackgroundImage(const QString &path);
 
 signals:
-    /** Ctrl+滚轮请求改倍率。真正改的是 CanvasManager（它管着所有页）。 */
+    /** Ctrl+滚轮请求改倍率。真正改的是 EditorSession（它管着所有页）。 */
     void zoomStepRequested(int delta);
     void nodeSelected(UiNode *node);
     void geometryEdited(UiNode *node);
     /** 树的结构变了（删/粘/挪层/加行），外面要 reload 树和页面栏。 */
     void structureChanged();
-    /** 画布上有人点了右键菜单里的"查找对像"。 */
+    /** 画布上有人点了右键菜单里的"查找控件"。 */
     void findRequested();
-    /** 页面右键 -> 删除当前页面。真正动页数组的是 CanvasManager。 */
+    /** 页面右键 -> 删除当前页面。真正动页数组的是 EditorSession。 */
     void deletePageRequested();
 
 public slots:
@@ -132,7 +132,7 @@ public slots:
 
 signals:
     /** 有人把控件按钮拖到画布上了。参数是落点所在的容器和画布坐标。
-     *  真正建节点的是 CompoentControls（限制、命名都在它那儿）。 */
+     *  真正建节点的是 WidgetPalette（限制、命名都在它那儿）。 */
     void controlDropped(UiNode *parent, const QString &cls, const QString &type,
                         const QPoint &pos);
 
@@ -149,7 +149,7 @@ protected:
 
     void paintEvent(QPaintEvent *e) override;
     /** 画布上直接点控件时，把选中同步给树和属性面板。
-     *  BaseForm 自己只会把手柄显出来，不通知任何人，所以在这儿拦一道。 */
+     *  CanvasItem 自己只会把手柄显出来，不通知任何人，所以在这儿拦一道。 */
     bool eventFilter(QObject *watched, QEvent *e) override;
     void mousePressEvent(QMouseEvent *e) override;
 
@@ -188,18 +188,18 @@ private:
     QColor  m_bg;
     QPixmap m_bgImage;
     bool    m_showChrome = true;   ///< 见 setShowChrome()
-    QHash<UiNode *, BaseForm *> m_forms;
+    QHash<UiNode *, CanvasItem *> m_forms;
 };
 
 /** 文档中枢：持有 ProjectModel + ControlLibrary，驱动全部页面。 */
-class CanvasManager : public QObject
+class EditorSession : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QSize mPageSize READ mPageSize WRITE setMPageSize)   ///< ★
 
 public:
-    explicit CanvasManager(QObject *parent = nullptr);
-    ~CanvasManager() override;
+    explicit EditorSession(QObject *parent = nullptr);
+    ~EditorSession() override;
 
     /* ★ 对外暴露的属性 */
     QSize mPageSize() const { return m_pageSize; }
@@ -214,8 +214,8 @@ public:
 
     /** 主窗口把画布容器交给管理器，页面切换由管理器负责。 */
     void          attachHost(QWidget *host);
-    ScenesScreen *screen(int pageIndex) const;
-    ScenesScreen *currentScreen() const;
+    CanvasPage *screen(int pageIndex) const;
+    CanvasPage *currentScreen() const;
     int           currentPage() const { return m_current; }
     void          setCurrentPage(int i);
 
@@ -238,7 +238,7 @@ public:
      * 【为什么要缩放】画布 1:1 的话，128x64 在 927px 宽的画布上就是左上角
      * 一个指甲盖，点阵屏工程尤其难编。缩放**只影响显示**：
      * UiNode::rect 始终存 1:1 的像素坐标，缩放着编辑再保存不会把倍率乘进去
-     * （见 ScenesScreen::buildRecursive 里的换算）。 */
+     * （见 CanvasPage::buildRecursive 里的换算）。 */
     int  zoom() const { return m_zoom; }
     void setZoom(int percent);
     /** 让当前页正好铺满可视区，返回算出来的倍率。 */
@@ -273,8 +273,8 @@ public:
     void bindSettingsToProject(const QString &jsonPath);
 
     /* ---- 无人值守入口（--make-sample / ops-test 用）------------------
-     * onCreateNewProject() / onCreateNewScenesScreen() 里塞满了模态框
-     * （"是否关闭当前工程"、ProjectDialog…），脚本里跑不了。这两个是
+     * onCreateNewProject() / onCreateNewPage() 里塞满了模态框
+     * （"是否关闭当前工程"、NewProjectDialog…），脚本里跑不了。这两个是
      * 把对话框之后那段正事单拎出来，行为和走界面完全一致。 */
     /** 新建一个空工程（一页 + 一图层 + 一布局），跳过所有对话框。 */
     void newProjectForTest(const QString &name, const QSize &pageSize);
@@ -317,14 +317,17 @@ signals:
     void nodeSelected(UiNode *node);
     /** 改过/存过，标题上那个 * 要跟着变。 */
     void dirtyChanged(bool dirty);
+    /** 换了工程文件（打开别的工程、另存为），标题上的工程名要跟着换。
+     *  不能指望 dirtyChanged 顺带刷 —— 存的是一个本来就干净的工程时它不发。 */
+    void projectFileChanged(const QString &path);
     void statusMessage(const QString &msg);
     /** 当前页里有节点被删/粘/挪层，主窗口据此 reload 树和页面栏。 */
     void structureChanged();
-    /** 画布右键菜单里的"查找对像"。 */
+    /** 画布右键菜单里的"查找控件"。 */
     void findRequested();
     /** 预览配色变了（[全局设置]里改的）。只重画，不动工程数据。 */
     void previewStyleChanged();
-    /** 有控件被拖到画布上。转发自当前页的 ScenesScreen。 */
+    /** 有控件被拖到画布上。转发自当前页的 CanvasPage。 */
     void controlDropped(UiNode *parent, const QString &cls, const QString &type,
                         const QPoint &pos);
 
@@ -345,8 +348,8 @@ public slots:
     void onSelectGrid();
 
 private slots:
-    void onCreateNewScenesScreen();        ///< ★
-    void onDelCurrentScenesScreen();       ///< ★
+    void onCreateNewPage();        ///< ★
+    void onDeleteCurrentPage();       ///< ★
     void onConfProject();                  ///< ★
 
 private:
@@ -364,7 +367,7 @@ private:
     ControlLibrary  m_lib;
     QWidget        *m_host = nullptr;
     QWidget        *m_stackHost = nullptr;   ///< 真正装页面的容器，外层负责左上对齐
-    QVector<ScenesScreen *> m_screens;
+    QVector<CanvasPage *> m_screens;
     int    m_current = 0;
     QSize  m_pageSize = QSize(128, 64);
     bool   m_showGrid = true;

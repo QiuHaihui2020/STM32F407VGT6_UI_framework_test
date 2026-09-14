@@ -1,14 +1,14 @@
-/* ImageListView.h ——
+/* ImageStrip.h ——
  *
  * 【它是"背景图片"那一行点开的弹窗】有两个长得很像的图片对话框，
  * 靠 exe 里的字符串能分开（0xc98819 起那一段）：
  *
- *   ImageFileDialog  "图片编辑"
+ *   ImagePicker  "图片编辑"
  *                    + onAddSelectedItems/onDelSelectedItems + 上移/下移图标
- *                    + "已经添加的图片数:"          -> 图片列表用，**多选**
+ *                    + "已选图片："          -> 图片列表用，**多选**
  *
- *   ImageListView    "图片编辑(双击选中图片并更新到控件)"
- *                    + "双击选中图片并更新到控件显示."
+ *   ImageStrip    "选图片（双击换到控件上）"
+ *                    + "双击一张图，就把它换到控件上。"
  *                    + "目录"                        -> 背景图片用，**双击单选**
  *
  * 版式和图片列表那个一样：左边目录树、右边缩略图；区别是这个只选一张，
@@ -29,13 +29,13 @@ class QTreeView;
 class QListWidget;
 class QListWidgetItem;
 
-class ImageListView : public QDialog
+class ImageStrip : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit ImageListView(QWidget *parent = nullptr);
-    ~ImageListView() override;
+    explicit ImageStrip(QWidget *parent = nullptr);
+    ~ImageStrip() override;
 
     /** 工程目录。树根落在 <工程>/config（没有就退回工程目录本身）。 */
     void setProjectDir(const QString &dir);

@@ -1,4 +1,4 @@
-/* I18nLanguage.h ——
+/* StringPicker.h ——
  * 控件名：item_selectall / item_dselectall / item_re / itemSelected /
  * btnUp / btnDown / btn_ok / btnCancel
  *
@@ -18,13 +18,13 @@ class QListWidgetItem;
 class QLineEdit;
 class QSpinBox;
 
-class I18nLanguage : public QDialog
+class StringPicker : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit I18nLanguage(QWidget *parent = nullptr);
-    ~I18nLanguage() override;
+    explicit StringPicker(QWidget *parent = nullptr);
+    ~StringPicker() override;
 
     /// 多国语言 .xls（BIFF8）。第一列是 ResID，其余列是各语言译文。
     bool loadExcel(const QString &xlsPath, QString *error = nullptr);
@@ -34,7 +34,7 @@ public:
     int         maxCount() const { return m_maxCount; }
     void        setMaxCount(int n) { m_maxCount = n; }
 
-    /** 字号。0 = 用控件自己的默认字号（界面上那句"字号(0 表示默认):"）。 */
+    /** 字号。0 = 用控件自己的默认字号（界面上那句"字号（0 = 默认）："）。 */
     int         fontSize() const;
     void        setFontSize(int px);
 

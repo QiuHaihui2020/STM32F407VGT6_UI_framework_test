@@ -1,16 +1,16 @@
-#include "RuleWidget.h"
+#include "Ruler.h"
 
 #include <QPainter>
 
-RuleWidget::RuleWidget(QWidget *parent)
+Ruler::Ruler(QWidget *parent)
     : QWidget(parent)
 {
     setFixedHeight(18);
 }
 
-RuleWidget::~RuleWidget() = default;
+Ruler::~Ruler() = default;
 
-void RuleWidget::setOrientation(Qt::Orientation o)
+void Ruler::setOrientation(Qt::Orientation o)
 {
     m_orient = o;
     if (o == Qt::Horizontal) {
@@ -23,19 +23,19 @@ void RuleWidget::setOrientation(Qt::Orientation o)
     update();
 }
 
-void RuleWidget::setZoom(int percent)
+void Ruler::setZoom(int percent)
 {
     m_zoom = qMax(1, percent);
     update();
 }
 
-void RuleWidget::setOffset(int px)
+void Ruler::setOffset(int px)
 {
     m_offset = px;
     update();
 }
 
-void RuleWidget::paintEvent(QPaintEvent *e)
+void Ruler::paintEvent(QPaintEvent *e)
 {
     Q_UNUSED(e)
     QPainter p(this);

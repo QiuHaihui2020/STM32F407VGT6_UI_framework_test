@@ -1,6 +1,6 @@
 #include "BaseDialog.h"
 #include "AppIcon.h"
-#include "ImageFileDialog.h"
+#include "ImagePicker.h"
 
 #include <QDialogButtonBox>
 #include <QDir>
@@ -94,7 +94,7 @@ public:
 
 } // namespace
 
-ImageFileDialog::ImageFileDialog(QWidget *parent)
+ImagePicker::ImagePicker(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("图片编辑"));
@@ -142,11 +142,11 @@ ImageFileDialog::ImageFileDialog(QWidget *parent)
     mid->addStretch();
 
     auto *rightCol = new QVBoxLayout;
-    rightCol->addWidget(new QLabel(QStringLiteral("已经添加的图片数:"), this));
+    rightCol->addWidget(new QLabel(QStringLiteral("已选图片："), this));
     rightCol->addWidget(m_selListView);
 
     auto *midCol = new QVBoxLayout;
-    midCol->addWidget(new QLabel(QStringLiteral("双击选中图片并更新到控件显示."), this));
+    midCol->addWidget(new QLabel(QStringLiteral("双击一张图，就把它换到控件上。"), this));
     midCol->addWidget(m_listView);
 
     auto *leftCol = new QVBoxLayout;
@@ -163,22 +163,22 @@ ImageFileDialog::ImageFileDialog(QWidget *parent)
     root->addLayout(row, 1);
     root->addWidget(box);
 
-    connect(m_treeView, &QTreeView::clicked, this, &ImageFileDialog::onTreeViewClicked);
+    connect(m_treeView, &QTreeView::clicked, this, &ImagePicker::onTreeViewClicked);
     connect(m_listView, &QListView::doubleClicked,
-            this, &ImageFileDialog::onListViewDoubleClicked);
+            this, &ImagePicker::onListViewDoubleClicked);
     connect(m_selListView, &QListWidget::doubleClicked,
-            this, &ImageFileDialog::onSelListViewDoubleClicked);
-    connect(btnAdd, &QPushButton::clicked, this, &ImageFileDialog::onAddSelectedItems);
-    connect(btnDel, &QPushButton::clicked, this, &ImageFileDialog::onDelSelectedItems);
-    connect(btnUp, &QPushButton::clicked, this, &ImageFileDialog::onUp);
-    connect(btnDown, &QPushButton::clicked, this, &ImageFileDialog::onDown);
+            this, &ImagePicker::onSelListViewDoubleClicked);
+    connect(btnAdd, &QPushButton::clicked, this, &ImagePicker::onAddSelectedItems);
+    connect(btnDel, &QPushButton::clicked, this, &ImagePicker::onDelSelectedItems);
+    connect(btnUp, &QPushButton::clicked, this, &ImagePicker::onUp);
+    connect(btnDown, &QPushButton::clicked, this, &ImagePicker::onDown);
     connect(box, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
-ImageFileDialog::~ImageFileDialog() = default;
+ImagePicker::~ImagePicker() = default;
 
-void ImageFileDialog::setProjectDir(const QString &dir)
+void ImagePicker::setProjectDir(const QString &dir)
 {
     m_projectDir = dir;
     // 图片一般都在 <工程>/config 下；没有就退回工程目录本身
@@ -192,7 +192,7 @@ void ImageFileDialog::setProjectDir(const QString &dir)
 }
 
 /** 已选列表里的一条：缩略图 + 相对路径。文本仍是纯相对路径，selected() 直接取。 */
-void ImageFileDialog::addSelectedRow(const QString &rel, int at)
+void ImagePicker::addSelectedRow(const QString &rel, int at)
 {
     const QString abs = QFileInfo(rel).isAbsolute()
                         ? rel
@@ -205,7 +205,7 @@ void ImageFileDialog::addSelectedRow(const QString &rel, int at)
     }
 }
 
-void ImageFileDialog::setSelected(const QStringList &rel)
+void ImagePicker::setSelected(const QStringList &rel)
 {
     m_selListView->clear();
     for (const QString &r : rel) {
@@ -238,7 +238,7 @@ void ImageFileDialog::setSelected(const QStringList &rel)
     }
 }
 
-int ImageFileDialog::dirRowsForTest(const QString &absDir)
+int ImagePicker::dirRowsForTest(const QString &absDir)
 {
     showDir(absDir);
     int dirs = 0;
@@ -250,14 +250,14 @@ int ImageFileDialog::dirRowsForTest(const QString &absDir)
     return dirs;
 }
 
-int ImageFileDialog::tryAddForTest(const QString &absPath)
+int ImagePicker::tryAddForTest(const QString &absPath)
 {
     const int before = m_selListView->count();
     addPath(absPath);
     return m_selListView->count() - before;
 }
 
-bool ImageFileDialog::selectedIconIsRealForTest(int i) const
+bool ImagePicker::selectedIconIsRealForTest(int i) const
 {
     const QListWidgetItem *it = m_selListView->item(i);
     if (!it) {
@@ -278,7 +278,7 @@ bool ImageFileDialog::selectedIconIsRealForTest(int i) const
     return !got.isNull() && got.size() == file.size().boundedTo(kThumbMax);
 }
 
-QStringList ImageFileDialog::selected() const
+QStringList ImagePicker::selected() const
 {
     QStringList out;
     for (int i = 0; i < m_selListView->count(); ++i) {
@@ -287,7 +287,7 @@ QStringList ImageFileDialog::selected() const
     return out;
 }
 
-void ImageFileDialog::showDir(const QString &path)
+void ImagePicker::showDir(const QString &path)
 {
     m_listView->clear();
     /* 【只列文件】QDir::Files 这里是真管用的 —— 子目录根本不会进来，
@@ -301,12 +301,12 @@ void ImageFileDialog::showDir(const QString &path)
     }
 }
 
-void ImageFileDialog::onTreeViewClicked(QModelIndex index)
+void ImagePicker::onTreeViewClicked(QModelIndex index)
 {
     showDir(m_dirModel->filePath(index));
 }
 
-void ImageFileDialog::addPath(const QString &absPath)
+void ImagePicker::addPath(const QString &absPath)
 {
     /* 【目录不是图片】列表那边已经用代理模型把目录滤掉了，这里再兜一道 ——
      * 目录混进列表存回工程就是一条指向目录的"图片路径"，下游 ResBuilder
@@ -325,26 +325,26 @@ void ImageFileDialog::addPath(const QString &absPath)
     addSelectedRow(rel);
 }
 
-void ImageFileDialog::onListViewDoubleClicked(QModelIndex index)
+void ImagePicker::onListViewDoubleClicked(QModelIndex index)
 {
     if (QListWidgetItem *it = m_listView->item(index.row())) {
         addPath(it->data(Qt::UserRole).toString());
     }
 }
 
-void ImageFileDialog::onSelListViewDoubleClicked(QModelIndex index)
+void ImagePicker::onSelListViewDoubleClicked(QModelIndex index)
 {
     delete m_selListView->takeItem(index.row());
 }
 
-void ImageFileDialog::onAddSelectedItems()
+void ImagePicker::onAddSelectedItems()
 {
     for (QListWidgetItem *it : m_listView->selectedItems()) {
         addPath(it->data(Qt::UserRole).toString());
     }
 }
 
-void ImageFileDialog::onDelSelectedItems()
+void ImagePicker::onDelSelectedItems()
 {
     QList<int> rows;
     for (const QModelIndex &i : m_selListView->selectionModel()->selectedIndexes()) {
@@ -356,7 +356,7 @@ void ImageFileDialog::onDelSelectedItems()
     }
 }
 
-void ImageFileDialog::moveCurrent(int delta)
+void ImagePicker::moveCurrent(int delta)
 {
     const int r = m_selListView->currentRow();
     const int to = r + delta;
@@ -368,12 +368,12 @@ void ImageFileDialog::moveCurrent(int delta)
     m_selListView->setCurrentRow(to);
 }
 
-void ImageFileDialog::onUp()
+void ImagePicker::onUp()
 {
     moveCurrent(-1);
 }
 
-void ImageFileDialog::onDown()
+void ImagePicker::onDown()
 {
     moveCurrent(1);
 }

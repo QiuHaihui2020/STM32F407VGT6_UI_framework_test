@@ -4,12 +4,12 @@
  * 【类族】继承关系与 signals/slots 如下。带 ★ 的是画布控件对外的固定接口，
  * 别的地方按签名连着，改动要一起改。
  *
- *   FormResizer      : QWidget      ★ signal formWindowSizeChanged(QRect, QRect)
- *   SizeHandleRect   : QWidget      ★ signal mouseButtonReleased(QRect, QRect)
- *   BaseForm         : FormResizer  ★ enum ObjTypes + 13 个槽
- *   NewLayer/NewLayout/NewFrame/NewList/NewGrid : BaseForm
+ *   ResizeFrame      : QWidget      ★ signal formWindowSizeChanged(QRect, QRect)
+ *   ResizeHandle   : QWidget      ★ signal mouseButtonReleased(QRect, QRect)
+ *   CanvasItem         : ResizeFrame  ★ enum ObjTypes + 13 个槽
+ *   NewLayer/NewLayout/NewFrame/NewList/NewGrid : CanvasItem
  *
- * FormResizer / SizeHandleRect 这两个名字沿用 Qt Designer 自带的
+ * ResizeFrame / ResizeHandle 这两个名字沿用 Qt Designer 自带的
  * qdesigner_internal（formresizer.cpp / widgetselection.cpp）里的叫法，
  * 但这里是全局符号，不带命名空间。
  */
@@ -25,23 +25,23 @@
 #include <QVector>
 
 class UiNode;
-class ScenesScreen;
+class CanvasPage;
 class QContextMenuEvent;
 class QMenu;
 class QPainter;
 class QWheelEvent;
 
 /** 八个方向的拖拽手柄之一。 */
-class SizeHandleRect : public QWidget
+class ResizeHandle : public QWidget
 {
     Q_OBJECT
 
 public:
     enum Direction { LeftTop, Top, RightTop, Right, RightBottom, Bottom, LeftBottom, Left };
 
-    explicit SizeHandleRect(QWidget *parent = nullptr, Direction d = RightBottom,
+    explicit ResizeHandle(QWidget *parent = nullptr, Direction d = RightBottom,
                             QWidget *target = nullptr);
-    ~SizeHandleRect() override;
+    ~ResizeHandle() override;
 
     Direction direction() const { return m_dir; }
     void updatePosition();
@@ -58,7 +58,7 @@ protected:
 
 private:
     Direction m_dir;
-    /* 【必须是 QPointer】目标控件可能先于本手柄被销毁（见 FormResizer 抬头），
+    /* 【必须是 QPointer】目标控件可能先于本手柄被销毁（见 ResizeFrame 抬头），
      * 裸指针的话下面那些 !m_target 判空全是摆设。 */
     QPointer<QWidget> m_target;
     bool      m_dragging = false;
@@ -66,14 +66,14 @@ private:
     QRect     m_startGeo;
 };
 
-/** 带尺寸手柄的可选中窗体。选中时在四周挂出 8 个 SizeHandleRect。 */
-class FormResizer : public QWidget
+/** 带尺寸手柄的可选中窗体。选中时在四周挂出 8 个 ResizeHandle。 */
+class ResizeFrame : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit FormResizer(QWidget *parent = nullptr);
-    ~FormResizer() override;
+    explicit ResizeFrame(QWidget *parent = nullptr);
+    ~ResizeFrame() override;
 
     bool isSelected() const { return m_selected; }
     void setSelected(bool on);
@@ -85,8 +85,8 @@ public:
      * 关掉之后控件上只剩屏上真会显示的东西（背景填充、css 内边框线、
      * 图片/文字/数字）。放大看真实效果时用 —— 工具栏「隐藏辅助线」就是它。
      *
-     * 【为什么在 FormResizer 这一层】手柄是挂在**父控件**上的独立子窗口
-     * （SizeHandleRect），不是 BaseForm 自己画的，只能在这儿一起管。
+     * 【为什么在 ResizeFrame 这一层】手柄是挂在**父控件**上的独立子窗口
+     * （ResizeHandle），不是 CanvasItem 自己画的，只能在这儿一起管。
      */
     void setShowChrome(bool on);
     bool showChrome() const { return m_showChrome; }
@@ -110,10 +110,10 @@ private:
     void layoutHandles();
 
     /* 【手柄不是本控件的子窗口】它们挂在**父控件**上（要画在本控件外面），
-     * 所以本控件析构时 Qt 不会带走它们 —— ~FormResizer() 里手动删。
+     * 所以本控件析构时 Qt 不会带走它们 —— ~ResizeFrame() 里手动删。
      * 用 QPointer 是因为反过来也可能：父控件被销毁时 Qt 会先删掉手柄，
      * 那时本控件再去 delete 就是二次释放。 */
-    QVector<QPointer<SizeHandleRect>> m_handles;
+    QVector<QPointer<ResizeHandle>> m_handles;
     QRect m_lastGeo;
 };
 
@@ -121,7 +121,7 @@ private:
  * 画布控件基类。每个实例绑定工程树上的一个 UiNode，
  * 属性面板改值 -> 走这里的槽 -> 回写 UiNode -> 重绘。
  */
-class BaseForm : public FormResizer
+class CanvasItem : public ResizeFrame
 {
     Q_OBJECT
 
@@ -138,8 +138,8 @@ public:
     };
     Q_ENUM(ObjTypes)
 
-    explicit BaseForm(QWidget *parent = nullptr);
-    ~BaseForm() override;
+    explicit CanvasItem(QWidget *parent = nullptr);
+    ~CanvasItem() override;
 
     void     bind(UiNode *node);
     UiNode  *node() const { return m_node; }
@@ -153,7 +153,7 @@ public:
     /**
      * 画布倍率。**只影响显示**，UiNode 里的坐标永远是 1:1。
      *
-     * 【为什么要让 BaseForm 自己知道倍率】以前 syncRectToNode() 直接拿
+     * 【为什么要让 CanvasItem 自己知道倍率】以前 syncRectToNode() 直接拿
      * geometry() 回写，压根没除倍率；400% 下拖一下，写回去的就是 4 倍的
      * 坐标。当时没炸是因为紧跟着的 formWindowSizeChanged 又用正确值写了
      * 一遍盖过去 —— 纯属侥幸，谁先谁后换个顺序就出事。现在换算收在这里，
@@ -168,8 +168,8 @@ public:
      *
      * 两边是同一套动作 —— 那一串菜单文字
      * （"删除当前-%1 / 保存成控件 / 显示同类容器 / 显示 / 隐藏同类容器 /
-     * 隐藏 / 复制 / 粘贴 / 查找对像" 加上 "移到顶层 / 移上一层 / 移下一层 /
-     * 移到底层"）就是这个菜单，TreeDock 只是把右键位置转发过来。
+     * 隐藏 / 复制 / 粘贴 / 查找控件" 加上 "移到顶层 / 移上一层 / 移下一层 /
+     * 移到底层"）就是这个菜单，ObjectTreeDock 只是把右键位置转发过来。
      */
     void showContextMenu(const QPoint &globalPos);
 
@@ -180,12 +180,12 @@ public:
     /** "保存成控件"。 */
     void saveAsTemplate();
     /** 直接子级的画布控件（"显示/隐藏同类容器"要用）。 */
-    QVector<BaseForm *> subForms() const;
+    QVector<CanvasItem *> subForms() const;
 
 signals:
     /** 结构变了（删除 / 粘贴 / 挪层 / 加行），树、页面栏、画布都得重来。 */
     void structureChanged();
-    /** 请求打开"查找对像"对话框。 */
+    /** 请求打开"查找控件"对话框。 */
     void findRequested();
     /** 请求把某个节点从画布上藏起来/放出来（纯视觉，由画布统一记账）。 */
     void userHideRequested(UiNode *n);
@@ -255,7 +255,7 @@ private:
     QRect  m_startGeo;
 };
 
-class NewLayer : public BaseForm
+class NewLayer : public CanvasItem
 {
     Q_OBJECT
 public:
@@ -267,7 +267,7 @@ public slots:
     void onDeleteMe();            ///< ★
 };
 
-class NewLayout : public BaseForm
+class NewLayout : public CanvasItem
 {
     Q_OBJECT
 public:
@@ -280,7 +280,7 @@ public slots:
     void onBeComeTemplateWidget();///< ★
 };
 
-class NewFrame : public BaseForm
+class NewFrame : public CanvasItem
 {
     Q_OBJECT
 public:
@@ -292,7 +292,7 @@ public slots:
     void onDeleteMe();            ///< ★
 };
 
-class NewList : public BaseForm
+class NewList : public CanvasItem
 {
     Q_OBJECT
 public:
@@ -333,7 +333,7 @@ private:
     int m_first = 0;
 };
 
-class NewGrid : public BaseForm
+class NewGrid : public CanvasItem
 {
     Q_OBJECT
 public:
@@ -356,6 +356,6 @@ protected:
 };
 
 /** 按工程 json 里的 "-class" 造出对应的画布控件。 */
-BaseForm *createFormForClass(const QString &cls, QWidget *parent);
+CanvasItem *createFormForClass(const QString &cls, QWidget *parent);
 
 #endif // FORMS_H

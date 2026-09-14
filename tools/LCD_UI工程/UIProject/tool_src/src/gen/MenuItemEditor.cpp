@@ -1,5 +1,5 @@
 #include "BaseDialog.h"
-#include "MenuItemDialog.h"
+#include "MenuItemEditor.h"
 
 #include <QDialogButtonBox>
 #include <QHeaderView>
@@ -9,7 +9,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-MenuItemDialog::MenuItemDialog(QWidget *parent)
+MenuItemEditor::MenuItemEditor(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("菜单条目列表"));
@@ -48,9 +48,9 @@ MenuItemDialog::MenuItemDialog(QWidget *parent)
     connect(box, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
-MenuItemDialog::~MenuItemDialog() = default;
+MenuItemEditor::~MenuItemEditor() = default;
 
-void MenuItemDialog::setItems(const QVector<Item> &items)
+void MenuItemEditor::setItems(const QVector<Item> &items)
 {
     m_table->setRowCount(0);
     for (const Item &it : items) {
@@ -61,7 +61,7 @@ void MenuItemDialog::setItems(const QVector<Item> &items)
     }
 }
 
-QVector<MenuItemDialog::Item> MenuItemDialog::items() const
+QVector<MenuItemEditor::Item> MenuItemEditor::items() const
 {
     QVector<Item> out;
     for (int r = 0; r < m_table->rowCount(); ++r) {

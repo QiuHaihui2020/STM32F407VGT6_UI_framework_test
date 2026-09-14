@@ -80,7 +80,7 @@ bool acceptsWidget(const UiNode *n)
 
 bool acceptsChild(const UiNode *n)
 {
-    /* 粘贴仍然只认布局 —— 那三条提示语写死了"请选择一个<布局>对像"。 */
+    /* 粘贴仍然只认布局 —— 那三条提示语都写死了"先选一个布局"。 */
     return isLayout(n);
 }
 
@@ -211,13 +211,13 @@ void warn(QWidget *parent, const QString &text)
 bool confirmDelete(QWidget *parent, const QString &what)
 {
     if (g_silent) {
-        g_lastMsg = QStringLiteral("你真的要删除当前%1吗?").arg(what);
+        g_lastMsg = QStringLiteral("真的要删除%1吗？").arg(what);
         return true;
     }
     QMessageBox box(parent);
     box.setIcon(QMessageBox::Warning);
     box.setWindowTitle(QStringLiteral("删除提示"));
-    box.setText(QStringLiteral("你真的要删除当前%1吗?删除之后不可以撤消,请选择<删除>删除.")
+    box.setText(QStringLiteral("真的要删除%1吗？删掉之后没法撤消。")
                 .arg(what));
     QAbstractButton *del = box.addButton(QStringLiteral("删除"), QMessageBox::DestructiveRole);
     box.addButton(QStringLiteral("取消"), QMessageBox::RejectRole);
@@ -407,7 +407,7 @@ void reassignEnames(UiNode *sub, UiNode *parent)
     }
     /* 收集**整个工程**已经用掉的 ename。
      * 【不能只顺着 parent 往上爬】爬到页节点就到头了（页的 parent 是 nullptr），
-     * 跨页的名字扫不到 —— 在页 0 的列表里加行，分到的 BaseForm 会和页 1、
+     * 跨页的名字扫不到 —— 在页 0 的列表里加行，分到的 CanvasItem 会和页 1、
      * 页 3 里已有的撞车。有模型就用模型，没有（单元测试之类）再退回爬树。 */
     QSet<QString> used;
     auto collect = [&used, sub](UiNode *x) {

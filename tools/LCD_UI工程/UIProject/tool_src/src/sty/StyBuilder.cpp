@@ -931,7 +931,7 @@ Output Builder::build(const Options &opt)
     for (int pi = 0; pi < order.size(); ++pi) {
         // 窗口记录 28 字节
         QByteArray win(WINREC_SZ, '\0');
-        win[0] = char(2);                              // page/ScenesScreen
+        win[0] = char(2);                              // page/CanvasPage
         win[1] = char(roots[pi]->kids.size());
         win[2] = char(0);
         win[3] = char(0);          // 这里写 0，不是记录长度

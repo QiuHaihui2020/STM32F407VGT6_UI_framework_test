@@ -51,9 +51,9 @@ static QString enameOf(UiNode *n)
     return QString();
 }
 
-/* ===================== TreeDock ===================== */
+/* ===================== ObjectTreeDock ===================== */
 
-TreeDock::TreeDock(QWidget *parent)
+ObjectTreeDock::ObjectTreeDock(QWidget *parent)
     : QDockWidget(parent)
 {
     setObjectName(QStringLiteral("TreeDock"));
@@ -69,9 +69,9 @@ TreeDock::TreeDock(QWidget *parent)
 
     m_tree = new QTreeWidget(host);
     m_tree->setColumnCount(3);
-    /* 三列名写成一条串 "结点,属性,ID号" 再拆，
+    /* 三列名写成一条串 "名称,类型,ID号" 再拆，
      * 免得三处各写各的以后对不上。 */
-    m_tree->setHeaderLabels(QStringLiteral("结点,属性,ID号").split(QLatin1Char(',')));
+    m_tree->setHeaderLabels(QStringLiteral("名称,类型,ID号").split(QLatin1Char(',')));
     m_tree->setRootIsDecorated(true);
     m_tree->setUniformRowHeights(true);
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -89,19 +89,19 @@ TreeDock::TreeDock(QWidget *parent)
 
     setWidget(host);
 
-    connect(m_tree, &QTreeWidget::itemPressed, this, &TreeDock::onItemPressed);
+    connect(m_tree, &QTreeWidget::itemPressed, this, &ObjectTreeDock::onItemPressed);
     connect(m_tree, &QTreeWidget::customContextMenuRequested,
-            this, &TreeDock::onCustomContextMenu);
+            this, &ObjectTreeDock::onCustomContextMenu);
 }
 
-TreeDock::~TreeDock() = default;
+ObjectTreeDock::~ObjectTreeDock() = default;
 
-UiNode *TreeDock::nodeOf(QTreeWidgetItem *it) const
+UiNode *ObjectTreeDock::nodeOf(QTreeWidgetItem *it) const
 {
     return it ? unpackNode(it->data(0, Qt::UserRole)) : nullptr;
 }
 
-void TreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
+void ObjectTreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
 {
     auto *it = parentItem ? new QTreeWidgetItem(parentItem) : new QTreeWidgetItem(m_tree);
     it->setText(0, m_mgr ? m_mgr->model()->displayName(n)
@@ -119,7 +119,7 @@ void TreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
     }
 }
 
-int TreeDock::countAll() const
+int ObjectTreeDock::countAll() const
 {
     if (!m_mgr) {
         return 0;
@@ -133,7 +133,7 @@ int TreeDock::countAll() const
     return n;
 }
 
-void TreeDock::reload()
+void ObjectTreeDock::reload()
 {
     /* 【高亮要活过 clear()】reload() 的触发点大多没动结构 —— 改一个属性就会
      * 走到这儿。clear() 之后当前项没了，树上的高亮跟着没，用户看到的是
@@ -143,7 +143,7 @@ void TreeDock::reload()
     if (!m_mgr) {
         return;
     }
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (s && s->page()) {
         /* 树的根就是当前页的图层，页节点本身不显示 */
         for (const auto &c : s->page()->children) {
@@ -157,12 +157,12 @@ void TreeDock::reload()
     m_count->setText(tr("控件数量: %1").arg(countAll()));
 }
 
-UiNode *TreeDock::currentNodeForTest() const
+UiNode *ObjectTreeDock::currentNodeForTest() const
 {
     return nodeOf(m_tree->currentItem());
 }
 
-void TreeDock::selectNode(UiNode *n)
+void ObjectTreeDock::selectNode(UiNode *n)
 {
     QTreeWidgetItemIterator it(m_tree);
     while (*it) {
@@ -174,7 +174,7 @@ void TreeDock::selectNode(UiNode *n)
     }
 }
 
-void TreeDock::onItemPressed(QTreeWidgetItem *item, int col)
+void ObjectTreeDock::onItemPressed(QTreeWidgetItem *item, int col)
 {
     UiNode *n = nodeOf(item);
     if (!n) {
@@ -189,14 +189,14 @@ void TreeDock::onItemPressed(QTreeWidgetItem *item, int col)
         }
     }
     if (m_mgr) {
-        if (ScenesScreen *s = m_mgr->currentScreen()) {
+        if (CanvasPage *s = m_mgr->currentScreen()) {
             s->selectNode(n);
         }
     }
     emit nodeActivated(n);
 }
 
-void TreeDock::onCustomContextMenu(QPoint point)
+void ObjectTreeDock::onCustomContextMenu(QPoint point)
 {
     QTreeWidgetItem *it = m_tree->itemAt(point);
     UiNode *n = nodeOf(it);
@@ -204,32 +204,32 @@ void TreeDock::onCustomContextMenu(QPoint point)
         return;
     }
     /* 【树和画布用同一个菜单】两边的动作是同一套（删除当前-xxx /
-     * 保存成控件 / 显示·隐藏 / 复制 / 粘贴 / 移层 / 查找对像），所以这里
+     * 保存成控件 / 显示·隐藏 / 复制 / 粘贴 / 移层 / 查找控件），所以这里
      * 不再自己搭一个只有三项的简版，直接把右键位置交给对应的画布控件。
      * 以前树上只能删，画布上能干的事树上干不了，用起来就是
      * "树上的右键少了一半"。 */
     if (!m_mgr) {
         return;
     }
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (!s) {
         return;
     }
     m_tree->setCurrentItem(it);
     s->selectNode(n);
     emit nodeActivated(n);
-    if (BaseForm *f = s->formFor(n)) {
+    if (CanvasItem *f = s->formFor(n)) {
         f->showContextMenu(m_tree->viewport()->mapToGlobal(point));
     }
 }
 
-void TreeDock::onSwapShowHideObject()
+void ObjectTreeDock::onSwapShowHideObject()
 {
     UiNode *n = nodeOf(m_tree->currentItem());
     if (!n || !m_mgr) {
         return;
     }
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (!s) {
         return;
     }
@@ -243,13 +243,13 @@ void TreeDock::onSwapShowHideObject()
     }
 }
 
-void TreeDock::onSwapShowHideSubObject()
+void ObjectTreeDock::onSwapShowHideSubObject()
 {
     UiNode *n = nodeOf(m_tree->currentItem());
     if (!n || !m_mgr) {
         return;
     }
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (!s) {
         return;
     }
@@ -258,7 +258,7 @@ void TreeDock::onSwapShowHideSubObject()
     }
 }
 
-/* ===================== PageView ===================== */
+/* ===================== PageStrip ===================== */
 
 /**
  * 页面渲染：把该页**运行时的样子**原尺寸画出来（128x64），不是缩略图。
@@ -352,7 +352,7 @@ private:
         return at;
     }
 
-    /** 控件的水平对齐（element_css 的 align），和 BaseForm::contentAlign 同源。 */
+    /** 控件的水平对齐（element_css 的 align），和 CanvasItem::contentAlign 同源。 */
     static Qt::Alignment alignOf(UiNode *n)
     {
         const QString a = n->cssField(0, QStringLiteral("align"),
@@ -366,7 +366,7 @@ private:
         return Qt::AlignLeft;
     }
 
-    /** 画一个控件自己那一层（背景/内容/边框），规则抄 BaseForm::paintEvent。 */
+    /** 画一个控件自己那一层（背景/内容/边框），规则抄 CanvasItem::paintEvent。 */
     static void drawOne(QPainter &p, UiNode *n, const QRect &box)
     {
         const QString bgCss = n->cssField(0, QStringLiteral("background_color"),
@@ -658,7 +658,7 @@ private:
     QListWidget *m_layouts = nullptr;
 };
 
-PageView::PageView(QWidget *parent)
+PageStrip::PageStrip(QWidget *parent)
     : QDockWidget(parent)
 {
     setObjectName(QStringLiteral("PageView"));
@@ -716,9 +716,9 @@ PageView::PageView(QWidget *parent)
     h->addWidget(mkCol(tr("页面"), m_list), 1);
     setWidget(box);
 
-    connect(m_list, &QListWidget::itemClicked, this, &PageView::onClickedItem);
-    connect(m_list, &QListWidget::itemChanged, this, &PageView::onItemChanged);
-    connect(m_layouts, &QListWidget::itemClicked, this, &PageView::onLayoutClicked);
+    connect(m_list, &QListWidget::itemClicked, this, &PageStrip::onClickedItem);
+    connect(m_list, &QListWidget::itemChanged, this, &PageStrip::onItemChanged);
+    connect(m_layouts, &QListWidget::itemClicked, this, &PageStrip::onLayoutClicked);
     /* 哪一列滚了大括号都要重画 —— 它的两端跟着两列的可视范围走 */
     for (QListWidget *w : { m_list, m_layouts }) {
         connect(w->verticalScrollBar(), &QScrollBar::valueChanged,
@@ -726,9 +726,9 @@ PageView::PageView(QWidget *parent)
     }
 }
 
-PageView::~PageView() = default;
+PageStrip::~PageStrip() = default;
 
-QImage PageView::grabPageForTest(int i) const
+QImage PageStrip::grabPageForTest(int i) const
 {
     if (!m_mgr || i < 0 || i >= m_mgr->model()->pages().size()) {
         return QImage();
@@ -742,7 +742,7 @@ QImage PageView::grabPageForTest(int i) const
            .convertToFormat(QImage::Format_RGB32);
 }
 
-void PageView::reload()
+void PageStrip::reload()
 {
     if (!m_mgr) {
         return;
@@ -775,12 +775,12 @@ void PageView::reload()
 
 /* ===================== 右列：当前页的顶层布局 ===================== */
 
-void PageView::reloadLayouts()
+void PageStrip::reloadLayouts()
 {
     if (!m_mgr || !m_layouts) {
         return;
     }
-    ScenesScreen *sc = m_mgr->currentScreen();
+    CanvasPage *sc = m_mgr->currentScreen();
     const QVector<UiNode *> screens = sc ? sc->screens() : QVector<UiNode *>();
 
     /* 集合没变就只挪一下「当前」标记 —— 每选一次控件都重建 9 个预览太浪费 */
@@ -823,12 +823,12 @@ void PageView::reloadLayouts()
     markCurrentLayout();
 }
 
-void PageView::markCurrentLayout()
+void PageStrip::markCurrentLayout()
 {
     if (!m_mgr || !m_layouts) {
         return;
     }
-    ScenesScreen *sc = m_mgr->currentScreen();
+    CanvasPage *sc = m_mgr->currentScreen();
     const int cur = sc ? sc->currentScreenIndex() : -1;
     m_loading = true;
     for (int i = 0; i < m_layouts->count() && i < m_layoutNodes.size(); ++i) {
@@ -873,7 +873,7 @@ void PageView::markCurrentLayout()
     }
 }
 
-QImage PageView::grabLayoutForTest(int i) const
+QImage PageStrip::grabLayoutForTest(int i) const
 {
     if (!m_mgr || i < 0 || i >= m_layoutNodes.size()) {
         return QImage();
@@ -888,7 +888,7 @@ QImage PageView::grabLayoutForTest(int i) const
            .convertToFormat(QImage::Format_RGB32);
 }
 
-void PageView::onLayoutClicked(QListWidgetItem *a0)
+void PageStrip::onLayoutClicked(QListWidgetItem *a0)
 {
     if (!a0 || !m_mgr || m_loading) {
         return;
@@ -899,7 +899,7 @@ void PageView::onLayoutClicked(QListWidgetItem *a0)
     emit layoutActivated(idx);
 }
 
-void PageView::onClickedItem(QListWidgetItem *a0)
+void PageStrip::onClickedItem(QListWidgetItem *a0)
 {
     if (!a0 || !m_mgr) {
         return;
@@ -910,7 +910,7 @@ void PageView::onClickedItem(QListWidgetItem *a0)
     emit pageActivated(idx);
 }
 
-void PageView::onItemChanged(QListWidgetItem *a0)
+void PageStrip::onItemChanged(QListWidgetItem *a0)
 {
     if (m_loading || !a0 || !m_mgr) {
         return;
@@ -924,9 +924,9 @@ void PageView::onItemChanged(QListWidgetItem *a0)
     }
 }
 
-/* ===================== CompoentControls ===================== */
+/* ===================== WidgetPalette ===================== */
 
-CompoentControls::CompoentControls(QWidget *parent)
+WidgetPalette::WidgetPalette(QWidget *parent)
     : QGroupBox(tr("控件列表"), parent)
 {
     setObjectName(QStringLiteral("CompoentControls"));
@@ -939,13 +939,13 @@ CompoentControls::CompoentControls(QWidget *parent)
     outer->addWidget(m_area);
 }
 
-CompoentControls::~CompoentControls() = default;
+WidgetPalette::~WidgetPalette() = default;
 
-void CompoentControls::addControlButton(const QString &cls, const QString &type,
+void WidgetPalette::addControlButton(const QString &cls, const QString &type,
                                         const QString &caption, int row, int col)
 {
     auto *g = qobject_cast<QGridLayout *>(m_grid->layout());
-    auto *b = new DragButton(m_grid);
+    auto *b = new HandleButton(m_grid);
     b->setText(caption.isEmpty() ? type : caption);
     b->setPayload(cls, type);
     b->setFixedHeight(23);            // 实测网格按钮行距 23
@@ -956,7 +956,7 @@ void CompoentControls::addControlButton(const QString &cls, const QString &type,
     g->addWidget(b, row, col);
 }
 
-void CompoentControls::reload()
+void WidgetPalette::reload()
 {
     /* 重建整块面板 */
     delete m_grid->layout();
@@ -968,18 +968,18 @@ void CompoentControls::reload()
     g->setVerticalSpacing(1);
 
     /* 图层、布局两个通栏大按钮在最上面 */
-    auto *layer = new DragButton(m_grid);
+    auto *layer = new HandleButton(m_grid);
     layer->setText(tr("图层"));
     layer->setPayload(QStringLiteral("NewLayer"), QStringLiteral("NewLayer"));
     layer->setFixedHeight(51);        // 实测 y=106..157
-    connect(layer, &QPushButton::clicked, this, &CompoentControls::onCreateNewLayer);
+    connect(layer, &QPushButton::clicked, this, &WidgetPalette::onCreateNewLayer);
     g->addWidget(layer, 0, 0, 1, 2);
 
-    auto *layout = new DragButton(m_grid);
+    auto *layout = new HandleButton(m_grid);
     layout->setText(tr("布局"));
     layout->setPayload(QStringLiteral("NewLayout"), QStringLiteral("NewLayout"));
     layout->setFixedHeight(51);       // 实测 y=159..210
-    connect(layout, &QPushButton::clicked, this, &CompoentControls::onCreateNewLayout);
+    connect(layout, &QPushButton::clicked, this, &WidgetPalette::onCreateNewLayout);
     g->addWidget(layout, 1, 0, 1, 2);
 
     int row = 2, col = 0;
@@ -1014,7 +1014,7 @@ void CompoentControls::reload()
     cg->setSpacing(4);
     int cr = 0, cc = 0;
     for (const ControlTemplate *t : custom) {
-        auto *b = new DragButton(m_custom);
+        auto *b = new HandleButton(m_custom);
         b->setText(t->caption.isEmpty() ? t->type : t->caption);
         b->setPayload(t->cls, t->type);
         b->setFixedHeight(23);
@@ -1041,7 +1041,7 @@ void CompoentControls::reload()
  * 重名。真正的实现在 ProjectModel::nextNodeSeq()。
  */
 
-UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
+UiNode *WidgetPalette::appendChild(UiNode *parent, const QString &cls,
                                       const QString &type, const QString &caption,
                                       const QString &name, const QPoint &pos)
 {
@@ -1128,7 +1128,7 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
     parent->children.append(qMakePair(EditorOps::childKeyFor(parent), n));
     parent->markDirty();
     m_mgr->markDirty();
-    ScenesScreen *s = m_mgr->currentScreen();
+    CanvasPage *s = m_mgr->currentScreen();
     if (s) {
         s->rebuild();
     }
@@ -1144,7 +1144,7 @@ UiNode *CompoentControls::appendChild(UiNode *parent, const QString &cls,
     return n;
 }
 
-void CompoentControls::createControl(const QString &cls, const QString &type,
+void WidgetPalette::createControl(const QString &cls, const QString &type,
                                      const QString &caption, UiNode *parent,
                                      const QPoint &pos)
 {
@@ -1161,13 +1161,13 @@ void CompoentControls::createControl(const QString &cls, const QString &type,
     if (!host) {
         host = EditorOps::hostForNewControl(m_current);
         if (!host) {
-            EditorOps::tip(this, QStringLiteral("请选择一个布局或者新建一个并选中它."));
+            EditorOps::tip(this, QStringLiteral("先选中一个布局，或者新建一个再选中。"));
             return;
         }
     }
     const ControlTemplate *t = m_mgr->library()->byType(type);
     const QString cap = (t && !t->caption.isEmpty()) ? t->caption : caption;
-    ScenesScreen *sc = m_mgr->currentScreen();
+    CanvasPage *sc = m_mgr->currentScreen();
     const QString def = QStringLiteral("%1_%2").arg(cap.isEmpty() ? type : cap)
                         .arg(m_mgr->model()->nextNodeSeq());
 
@@ -1184,12 +1184,12 @@ void CompoentControls::createControl(const QString &cls, const QString &type,
     appendChild(host, t ? t->cls : cls, type, cap, name, pos);
 }
 
-void CompoentControls::onCreateCompoentToCanvas()
+void WidgetPalette::onCreateWidgetOnCanvas()
 {
     Q_UNUSED(this)   // 入口保留，实际走 createControl()
 }
 
-void CompoentControls::onCreateCustomWidget()
+void WidgetPalette::onCreateCustomWidget()
 {
     Q_UNUSED(this)
 }
@@ -1198,13 +1198,13 @@ void CompoentControls::onCreateCustomWidget()
  * 拖放落地的总入口。cls 决定走哪一条：图层 / 布局 / 普通控件。
  * 落点合法性画布那边已经判过（dropTargetFor），这里只管建。
  */
-void CompoentControls::createDropped(UiNode *parent, const QString &cls,
+void WidgetPalette::createDropped(UiNode *parent, const QString &cls,
                                      const QString &type, const QPoint &pos)
 {
     if (!m_mgr || !parent) {
         return;
     }
-    ScenesScreen *sc = m_mgr->currentScreen();
+    CanvasPage *sc = m_mgr->currentScreen();
     const int seq = m_mgr->model()->nextNodeSeq();
     if (cls == QLatin1String("NewLayer")) {
         appendChild(parent, cls, QStringLiteral("NewLayer"), QStringLiteral("图层"),
@@ -1224,7 +1224,7 @@ void CompoentControls::createDropped(UiNode *parent, const QString &cls,
                   t ? t->caption : QString(), parent, pos);
 }
 
-void CompoentControls::onCreateNewLayout()
+void WidgetPalette::onCreateNewLayout()
 {
     if (!m_mgr) {
         return;
@@ -1237,7 +1237,7 @@ void CompoentControls::onCreateNewLayout()
     if (!host) {
         if (needTip) {
             EditorOps::tip(this,
-                           QStringLiteral("请选择一个图层或者新建一个图层,并选中它."));
+                           QStringLiteral("先选中一个图层，或者新建一个再选中。"));
         }
         return;
     }
@@ -1246,12 +1246,12 @@ void CompoentControls::onCreateNewLayout()
                 QStringLiteral("布局_%1").arg(m_mgr->model()->nextNodeSeq()));
 }
 
-void CompoentControls::onCreateNewLayer()
+void WidgetPalette::onCreateNewLayer()
 {
     if (!m_mgr) {
         return;
     }
-    ScenesScreen *sc = m_mgr->currentScreen();
+    CanvasPage *sc = m_mgr->currentScreen();
     if (!sc || !sc->page()) {
         return;
     }
@@ -1261,9 +1261,9 @@ void CompoentControls::onCreateNewLayer()
                 QStringLiteral("图层_%1").arg(m_mgr->model()->nextNodeSeq()));
 }
 
-/* ===================== PropertyTab ===================== */
+/* ===================== PropertyDock ===================== */
 
-PropertyTab::PropertyTab(QWidget *parent)
+PropertyDock::PropertyDock(QWidget *parent)
     : QWidget(parent)
 {
     setObjectName(QStringLiteral("PropertyTab"));
@@ -1299,7 +1299,7 @@ PropertyTab::PropertyTab(QWidget *parent)
                         static_cast<QWidget *>(m_stateCb) }) {
         w->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(w, &QWidget::customContextMenuRequested,
-                this, &PropertyTab::onStateContextMenu);
+                this, &PropertyDock::onStateContextMenu);
     }
     connect(m_stateCb, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int i) {
@@ -1317,9 +1317,9 @@ PropertyTab::PropertyTab(QWidget *parent)
         m_pageLay[i] = new QVBoxLayout(page);
         m_pageLay[i]->setContentsMargins(0, 0, 0, 0);
         m_pageLay[i]->setSpacing(3);
-        m_css[i] = new CssProperty(page);
+        m_css[i] = new CssPropertyPane(page);
         m_css[i]->setSection(PropSection(i));
-        connect(m_css[i], &BaseProperty::nodeEdited, this, &PropertyTab::nodeEdited);
+        connect(m_css[i], &BaseProperty::nodeEdited, this, &PropertyDock::nodeEdited);
         m_pageLay[i]->addWidget(m_css[i], 0);
         m_pageLay[i]->addStretch(1);
         m_tabs->addTab(page, QString::fromUtf8(kTitle[i]));
@@ -1329,11 +1329,11 @@ PropertyTab::PropertyTab(QWidget *parent)
     showNode(nullptr);
 }
 
-PropertyTab::~PropertyTab() = default;
+PropertyDock::~PropertyDock() = default;
 
 /* 页签数 = element_css.struct 的长度：一个 CSS 状态一页，
  * 名字就是 "CSS属性_N"。 */
-bool PropertyTab::stateMenuReachableForTest() const
+bool PropertyDock::stateMenuReachableForTest() const
 {
     if (!m_stateCb || !m_stateRow) {
         return false;
@@ -1344,17 +1344,17 @@ bool PropertyTab::stateMenuReachableForTest() const
            && m_stateRow->contextMenuPolicy() == Qt::CustomContextMenu;
 }
 
-int PropertyTab::stateCountForTest() const
+int PropertyDock::stateCountForTest() const
 {
     return m_stateCb ? m_stateCb->count() : 0;
 }
 
-QStringList PropertyTab::rowsForTest(PropSection sec) const
+QStringList PropertyDock::rowsForTest(PropSection sec) const
 {
     return m_css[sec] ? m_css[sec]->rowsForTest() : QStringList();
 }
 
-QStringList PropertyTab::rowsForTest() const
+QStringList PropertyDock::rowsForTest() const
 {
     /* 两页合起来。而且 基础 在前、资源 在后，正好还原 json 里
      * align / invisible / flags / rect / 背景两项 / border 的原始次序，
@@ -1362,36 +1362,36 @@ QStringList PropertyTab::rowsForTest() const
     return rowsForTest(SecBasic) + rowsForTest(SecResource);
 }
 
-void PropertyTab::setDynamicSections(QWidget *basic, QWidget *resource)
+void PropertyDock::setDynamicSections(QWidget *basic, QWidget *resource)
 {
     QWidget *const w[SecCount] = { basic, resource };
     for (int i = 0; i < SecCount; ++i) {
         if (!w[i] || !m_pageLay[i]) {
             continue;
         }
-        /* 插在 CssProperty 之后、弹簧之前 */
+        /* 插在 CssPropertyPane 之后、弹簧之前 */
         m_pageLay[i]->insertWidget(1, w[i], 0);
     }
 }
 
-int PropertyTab::stateCount() const
+int PropertyDock::stateCount() const
 {
     return m_node ? qMax(1, m_node->cssStateCount()) : 1;
 }
 
-int PropertyTab::sectionIndex() const
+int PropertyDock::sectionIndex() const
 {
     return m_tabs ? m_tabs->currentIndex() : 0;
 }
 
-void PropertyTab::setSectionIndex(int i)
+void PropertyDock::setSectionIndex(int i)
 {
     if (m_tabs && i >= 0 && i < m_tabs->count()) {
         m_tabs->setCurrentIndex(i);
     }
 }
 
-void PropertyTab::setState(int st)
+void PropertyDock::setState(int st)
 {
     m_state = qBound(0, st, stateCount() - 1);
     if (m_stateCb && m_stateCb->currentIndex() != m_state) {
@@ -1406,7 +1406,7 @@ void PropertyTab::setState(int st)
     }
 }
 
-void PropertyTab::showNode(UiNode *n)
+void PropertyDock::showNode(UiNode *n)
 {
     m_node = n;
     const int want = stateCount();
@@ -1443,7 +1443,7 @@ void PropertyTab::showNode(UiNode *n)
  * 属性区上方有一排小动作：清除 / 复制添加 / 复制插入 / 删除活动项。
  * 一个状态 = struct 数组里的一项，这四个动作就是对这个数组做操作。
  * 之前只把状态画出来了，数组是只读的 —— 想加一个状态只能去手改 json。 */
-void PropertyTab::onStateContextMenu(QPoint pos)
+void PropertyDock::onStateContextMenu(QPoint pos)
 {
     if (!m_node) {
         return;
@@ -1472,7 +1472,7 @@ void PropertyTab::onStateContextMenu(QPoint pos)
     }
 }
 
-void PropertyTab::onClearState()
+void PropertyDock::onClearState()
 {
     if (!m_node) {
         return;
@@ -1484,7 +1484,7 @@ void PropertyTab::onClearState()
     emit nodeEdited(m_node);
 }
 
-void PropertyTab::onCopyAppendState()
+void PropertyDock::onCopyAppendState()
 {
     if (!m_node) {
         return;
@@ -1495,7 +1495,7 @@ void PropertyTab::onCopyAppendState()
     emit nodeEdited(m_node);
 }
 
-void PropertyTab::onCopyInsertState()
+void PropertyDock::onCopyInsertState()
 {
     if (!m_node) {
         return;
@@ -1507,7 +1507,7 @@ void PropertyTab::onCopyInsertState()
     emit nodeEdited(m_node);
 }
 
-void PropertyTab::onRemoveState()
+void PropertyDock::onRemoveState()
 {
     if (!m_node) {
         return;

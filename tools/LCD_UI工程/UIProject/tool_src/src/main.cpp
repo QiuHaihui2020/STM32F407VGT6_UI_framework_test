@@ -44,20 +44,20 @@
 #include "Products.h"
 #include "Preview.h"
 
-#include "ActionList.h"
-#include "BusyIndicator.h"
-#include "ConfigProject.h"
+#include "EventActionDialog.h"
+#include "WaitOverlay.h"
+#include "ProjectSettingsDialog.h"
 #include "GlobalSettings.h"
-#include "GridHelpLine.h"
-#include "HVLineWidget.h"
-#include "I18nLanguage.h"
-#include "ImageFileDialog.h"
-#include "ImageListView.h"
-#include "MenuItemDialog.h"
-#include "ProgressDlg.h"
-#include "RuleWidget.h"
-#include "ZoomProject.h"
-#include "findDlg.h"
+#include "AlignGuide.h"
+#include "GuideLine.h"
+#include "StringPicker.h"
+#include "ImagePicker.h"
+#include "ImageStrip.h"
+#include "MenuItemEditor.h"
+#include "ProgressBox.h"
+#include "Ruler.h"
+#include "ScaleDialog.h"
+#include "FindDialog.h"
 #include "StyFile.h"
 #include "ProjectModel.h"
 #include "ToolBinWindow.h"
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
             ++n;
         };
         {
-            auto *d = new ImageFileDialog;
+            auto *d = new ImagePicker;
             d->setProjectDir(dir);
             /* 【挑真实存在的图】以前这里给的是 config/pic_lcd/x.bmp（不存在），
              * 出图只有空列表，改过缩略图之后"没崩"根本看不出画对没有。
@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
             touch(d);
         }
         {
-            auto *d = new I18nLanguage;
+            auto *d = new StringPicker;
             const QStringList xls = QDir(dir).entryList(
                 QStringList{ QStringLiteral("*.xls") }, QDir::Files);
             if (!xls.isEmpty()) {
@@ -359,9 +359,9 @@ int main(int argc, char *argv[])
             d->setSelected(QStringList{ QStringLiteral("m1") });
             touch(d);
         }
-        touch(new ActionList);
+        touch(new EventActionDialog);
         {
-            auto *d = new ConfigProject;
+            auto *d = new ProjectSettingsDialog;
             d->setProjectName(QStringLiteral("smoke"));
             d->setLanguageMask(0x13);
             touch(d);
@@ -375,50 +375,50 @@ int main(int argc, char *argv[])
             touch(d);
         }
         {
-            auto *d = new ZoomProject;
+            auto *d = new ScaleDialog;
             d->setOldSize(QSize(128, 64));
             touch(d);
         }
-        touch(new findDlg);
-        touch(new MenuItemDialog);
+        touch(new FindDialog);
+        touch(new MenuItemEditor);
         {
-            auto *d = new ImageListView;
+            auto *d = new ImageStrip;
             d->setProjectDir(dir.isEmpty() ? QDir::currentPath() : dir);
             /* 出图时能看到缩略图和当前这张被选中的效果 */
             d->setSelected(QStringLiteral("config/pic_lcd/v_block.bmp"));
             touch(d);
         }
         {
-            auto *d = new ProgressDlg;
+            auto *d = new ProgressBox;
             d->setRange(0, 10);
             d->setValue(5);
             d->setText(QStringLiteral("smoke"));
             touch(d);
         }
         {
-            auto *d = new BusyIndicator;
+            auto *d = new WaitOverlay;
             d->setText(QStringLiteral("smoke"));
             d->onRotate();
             touch(d);
         }
         {
-            auto *w = new GridHelpLine;
+            auto *w = new AlignGuide;
             w->setStep(8);
             touch(w);
         }
         {
-            auto *w = new HVLineWidget;
+            auto *w = new GuideLine;
             w->setCross(QPoint(20, 30));
             touch(w);
         }
         {
-            auto *w = new RuleWidget;
+            auto *w = new Ruler;
             w->setOrientation(Qt::Horizontal);
             w->setZoom(200);
             touch(w);
         }
         {
-            auto *w = new RuleWidget;
+            auto *w = new Ruler;
             w->setOrientation(Qt::Vertical);
             touch(w);
         }
@@ -563,7 +563,7 @@ int main(int argc, char *argv[])
     }
 
     /* 选中链路的无人值守回归：连续选中若干节点，走的是和"在对象树里点一下"
-     * 完全相同的那条路（ScenesScreen::selectNode）。这条路上出过一次
+     * 完全相同的那条路（CanvasPage::selectNode）。这条路上出过一次
      * 信号回环导致的栈溢出，所以留个自动化的复现手段。 */
     if (p.isSet(optClick)) {
         const int n = p.value(optClick).toInt();

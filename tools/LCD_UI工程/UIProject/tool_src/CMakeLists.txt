@@ -68,7 +68,7 @@ set(UITOOLS_UI
     src/ui/AppIcon.cpp
     src/ui/UiTheme.cpp
     src/ui/MainWindow.cpp
-    src/ui/ProjectDialog.cpp
+    src/ui/NewProjectDialog.cpp
 )
 
 # ---- 对话框与小部件 --------------------------------------------------------

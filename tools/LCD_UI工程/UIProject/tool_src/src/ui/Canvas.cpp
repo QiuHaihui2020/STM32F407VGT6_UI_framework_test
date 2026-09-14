@@ -6,12 +6,12 @@
 
 #include <QSettings>
 
-#include "ConfigProject.h"
+#include "ProjectSettingsDialog.h"
 #include "Property.h"
 #include "GlobalSettings.h"
-#include "ZoomProject.h"
+#include "ScaleDialog.h"
 #include "Forms.h"
-#include "ProjectDialog.h"
+#include "NewProjectDialog.h"
 #include "EditorOps.h"
 
 #include <QPainter>
@@ -40,13 +40,13 @@
 #include <QDir>
 #include <QFileInfo>
 
-/* ===================== ScenesScreen ===================== */
+/* ===================== CanvasPage ===================== */
 
 
 /**
  * 像素网格的覆盖层。
  *
- * 【为什么要单独一层】网格原来画在 ScenesScreen::paintEvent 里，那是父控件的
+ * 【为什么要单独一层】网格原来画在 CanvasPage::paintEvent 里，那是父控件的
  * 背景，Qt 之后才画子控件。点亮的像素不透明，把网格盖掉了 —— 于是只有熄灭
  * 的地方（子控件那里透明，露出父控件背景）看得见网格，点亮的地方看不见。
  * 覆盖层是子控件，rebuild 之后 raise() 到最上面，就压在所有内容之上了。
@@ -60,7 +60,7 @@
 class GridOverlay : public QWidget
 {
 public:
-    explicit GridOverlay(ScenesScreen *owner)
+    explicit GridOverlay(CanvasPage *owner)
         : QWidget(owner), m_owner(owner)
     {
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -91,10 +91,10 @@ protected:
     }
 
 private:
-    ScenesScreen *m_owner = nullptr;
+    CanvasPage *m_owner = nullptr;
 };
 
-ScenesScreen::ScenesScreen(QWidget *parent)
+CanvasPage::CanvasPage(QWidget *parent)
     /* 页底色 = 像素熄灭的颜色（[全局设置]里配），这样画布上看到的
      * 明暗关系就是屏上的明暗关系。 */
     : QFrame(parent), m_bg(Preview::monoDark())
@@ -106,7 +106,7 @@ ScenesScreen::ScenesScreen(QWidget *parent)
     m_gridOverlay = new GridOverlay(this);
 }
 
-void ScenesScreen::resizeEvent(QResizeEvent *e)
+void CanvasPage::resizeEvent(QResizeEvent *e)
 {
     QFrame::resizeEvent(e);
     if (m_gridOverlay) {
@@ -115,19 +115,19 @@ void ScenesScreen::resizeEvent(QResizeEvent *e)
     }
 }
 
-ScenesScreen::~ScenesScreen()
+CanvasPage::~CanvasPage()
 {
     /* 【必须在这里把子控件的 destroyed 连接掐掉】
      *
-     * 子控件（BaseForm）是在 QWidget::~QWidget() 里被删的，而那一步发生在
+     * 子控件（CanvasItem）是在 QWidget::~QWidget() 里被删的，而那一步发生在
      * **本对象的成员已经析构完之后**（析构顺序：本类析构体 -> 本类成员 ->
      * 基类 QWidget::~QWidget 删子控件 -> QObject::~QObject 断连）。
      * buildRecursive() 给每个控件挂了 destroyed 回调去清 m_forms/m_userHidden，
      * 到那一步回调再进来，摸的就是已经析构的 QHash —— ASan 报
-     * heap-use-after-free in QHash<UiNode*,BaseForm*>::value，进程退出时崩。
+     * heap-use-after-free in QHash<UiNode*,CanvasItem*>::value，进程退出时崩。
      *
      * 析构体是最后一个"成员还活着"的时机，在这儿断连正好。 */
-    for (BaseForm *f : m_forms) {
+    for (CanvasItem *f : m_forms) {
         disconnect(f, nullptr, this, nullptr);
     }
     m_forms.clear();
@@ -157,7 +157,7 @@ static QString canvasBgKey(const UiNode *page)
     return QStringLiteral("canvasBg/%1/%2").arg(proj, page->name);
 }
 
-void ScenesScreen::setPage(UiNode *page)
+void CanvasPage::setPage(UiNode *page)
 {
     m_page = page;
     /* 换页要把这一页自己的底图取回来 —— 不然上一页的底图会留在画布上。 */
@@ -177,7 +177,7 @@ void ScenesScreen::setPage(UiNode *page)
     rebuild();
 }
 
-void ScenesScreen::setZoom(int percent)
+void CanvasPage::setZoom(int percent)
 {
     const int z = qBound(25, percent, 800);
     if (z == m_zoom) {
@@ -189,9 +189,9 @@ void ScenesScreen::setZoom(int percent)
     rebuild();
 }
 
-void ScenesScreen::rebuild()
+void CanvasPage::rebuild()
 {
-    for (BaseForm *f : m_forms) {
+    for (CanvasItem *f : m_forms) {
         /* 【必须当场脱离画布，不能只 deleteLater】deleteLater 要等事件循环
          * 转一圈才真销毁，在那之前旧控件还是画布的**可见子控件**，还会被
          * 重绘。而重建的常见诱因就是删了个节点—— 旧控件的 m_node 这时
@@ -254,16 +254,16 @@ void ScenesScreen::rebuild()
     update();
 }
 
-void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
+void CanvasPage::buildRecursive(UiNode *n, QWidget *parentWidget)
 {
-    BaseForm *f = createFormForClass(n->cls, parentWidget);
+    CanvasItem *f = createFormForClass(n->cls, parentWidget);
     /* 倍率要在 bind() 之前给：bind 里会调 syncRectFromNode() 摆位置 */
     f->setDisplayZoom(m_zoom);
     f->setShowChrome(m_showChrome);
     f->bind(n);
     f->show();
     m_forms.insert(n, f);
-    /* 【控件没了就得从索引里摘掉】BaseForm::onDeleteMe() 只 deleteLater()
+    /* 【控件没了就得从索引里摘掉】CanvasItem::onDeleteMe() 只 deleteLater()
      * 自己，不通知这边；等事件循环真销毁它，m_forms 里就是个野指针，
      * 之后任何遍历（重绘、setShowChrome、grab/截屏）都在踩已释放内存。
      * 挂在 destroyed 上而不是让删除路径自己收尾 —— 删除的入口不止一个。
@@ -284,30 +284,30 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
         }
     });
     /* 在画布上直接点控件，也要让树/属性面板跟着走。
-     * BaseForm::mousePressEvent 只调 setSelected(true)，既不通知外面、
+     * CanvasItem::mousePressEvent 只调 setSelected(true)，既不通知外面、
      * 也不取消别的控件的选中框，所以这里拦一道press。事件过滤器跑在
      * 控件自己的处理之前，不影响它的拖动逻辑。 */
     f->installEventFilter(this);
 
     /* 结构类操作（右键删除/粘贴/挪层/列表加行）由控件自己发起，画布只负责
      * 往上转发一次 —— 树、页面栏、属性面板都挂在主窗口那一层。 */
-    connect(f, &BaseForm::structureChanged, this, [this]() {
+    connect(f, &CanvasItem::structureChanged, this, [this]() {
         m_selected = nullptr;          // 被删掉的那个可能就是它，别留悬空指针
         /* 【必须重建画布】结构类操作动的是节点树本身。删除尤其致命：
          * UiNode 析构会递归 delete children，整棵子树一起没；而画布上那些
-         * **子控件**的 BaseForm 还活着，m_node 全是野指针。以前这里只往上
+         * **子控件**的 CanvasItem 还活着，m_node 全是野指针。以前这里只往上
          * 转发一次信号，主窗口那边也只 reload 树和页面栏，谁都没重建画布 ——
          * 于是删完一个带子节点的控件，下一次重绘/截图（onSshoot 就是
-         * ScenesScreen::grab()）就在踩已释放内存，实测稳定堆损坏 0xC0000374。 */
+         * CanvasPage::grab()）就在踩已释放内存，实测稳定堆损坏 0xC0000374。 */
         rebuild();
         emit structureChanged();
     });
-    connect(f, &BaseForm::findRequested, this, &ScenesScreen::findRequested);
-    connect(f, &BaseForm::userHideRequested, this, &ScenesScreen::toggleUserHidden);
+    connect(f, &CanvasItem::findRequested, this, &CanvasPage::findRequested);
+    connect(f, &CanvasItem::userHideRequested, this, &CanvasPage::toggleUserHidden);
 
-    connect(f, &FormResizer::formWindowSizeChanged, this,
+    connect(f, &ResizeFrame::formWindowSizeChanged, this,
             [this, n, f](QRect, QRect) {
-                /* 换算统一在 BaseForm::syncRectToNode() 里做，这里不再自己算
+                /* 换算统一在 CanvasItem::syncRectToNode() 里做，这里不再自己算
                  * 一遍 —— 以前两处各算各的，靠"后写的盖前写的"才对，很脆。 */
                 f->syncRectToNode();
                 emit geometryEdited(n);
@@ -340,9 +340,9 @@ void ScenesScreen::buildRecursive(UiNode *n, QWidget *parentWidget)
  * 编辑器的可见性开关。拿它去藏画布上的控件，等于让人没法摆放这些控件 ——
  * 画布上看不看得见，只由对象树那只眼睛（和右键的显示/隐藏）管。
  */
-void ScenesScreen::applyVisibility()
+void CanvasPage::applyVisibility()
 {
-    /* 【网格覆盖层要重新提到最上面】FormResizer::setSelected(true) 里有
+    /* 【网格覆盖层要重新提到最上面】ResizeFrame::setSelected(true) 里有
      * 一句 raise()，选中一个控件就把它顶到覆盖层之上，那块区域的网格就没了。
      * applyVisibility() 是所有"选中/可见性变了"的必经之路，在这儿补一次
      * 最省事，也不会漏。 */
@@ -405,7 +405,7 @@ void ScenesScreen::applyVisibility()
         QVector<UiNode *> stack{ sib.second };
         while (!stack.isEmpty()) {
             UiNode *x = stack.takeLast();
-            if (BaseForm *f = m_forms.value(x, nullptr)) {
+            if (CanvasItem *f = m_forms.value(x, nullptr)) {
                 f->setVisible(false);
             }
             for (const auto &c : x->children) {
@@ -415,7 +415,7 @@ void ScenesScreen::applyVisibility()
     }
 }
 
-UiNode *ScenesScreen::topScreenOf(UiNode *n) const
+UiNode *CanvasPage::topScreenOf(UiNode *n) const
 {
     UiNode *top = n;
     while (top && top->parent && !EditorOps::isLayer(top->parent)) {
@@ -424,7 +424,7 @@ UiNode *ScenesScreen::topScreenOf(UiNode *n) const
     return (top && top->parent) ? top : nullptr;
 }
 
-QVector<UiNode *> ScenesScreen::screens() const
+QVector<UiNode *> CanvasPage::screens() const
 {
     QVector<UiNode *> out;
     if (!m_page) {
@@ -438,7 +438,7 @@ QVector<UiNode *> ScenesScreen::screens() const
     return out;
 }
 
-int ScenesScreen::currentScreenIndex() const
+int CanvasPage::currentScreenIndex() const
 {
     UiNode *cur = topScreenOf(m_selected);
     if (!cur) {
@@ -454,7 +454,7 @@ int ScenesScreen::currentScreenIndex() const
     return screens().indexOf(cur);
 }
 
-void ScenesScreen::setSolo(bool on)
+void CanvasPage::setSolo(bool on)
 {
     if (m_solo == on) {
         return;
@@ -463,7 +463,7 @@ void ScenesScreen::setSolo(bool on)
     applyVisibility();
 }
 
-void ScenesScreen::toggleUserHidden(UiNode *n)
+void CanvasPage::toggleUserHidden(UiNode *n)
 {
     if (!n) {
         return;
@@ -476,7 +476,7 @@ void ScenesScreen::toggleUserHidden(UiNode *n)
     applyVisibility();
 }
 
-void ScenesScreen::setShowHidden(bool on)
+void CanvasPage::setShowHidden(bool on)
 {
     if (m_showHidden == on) {
         return;
@@ -485,7 +485,7 @@ void ScenesScreen::setShowHidden(bool on)
     applyVisibility();
 }
 
-void ScenesScreen::selectNode(UiNode *node)
+void CanvasPage::selectNode(UiNode *node)
 {
     /* 【必须判重】选中是个环：
      *     selectNode -> nodeSelected -> MainWindow::onNodeSelected
@@ -508,7 +508,7 @@ void ScenesScreen::selectNode(UiNode *node)
 }
 
 /* ---- 拖拽建控件 ---------------------------------------------------------
- * 手册里这是**主要手势**（点击那条路是第二条）。DragButton 早就在发起拖拽了，
+ * 手册里这是**主要手势**（点击那条路是第二条）。HandleButton 早就在发起拖拽了，
  * 但之前全工程没有任何一处 setAcceptDrops，所以拖过去什么都不会发生。
  *
  * 落点判定：拖到哪个容器上就挂到哪个容器下 —— 这比"看你选中了什么"更符合
@@ -516,9 +516,9 @@ void ScenesScreen::selectNode(UiNode *node)
  * 容器不合适时 ignore()，鼠标指针会变成禁止符号，用户当场就知道贴不进去。 */
 
 /** 画布坐标 p 落在哪个节点上。取最深的那个（子控件盖在父容器上面）。 */
-UiNode *ScenesScreen::nodeAt(const QPoint &p) const
+UiNode *CanvasPage::nodeAt(const QPoint &p) const
 {
-    QWidget *w = const_cast<ScenesScreen *>(this)->childAt(p);
+    QWidget *w = const_cast<CanvasPage *>(this)->childAt(p);
     while (w && w != this) {
         for (auto it = m_forms.constBegin(); it != m_forms.constEnd(); ++it) {
             if (it.value() == w) {
@@ -584,7 +584,7 @@ static bool parsePayload(const QMimeData *md, QString *cls, QString *type)
     return !type->isEmpty();
 }
 
-void ScenesScreen::wheelEvent(QWheelEvent *e)
+void CanvasPage::wheelEvent(QWheelEvent *e)
 {
     if (!(e->modifiers() & Qt::ControlModifier)) {
         /* 普通滚轮留给外层的滚动条，别抢 */
@@ -598,7 +598,7 @@ void ScenesScreen::wheelEvent(QWheelEvent *e)
     e->accept();
 }
 
-void ScenesScreen::dragEnterEvent(QDragEnterEvent *e)
+void CanvasPage::dragEnterEvent(QDragEnterEvent *e)
 {
     QString cls, type;
     if (parsePayload(e->mimeData(), &cls, &type)) {
@@ -608,7 +608,7 @@ void ScenesScreen::dragEnterEvent(QDragEnterEvent *e)
     }
 }
 
-void ScenesScreen::dragMoveEvent(QDragMoveEvent *e)
+void CanvasPage::dragMoveEvent(QDragMoveEvent *e)
 {
     QString cls, type;
     UiNode *target = nullptr;
@@ -621,7 +621,7 @@ void ScenesScreen::dragMoveEvent(QDragMoveEvent *e)
     }
 }
 
-void ScenesScreen::dropEvent(QDropEvent *e)
+void CanvasPage::dropEvent(QDropEvent *e)
 {
     QString cls, type;
     UiNode *target = nullptr;
@@ -634,7 +634,7 @@ void ScenesScreen::dropEvent(QDropEvent *e)
     /* 落点换算成相对目标容器的坐标：控件的 rect 存的就是相对父级的。
      * 缩放中画布是放大显示的，得先除回 1:1。 */
     QPoint local = e->pos();
-    if (BaseForm *tf = formFor(target)) {
+    if (CanvasItem *tf = formFor(target)) {
         local = tf->mapFrom(this, e->pos());
     }
     if (m_zoom != 100) {
@@ -643,13 +643,13 @@ void ScenesScreen::dropEvent(QDropEvent *e)
     emit controlDropped(target, cls, type, local);
 }
 
-bool ScenesScreen::resolveDropTargetForTest(UiNode *hit, const QString &cls,
+bool CanvasPage::resolveDropTargetForTest(UiNode *hit, const QString &cls,
                                             UiNode **target) const
 {
     return dropTargetFor(hit, cls, target);
 }
 
-bool ScenesScreen::simulateDropForTest(const QPoint &pos, const QString &cls,
+bool CanvasPage::simulateDropForTest(const QPoint &pos, const QString &cls,
                                        const QString &type, UiNode **landedOn)
 {
     if (landedOn) {
@@ -664,19 +664,19 @@ bool ScenesScreen::simulateDropForTest(const QPoint &pos, const QString &cls,
     return e.isAccepted();
 }
 
-void ScenesScreen::setShowChrome(bool on)
+void CanvasPage::setShowChrome(bool on)
 {
     if (m_showChrome == on) {
         return;
     }
     m_showChrome = on;
-    for (BaseForm *f : m_forms) {
+    for (CanvasItem *f : m_forms) {
         f->setShowChrome(on);
     }
     update();                      // 网格是本页自己画的
 }
 
-void ScenesScreen::setShowGrid(bool on)
+void CanvasPage::setShowGrid(bool on)
 {
     if (m_gridOverlay) {
         m_gridOverlay->update();
@@ -688,7 +688,7 @@ void ScenesScreen::setShowGrid(bool on)
     update();
 }
 
-void ScenesScreen::setBackgroundImage(const QString &path)
+void CanvasPage::setBackgroundImage(const QString &path)
 {
     m_bgImage = path.isEmpty() ? QPixmap() : QPixmap(path);
     /* 存成**相对工程目录**的路径，换台机器、整个目录搬走都还找得到。
@@ -705,10 +705,10 @@ void ScenesScreen::setBackgroundImage(const QString &path)
     update();
 }
 
-void ScenesScreen::contextMenuEvent(QContextMenuEvent *e)
+void CanvasPage::contextMenuEvent(QContextMenuEvent *e)
 {
     /* 点在空白处（没落在任何控件上）才是页面的菜单；落在控件上的右键由
-     * BaseForm::contextMenuEvent 先接走，根本到不了这里。 */
+     * CanvasItem::contextMenuEvent 先接走，根本到不了这里。 */
     QMenu menu(this);
     QAction *aDel   = menu.addAction(QStringLiteral("删除当前页面"));
     menu.addSeparator();
@@ -717,7 +717,7 @@ void ScenesScreen::contextMenuEvent(QContextMenuEvent *e)
 
     QAction *c = menu.exec(e->globalPos());
     if (c == aDel) {
-        /* 删页面是 CanvasManager 的事（它管着页数组），这里只发个请求 */
+        /* 删页面是 EditorSession 的事（它管着页数组），这里只发个请求 */
         emit deletePageRequested();
     } else if (c == aColor) {
         onChangedBackgroundColor();
@@ -732,7 +732,7 @@ void ScenesScreen::contextMenuEvent(QContextMenuEvent *e)
     e->accept();
 }
 
-void ScenesScreen::onChangedBackgroundColor()
+void CanvasPage::onChangedBackgroundColor()
 {
     const QColor c = QColorDialog::getColor(m_bg, this, tr("画布背景色"));
     if (c.isValid()) {
@@ -741,7 +741,7 @@ void ScenesScreen::onChangedBackgroundColor()
     }
 }
 
-void ScenesScreen::paintEvent(QPaintEvent *e)
+void CanvasPage::paintEvent(QPaintEvent *e)
 {
     QPainter p(this);
     p.fillRect(rect(), m_bg);
@@ -755,11 +755,11 @@ void ScenesScreen::paintEvent(QPaintEvent *e)
     /* 像素网格不在这儿画 —— 这里是父控件的背景，子控件会盖在上面，
      * 点亮的像素就把网格糊掉了。挪去 GridOverlay（铺满画布、raise 到最上面）。
      * 【历史】以前这里还只判 m_zoom，工具栏那个"网格开关"翻的是
-     * CanvasManager::m_showGrid，画布压根没看，点了只有状态栏文字会变。 */
+     * EditorSession::m_showGrid，画布压根没看，点了只有状态栏文字会变。 */
     QFrame::paintEvent(e);
 }
 
-bool ScenesScreen::eventFilter(QObject *watched, QEvent *e)
+bool CanvasPage::eventFilter(QObject *watched, QEvent *e)
 {
     if (e->type() == QEvent::MouseButtonPress
         && static_cast<QMouseEvent *>(e)->button() == Qt::LeftButton) {
@@ -773,7 +773,7 @@ bool ScenesScreen::eventFilter(QObject *watched, QEvent *e)
     return QFrame::eventFilter(watched, e);
 }
 
-void ScenesScreen::mousePressEvent(QMouseEvent *e)
+void CanvasPage::mousePressEvent(QMouseEvent *e)
 {
     /* 点空白处取消选中 */
     if (e->button() == Qt::LeftButton) {
@@ -782,25 +782,25 @@ void ScenesScreen::mousePressEvent(QMouseEvent *e)
     QFrame::mousePressEvent(e);
 }
 
-/* ===================== CanvasManager ===================== */
+/* ===================== EditorSession ===================== */
 
-CanvasManager::CanvasManager(QObject *parent)
+EditorSession::EditorSession(QObject *parent)
     : QObject(parent)
 {
     /* 粘贴/列表加行要给克隆出来的节点重分配 ID 号，去重范围得是整个工程 */
     EditorOps::setModel(&m_model);
-    /* 列表右键「添加行」在 BaseForm 里，够不着管理器，得从这儿把模板库递过去 */
+    /* 列表右键「添加行」在 CanvasItem 里，够不着管理器，得从这儿把模板库递过去 */
     EditorOps::setLibrary(&m_lib);
 }
 
-CanvasManager::~CanvasManager() = default;
+EditorSession::~EditorSession() = default;
 
-void CanvasManager::setMPageSize(const QSize &v)
+void EditorSession::setMPageSize(const QSize &v)
 {
     m_pageSize = v;
 }
 
-void CanvasManager::setToolsRoot(const QString &p)
+void EditorSession::setToolsRoot(const QString &p)
 {
     QString err;
     if (!m_lib.load(p, &err)) {
@@ -810,7 +810,7 @@ void CanvasManager::setToolsRoot(const QString &p)
     }
 }
 
-void CanvasManager::attachHost(QWidget *host)
+void EditorSession::attachHost(QWidget *host)
 {
     m_host = host;
     if (m_host && !m_host->layout()) {
@@ -829,7 +829,7 @@ void CanvasManager::attachHost(QWidget *host)
     rebuildScreens();
 }
 
-void CanvasManager::clearScreens()
+void EditorSession::clearScreens()
 {
     auto *l = qobject_cast<QStackedLayout *>(m_stackHost ? m_stackHost->layout()
                                                          : nullptr);
@@ -845,7 +845,7 @@ void CanvasManager::clearScreens()
     m_screens.clear();
 }
 
-void CanvasManager::rebuildScreens()
+void EditorSession::rebuildScreens()
 {
     if (!m_host) {
         return;
@@ -857,24 +857,24 @@ void CanvasManager::rebuildScreens()
     clearScreens();
 
     for (UiNode *page : m_model.pages()) {
-        auto *s = new ScenesScreen(m_stackHost);
+        auto *s = new CanvasPage(m_stackHost);
         s->setShowGrid(m_showGrid);
         s->setShowChrome(m_showChrome);
         s->setShowHidden(m_showHidden);
         s->setSolo(m_solo);
         s->setZoom(m_zoom);
         s->setPage(page);
-        connect(s, &ScenesScreen::nodeSelected, this, &CanvasManager::nodeSelected);
-        connect(s, &ScenesScreen::geometryEdited, this,
+        connect(s, &CanvasPage::nodeSelected, this, &EditorSession::nodeSelected);
+        connect(s, &CanvasPage::geometryEdited, this,
                 [this](UiNode *) { setDirty(true); });
-        connect(s, &ScenesScreen::structureChanged, this, [this, s]() {
+        connect(s, &CanvasPage::structureChanged, this, [this, s]() {
             setDirty(true);
             s->rebuild();                 // 画布先照新结构重画
             emit structureChanged();      // 再让树/页面栏跟上
         });
-        connect(s, &ScenesScreen::findRequested, this, &CanvasManager::findRequested);
-        connect(s, &ScenesScreen::controlDropped, this, &CanvasManager::controlDropped);
-        connect(s, &ScenesScreen::zoomStepRequested, this, [this](int step) {
+        connect(s, &CanvasPage::findRequested, this, &EditorSession::findRequested);
+        connect(s, &CanvasPage::controlDropped, this, &EditorSession::controlDropped);
+        connect(s, &CanvasPage::zoomStepRequested, this, [this](int step) {
             /* 按档位走，不是线性加减 —— 线性的话从 100% 滚到 800% 要滚半天 */
             static const int kSteps[] = { 25, 50, 75, 100, 150, 200, 300, 400, 600, 800 };
             const int n = int(sizeof(kSteps) / sizeof(kSteps[0]));
@@ -885,8 +885,8 @@ void CanvasManager::rebuildScreens()
             i = qBound(0, i + step, n - 1);
             setZoom(kSteps[i]);
         });
-        connect(s, &ScenesScreen::deletePageRequested,
-                this, &CanvasManager::onDelCurrentScenesScreen);
+        connect(s, &CanvasPage::deletePageRequested,
+                this, &EditorSession::onDeleteCurrentPage);
         l->addWidget(s);
         m_screens.append(s);
     }
@@ -898,23 +898,23 @@ void CanvasManager::rebuildScreens()
     emit pagesChanged();
 }
 
-void CanvasManager::setZoom(int percent)
+void EditorSession::setZoom(int percent)
 {
     const int z = qBound(25, percent, 800);
     if (z == m_zoom) {
         return;
     }
     m_zoom = z;
-    for (ScenesScreen *s : m_screens) {
+    for (CanvasPage *s : m_screens) {
         s->setZoom(z);
     }
     emit zoomChanged(m_zoom);
     emit statusMessage(tr("缩放 %1%").arg(m_zoom));
 }
 
-int CanvasManager::zoomToFit(const QSize &viewport)
+int EditorSession::zoomToFit(const QSize &viewport)
 {
-    ScenesScreen *s = currentScreen();
+    CanvasPage *s = currentScreen();
     if (!s || !s->page() || !s->page()->rect.isValid() || !viewport.isValid()) {
         return m_zoom;
     }
@@ -930,28 +930,28 @@ int CanvasManager::zoomToFit(const QSize &viewport)
     return m_zoom;
 }
 
-void CanvasManager::setShowHidden(bool on)
+void EditorSession::setShowHidden(bool on)
 {
     m_showHidden = on;
-    for (ScenesScreen *s : m_screens) {
+    for (CanvasPage *s : m_screens) {
         s->setShowHidden(on);
     }
     emit statusMessage(on ? tr("显示默认隐藏项") : tr("隐藏默认隐藏项"));
 }
 
-void CanvasManager::setShowChrome(bool on)
+void EditorSession::setShowChrome(bool on)
 {
     m_showChrome = on;
-    for (ScenesScreen *s : m_screens) {
+    for (CanvasPage *s : m_screens) {
         s->setShowChrome(on);
     }
     emit statusMessage(on ? tr("辅助线：显示") : tr("辅助线：隐藏"));
 }
 
-void CanvasManager::setSolo(bool on)
+void EditorSession::setSolo(bool on)
 {
     m_solo = on;
-    for (ScenesScreen *s : m_screens) {
+    for (CanvasPage *s : m_screens) {
         s->setSolo(on);
     }
     emit statusMessage(on ? tr("单独预览：开") : tr("单独预览：关"));
@@ -959,9 +959,9 @@ void CanvasManager::setSolo(bool on)
 }
 
 /** 翻到当前页的上一个/下一个画面。选中它就等于预览它。 */
-void CanvasManager::stepScreen(int delta)
+void EditorSession::stepScreen(int delta)
 {
-    ScenesScreen *s = currentScreen();
+    CanvasPage *s = currentScreen();
     if (!s) {
         return;
     }
@@ -969,9 +969,9 @@ void CanvasManager::stepScreen(int delta)
     gotoScreen(cur + delta);
 }
 
-void CanvasManager::gotoScreen(int index)
+void EditorSession::gotoScreen(int index)
 {
-    ScenesScreen *s = currentScreen();
+    CanvasPage *s = currentScreen();
     if (!s) {
         return;
     }
@@ -987,17 +987,17 @@ void CanvasManager::gotoScreen(int index)
     emit nodeSelected(all.at(to));
 }
 
-ScenesScreen *CanvasManager::screen(int i) const
+CanvasPage *EditorSession::screen(int i) const
 {
     return (i >= 0 && i < m_screens.size()) ? m_screens.at(i) : nullptr;
 }
 
-ScenesScreen *CanvasManager::currentScreen() const
+CanvasPage *EditorSession::currentScreen() const
 {
     return screen(m_current);
 }
 
-void CanvasManager::setCurrentPage(int i)
+void EditorSession::setCurrentPage(int i)
 {
     if (i < 0 || i >= m_screens.size() || i == m_current) {
         return;
@@ -1010,7 +1010,7 @@ void CanvasManager::setCurrentPage(int i)
     emit currentPageChanged(i);
 }
 
-void CanvasManager::newProjectForTest(const QString &name, const QSize &pageSize)
+void EditorSession::newProjectForTest(const QString &name, const QSize &pageSize)
 {
     m_pageSize = pageSize;
     const ControlTemplate *lt = m_lib.byType(QStringLiteral("NewLayer"));
@@ -1026,12 +1026,12 @@ void CanvasManager::newProjectForTest(const QString &name, const QSize &pageSize
     emit projectChanged();
 }
 
-void CanvasManager::addPageForTest()
+void EditorSession::addPageForTest()
 {
-    onCreateNewScenesScreen();
+    onCreateNewPage();
 }
 
-int CanvasManager::healBrokenNodes()
+int EditorSession::healBrokenNodes()
 {
     int healed = 0;
     for (UiNode *pg : m_model.pages()) {
@@ -1132,7 +1132,7 @@ int CanvasManager::healBrokenNodes()
 /* 工程一换，配置文件跟着换到那个工程目录下，并把跟配置走的东西重读一遍。
  * 预览配色和「预览文字」都存在 ui-config 里，不重读的话画布上还是上一个
  * 工程的样子。 */
-void CanvasManager::bindSettingsToProject(const QString &jsonPath)
+void EditorSession::bindSettingsToProject(const QString &jsonPath)
 {
     const QString dir = jsonPath.isEmpty()
                         ? QString()
@@ -1142,7 +1142,7 @@ void CanvasManager::bindSettingsToProject(const QString &jsonPath)
     emit previewStyleChanged();
 }
 
-bool CanvasManager::openProject(const QString &path, QString *err)
+bool EditorSession::openProject(const QString &path, QString *err)
 {
     /* 同理：load() 一成功旧节点树就没了，先把画布拆掉 */
     clearScreens();
@@ -1170,14 +1170,21 @@ bool CanvasManager::openProject(const QString &path, QString *err)
     return true;
 }
 
-bool CanvasManager::saveProjectAs(const QString &path, QString *err)
+bool EditorSession::saveProjectAs(const QString &path, QString *err)
 {
     if (!m_model.save(path, err)) {
         return false;
     }
     /* 另存到别处 = 换了工程目录，配置也跟过去（下次打开那份才配得上） */
     bindSettingsToProject(path);
+    /* 从这一刻起编的是新文件了。save() 是 const，不会自己改指向，
+     * 不补这一下，接着按"保存"还会写回原来那个文件。 */
+    const bool switched = (m_model.filePath() != path);
+    m_model.setFilePath(path);
     setDirty(false);
+    if (switched) {
+        emit projectFileChanged(path);
+    }
     writeProjectIni(path);
     /* 工程目录里同时留一份 autosave.json，工具崩了还能捞回来。 */
     m_model.saveAutosave(QFileInfo(path).absolutePath());
@@ -1189,7 +1196,7 @@ bool CanvasManager::saveProjectAs(const QString &path, QString *err)
  * 这是"双击 step2 就出资源"那条路能成立的前提 —— QtToolBin 不带参数时
  * 就是从这里读 projectfilename 的。新建工程后不写，下游就断链。
  * 只动这一个键，别的（projectid / projectrotate / projectbatscript）原样留着。 */
-void CanvasManager::writeProjectIni(const QString &jsonPath)
+void EditorSession::writeProjectIni(const QString &jsonPath)
 {
     const QDir dir(QFileInfo(jsonPath).absolutePath());
     const QString ini = dir.absoluteFilePath(QStringLiteral("config/ini/project.ini"));
@@ -1221,12 +1228,11 @@ void CanvasManager::writeProjectIni(const QString &jsonPath)
  * 有未保存改动时先拦一道。
  *
  * ★ 之前完全没有这道拦截：改了一半点"打开"，改动直接没了。
- * 两条串："关闭工程提示" + "当前编辑的工程有新的修改没有保存,选请择
- * <保存>进行保存."（"选请择"这个写法沿用用户熟悉的说法，不改）。
+ * 两条串："关闭工程提示" + "工程有改动还没保存。"
  * 按钮是 保存 / 取消 —— 正文点名了 <保存>。
  * @return true 表示可以继续（已保存或用户放弃保存）。
  */
-void CanvasManager::setDirty(bool d)
+void EditorSession::setDirty(bool d)
 {
     if (m_model.dirty() == d) {
         return;
@@ -1235,7 +1241,7 @@ void CanvasManager::setDirty(bool d)
     emit dirtyChanged(d);
 }
 
-bool CanvasManager::confirmDiscardChanges()
+bool EditorSession::confirmDiscardChanges()
 {
     if (!m_model.dirty()) {
         return true;
@@ -1243,7 +1249,7 @@ bool CanvasManager::confirmDiscardChanges()
     QMessageBox box;
     box.setIcon(QMessageBox::Warning);
     box.setWindowTitle(QStringLiteral("关闭工程提示"));
-    box.setText(QStringLiteral("当前编辑的工程有新的修改没有保存,选请择<保存>进行保存."));
+    box.setText(QStringLiteral("工程有改动还没保存。"));
     QAbstractButton *save = box.addButton(QStringLiteral("保存"), QMessageBox::AcceptRole);
     QAbstractButton *drop = box.addButton(QStringLiteral("不保存"), QMessageBox::DestructiveRole);
     box.addButton(QStringLiteral("取消"), QMessageBox::RejectRole);
@@ -1255,7 +1261,7 @@ bool CanvasManager::confirmDiscardChanges()
     return box.clickedButton() == drop;
 }
 
-void CanvasManager::onOpenProject()
+void EditorSession::onOpenProject()
 {
     if (!confirmDiscardChanges()) {
         return;
@@ -1272,7 +1278,7 @@ void CanvasManager::onOpenProject()
     }
 }
 
-void CanvasManager::onSaveProject()
+void EditorSession::onSaveProject()
 {
     /* 【先把输入框里的改动逼出来】工具栏按钮是 NoFocus，点"保存"不会让
      * 属性面板上那个输入框失焦，editingFinished 不发，刚敲的值还没进模型。 */
@@ -1287,7 +1293,7 @@ void CanvasManager::onSaveProject()
     }
 }
 
-void CanvasManager::onSaveAsProject()
+void EditorSession::onSaveAsProject()
 {
     /* 【先把输入框里的改动逼出来】工具栏按钮是 NoFocus，点"保存"不会让
      * 属性面板上那个输入框失焦，editingFinished 不发，刚敲的值还没进模型。 */
@@ -1295,8 +1301,11 @@ void CanvasManager::onSaveAsProject()
     /* 【默认名给新后缀，但老工程保持原样】已经打开的是 .json 的话，另存为
      * 还默认成 .json —— 不然点一下"保存"就悄悄换了后缀，project.ini 里那行
      * 跟着变，别人再用别的工具打开这个目录就找不到工程了。 */
-    QString defName = m_model.name();
+    /* 默认名取**当前文件名**，不取 json 里的 "-name" —— 一个目录下几个
+     * .uiproj 多半是互相另存出来的，"-name" 还留着最早那份的值，拿它做
+     * 默认名会一直提示覆盖同一个文件。 */
     const QString cur = m_model.filePath();
+    QString defName = cur.isEmpty() ? m_model.name() : QFileInfo(cur).completeBaseName();
     defName += cur.isEmpty()
                ? QLatin1Char('.') + projectfile::preferredSuffix()
                : QLatin1Char('.') + QFileInfo(cur).suffix();
@@ -1312,14 +1321,14 @@ void CanvasManager::onSaveAsProject()
     }
 }
 
-void CanvasManager::onCreateNewProject()
+void EditorSession::onCreateNewProject()
 {
-    /* 先问"是否关闭当前工程,新建工程?"，再问没保存的改动 */
+    /* 先问"关掉当前工程，新建一个？"，再问没保存的改动 */
     if (!m_model.pages().isEmpty()) {
         QMessageBox box;
         box.setIcon(QMessageBox::Question);
         box.setWindowTitle(QStringLiteral("新建工程提示"));
-        box.setText(QStringLiteral("是否关闭当前工程,新建工程?"));
+        box.setText(QStringLiteral("关掉当前工程，新建一个？"));
         box.addButton(QMessageBox::Yes)->setText(QStringLiteral("确定"));
         box.addButton(QMessageBox::No)->setText(QStringLiteral("取消"));
         if (box.exec() != QMessageBox::Yes) {
@@ -1329,8 +1338,8 @@ void CanvasManager::onCreateNewProject()
     if (!confirmDiscardChanges()) {
         return;
     }
-    /* 这里弹 ProjectDialog（自动连接槽是 on_pushButton_clicked）。 */
-    ProjectDialog dlg;
+    /* 这里弹 NewProjectDialog（自动连接槽是 on_pushButton_clicked）。 */
+    NewProjectDialog dlg;
     if (dlg.exec() != QDialog::Accepted) {
         return;
     }
@@ -1352,7 +1361,7 @@ void CanvasManager::onCreateNewProject()
     emit projectChanged();
 }
 
-void CanvasManager::onUpdateNewProjectSize()
+void EditorSession::onUpdateNewProjectSize()
 {
     bool ok = false;
     const int w = QInputDialog::getInt(nullptr, tr("页面尺寸"), tr("宽（像素）"),
@@ -1374,7 +1383,7 @@ void CanvasManager::onUpdateNewProjectSize()
     setDirty(true);
 }
 
-void CanvasManager::onGlobalBtn()
+void EditorSession::onGlobalBtn()
 {
     GlobalSettings dlg;
     if (dlg.exec() != QDialog::Accepted) {
@@ -1383,7 +1392,7 @@ void CanvasManager::onGlobalBtn()
     applyGlobalSettings();
 }
 
-void CanvasManager::applyGlobalSettings()
+void EditorSession::applyGlobalSettings()
 {
     /* 【这里只碰[全局设置]里真有的项】
      *
@@ -1400,7 +1409,7 @@ void CanvasManager::applyGlobalSettings()
      * 它只影响画面怎么画，和"更新设置要重启软件才能生效"管的
      * 那几条路径不是一回事，配颜色本来就得一边改一边看。 */
     Preview::reloadMonoColors();
-    for (ScenesScreen *sc : m_screens) {
+    for (CanvasPage *sc : m_screens) {
         sc->setBackgroundColor(Preview::monoDark());
         sc->rebuild();
     }
@@ -1408,9 +1417,9 @@ void CanvasManager::applyGlobalSettings()
     emit statusMessage(tr("全局设置已保存"));
 }
 
-void CanvasManager::onSshoot()
+void EditorSession::onSshoot()
 {
-    ScenesScreen *s = currentScreen();
+    CanvasPage *s = currentScreen();
     if (!s) {
         return;
     }
@@ -1425,16 +1434,16 @@ void CanvasManager::onSshoot()
     }
 }
 
-void CanvasManager::onZoomProject()
+void EditorSession::onZoomProject()
 {
     /* 这个"工程缩放"是**换屏幕尺寸**（128x64 -> 240x240 之类），
-     * 所有控件坐标按比例换算；画布那个百分比缩放是 ScenesScreen::setZoom()，
+     * 所有控件坐标按比例换算；画布那个百分比缩放是 CanvasPage::setZoom()，
      * 两码事。对话框里的 lab_oldw / lab_oldh / spinBoxW / spinBoxH 就是干这个的。 */
     const QSize oldSize = m_pageSize;
     if (oldSize.isEmpty() || m_model.pages().isEmpty()) {
         return;
     }
-    ZoomProject dlg;
+    ScaleDialog dlg;
     dlg.setOldSize(oldSize);
     if (dlg.exec() != QDialog::Accepted) {
         return;
@@ -1474,7 +1483,7 @@ void CanvasManager::onZoomProject()
                        .arg(ns.width()).arg(ns.height()));
 }
 
-void CanvasManager::onAboutBtn()
+void EditorSession::onAboutBtn()
 {
     /* 三行：图标 + 名称 / 开发者 / 维护者。 */
     QMessageBox::about(nullptr, QStringLiteral("关于"),
@@ -1484,16 +1493,16 @@ void CanvasManager::onAboutBtn()
                           "<p>维护者: Claude Opus 5 (Anthropic)</p>"));
 }
 
-void CanvasManager::onSelectGrid()
+void EditorSession::onSelectGrid()
 {
     m_showGrid = !m_showGrid;
     emit statusMessage(m_showGrid ? tr("网格：开") : tr("网格：关"));
-    for (ScenesScreen *s : m_screens) {
+    for (CanvasPage *s : m_screens) {
         s->setShowGrid(m_showGrid);      // 以前只 update()，画布根本不知道开关变了
     }
 }
 
-void CanvasManager::onCreateNewScenesScreen()
+void EditorSession::onCreateNewPage()
 {
     auto *page = new UiNode;
     page->cls  = page->name = QStringLiteral("ScenesScreen");
@@ -1529,7 +1538,7 @@ void CanvasManager::onCreateNewScenesScreen()
     emit projectChanged();
 }
 
-void CanvasManager::onDelCurrentScenesScreen()
+void EditorSession::onDeleteCurrentPage()
 {
     if (m_model.pages().size() <= 1) {
         EditorOps::tip(nullptr, tr("至少要保留一页。"));
@@ -1546,9 +1555,9 @@ void CanvasManager::onDelCurrentScenesScreen()
     emit projectChanged();
 }
 
-void CanvasManager::onConfProject()
+void EditorSession::onConfProject()
 {
-    ConfigProject dlg;
+    ProjectSettingsDialog dlg;
     dlg.setProjectName(m_model.name());
     dlg.setExcelPath(m_model.langExcel());
     dlg.setLanguageMask(m_model.languageMask());

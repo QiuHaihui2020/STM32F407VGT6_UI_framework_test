@@ -1,4 +1,4 @@
-#include "ZoomProject.h"
+#include "ScaleDialog.h"
 
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -11,16 +11,16 @@
 /*
  * 界面文字：
  *     工程缩放 / 界面尺寸 / 当前尺寸: / 新的尺寸: / 更新工程尺寸
- *     对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零.
+ *     按比例缩放整页。不成比例的话会截断，坐标也会被清零。
  *     注意: 该工程对应的图片资源也要进行缩放，否则显示不完整.
  * uic 留下的控件名：lab_oldw / lab_oldh / spinBoxW / spinBoxH / groupBox / buttonBox
  *
  * 这个"工程缩放"**不是画布缩放**，是把整个工程换一块屏幕尺寸，所有控件坐标
  * 按比例换算（128x64 改成 240x240 之类）。画布那个百分比缩放是另一回事，
- * 在 ScenesScreen::setZoom()。
+ * 在 CanvasPage::setZoom()。
  */
 
-ZoomProject::ZoomProject(QWidget *parent)
+ScaleDialog::ScaleDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("工程缩放"));
@@ -64,7 +64,7 @@ ZoomProject::ZoomProject(QWidget *parent)
 
     auto *root = new QVBoxLayout(this);
     root->addWidget(new QLabel(QStringLiteral(
-        "对当前工程的页面尺寸进行缩放,宽高最好要按比例缩放,不然会出现截断与坐标清零."), this));
+        "按比例缩放整页。不成比例的话会截断，坐标也会被清零。"), this));
     root->addWidget(gb);
     auto *note = new QLabel(QStringLiteral(
         "注意: 该工程对应的图片资源也要进行缩放，否则显示不完整."), this);
@@ -73,9 +73,9 @@ ZoomProject::ZoomProject(QWidget *parent)
     root->addWidget(box);
 }
 
-ZoomProject::~ZoomProject() = default;
+ScaleDialog::~ScaleDialog() = default;
 
-void ZoomProject::setOldSize(const QSize &s)
+void ScaleDialog::setOldSize(const QSize &s)
 {
     m_oldW->setText(QString::number(s.width()));
     m_oldH->setText(QString::number(s.height()));
@@ -83,7 +83,7 @@ void ZoomProject::setOldSize(const QSize &s)
     m_h->setValue(s.height());
 }
 
-QSize ZoomProject::newSize() const
+QSize ScaleDialog::newSize() const
 {
     return QSize(m_w->value(), m_h->value());
 }

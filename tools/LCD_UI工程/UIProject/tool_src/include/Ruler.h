@@ -1,4 +1,4 @@
-/* RuleWidget.h ——
+/* Ruler.h ——
  * 画布边上的标尺。横竖两种用同一个类，按 orientation 分。
  */
 #ifndef RULEWIDGET_H
@@ -6,13 +6,13 @@
 
 #include <QWidget>
 
-class RuleWidget : public QWidget
+class Ruler : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit RuleWidget(QWidget *parent = nullptr);
-    ~RuleWidget() override;
+    explicit Ruler(QWidget *parent = nullptr);
+    ~Ruler() override;
 
     void setOrientation(Qt::Orientation o);
     /// 画布缩放百分比；刻度间距要跟着变

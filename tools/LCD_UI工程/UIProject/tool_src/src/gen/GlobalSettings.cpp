@@ -23,7 +23,7 @@
  * [全局设置] 版式：
  *
  *   ┌──────────────────────────────────────────────┐
- *   │ 更新设置要重启软件才能生效.        ← 红底警示，在**最上面** │
+ *   │ 改完要重开软件才生效。        ← 红底警示，在**最上面** │
  *   ├───────────────┬──────────────────────────────┤
  *   │ 全局配置项    │ 内容                          │
  *   ├───────────────┼──────────────────────────────┤
@@ -240,7 +240,7 @@ GlobalSettings::GlobalSettings(QWidget *parent)
     setStyleSheet(QStringLiteral("QDialog { background: #FFFFCC; }"));
 
     /* ---- 红底警示，在最上面 ---- */
-    auto *warn = new QLabel(QStringLiteral("更新设置要重启软件才能生效."), this);
+    auto *warn = new QLabel(QStringLiteral("改完要重开软件才生效。"), this);
     warn->setObjectName(QStringLiteral("label_4"));
     /* 不改前景色，所以是黑字红底 */
     warn->setStyleSheet(QStringLiteral("background-color: rgb(223, 28, 28);"));

@@ -1,4 +1,4 @@
-#include "findDlg.h"
+#include "FindDialog.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -6,12 +6,12 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-findDlg::findDlg(QWidget *parent)
+FindDialog::FindDialog(QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(QStringLiteral("查找对像"));   // 沿用"对像"这个写法
+    setWindowTitle(QStringLiteral("查找控件"));
 
-    auto *label = new QLabel(QStringLiteral("对像名称:"), this);
+    auto *label = new QLabel(QStringLiteral("控件名称："), this);
     m_edit = new QLineEdit(this);
     auto *btn = new QPushButton(QStringLiteral("查找"), this);
     btn->setDefault(true);
@@ -25,18 +25,18 @@ findDlg::findDlg(QWidget *parent)
     root->addWidget(m_edit);
     root->addLayout(row);
 
-    connect(btn, &QPushButton::clicked, this, &findDlg::onStartSearch);
-    connect(m_edit, &QLineEdit::returnPressed, this, &findDlg::onStartSearch);
+    connect(btn, &QPushButton::clicked, this, &FindDialog::onStartSearch);
+    connect(m_edit, &QLineEdit::returnPressed, this, &FindDialog::onStartSearch);
 }
 
-findDlg::~findDlg() = default;
+FindDialog::~FindDialog() = default;
 
-QString findDlg::keyword() const
+QString FindDialog::keyword() const
 {
     return m_edit->text().trimmed();
 }
 
-void findDlg::onStartSearch()
+void FindDialog::onStartSearch()
 {
     const QString k = keyword();
     if (!k.isEmpty()) {
