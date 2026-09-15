@@ -1,13 +1,20 @@
 ---
 name: jl-dot-ui
-description: 杰理(JL)单色点阵屏 UI 框架的界面开发，128x64、只走 OSD1/MONO。做界面布局（直接编辑 .uiproj 工程脚本）、给控件写应用层回调、生成并导出资源时用。涉及 UITools 工具链、设备端 ui_framework、ename.h 绑定、--gen/--pack 导出链、JL.sty/JL.res/JL.str 产物。不适用于彩屏（OSD16）。
+description: 杰理(JL)单色点阵屏 UI 框架的界面开发，图层只走 OSD1/MONO。做界面布局（直接编辑 .uiproj 工程脚本）、给控件写应用层回调、生成并导出资源时用。涉及 UITools 工具链、设备端 ui_framework、ename.h 绑定、--gen/--pack 导出链、JL.sty/JL.res/JL.str 产物。不适用于彩屏（OSD16）。
 ---
 
 # 杰理单色点阵屏 UI 开发
 
-适用范围：**杰理(JL)的点阵屏 UI 框架**，屏 128×64、单色，图层只能是 `OSD1`。
+适用范围：**杰理(JL)的单色点阵屏 UI 框架**。硬约束是**单色点阵**——
+图层的 `color_format` 只能是 `OSD1`（设备端 `DC_DATA_FORMAT_MONO`），
+彩屏 `OSD16` 走的是另一条完全不同的绘制路径，这套不适用。
+
 资源产物叫 `JL.sty` / `JL.res` / `JL.str`，ID 头是 `style_jl02.h`。
-彩屏（`OSD16`）走的是另一条完全不同的绘制路径，这套不适用。
+
+> **分辨率不限死。** 屏幕尺寸是**每个工程自己的**：编辑器里在 ui-config 的
+> `Size=宽*高`，json 里就是页节点的 `rect`，设备端按面板的
+> `info.width/height` 来。本仓库的样例工程是 128×64，文档里的坐标例子都按它写，
+> 换个尺寸的屏这套照样用，只是数字不同。
 
 这套东西分三层，做界面时三层都会碰到：
 
