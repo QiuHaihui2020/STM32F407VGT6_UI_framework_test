@@ -135,6 +135,40 @@ QPixmap litPixmap(const QString &absPath, const QColor &lit)
     return out;
 }
 
+/**
+ * 原色加载 —— 彩屏（OSD16）图层用这条。
+ *
+ * 【为什么不能复用 litPixmap】那个是给点阵屏的：把"非透明色键"的像素一律
+ * 涂成点亮色。单色屏上这么做才对（显存里只有亮/灭一个 bit），但 OSD16 的
+ * 设备端画的是真 16bpp（jlui_draw_image 的 OSD16 分支：无 alpha 时整行
+ * memcpy，有 alpha 时 get_mixed_pixel 混色），照单色画等于把彩屏预览画废。
+ *
+ * 这里原样返回，alpha 通道保留 —— 让带透明的 PNG 压在底图上还是透的。
+ */
+QPixmap rawPixmap(const QString &absPath)
+{
+    const QString key = QStringLiteral("R|%1").arg(absPath);
+    auto it = g_cache.constFind(key);
+    if (it != g_cache.constEnd()) {
+        return it.value();
+    }
+    QPixmap out;
+    if (!absPath.isEmpty()) {
+        QImage src;
+        if (src.load(absPath)) {
+            out = QPixmap::fromImage(src.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+        }
+    }
+    g_cache.insert(key, out);
+    return out;
+}
+
+/** 按控件所在图层取图：点阵屏(OSD1)单色化，彩屏(OSD16)原色。 */
+QPixmap nodePixmap(const UiNode *n, const QString &absPath, const QColor &lit)
+{
+    return Preview::isMonoLayer(n) ? litPixmap(absPath, lit) : rawPixmap(absPath);
+}
+
 /** 竖向分页的 1bpp 点阵 -> pixmap。位序和 res::toMono() 写出来的一致。 */
 QPixmap monoToPixmap(const res::TextBitmap &bm, const QColor &lit)
 {
@@ -338,18 +372,18 @@ QPixmap composeDigits(UiNode *n, const QColor &lit, bool isTime)
             if (space.isEmpty()) {
                 break;
             }
-            parts << litPixmap(abs(space.first()), lit);
+            parts << nodePixmap(n, abs(space.first()), lit);
         } else if (c.isDigit()) {
             const int d = c.digitValue();
             if (d >= digits.size()) {
                 break;
             }
-            parts << litPixmap(abs(digits.at(d)), lit);
+            parts << nodePixmap(n, abs(digits.at(d)), lit);
         } else {
             if (j >= delim.size()) {
                 break;                          // 分隔符用完 -> 后面全不画
             }
-            parts << litPixmap(abs(delim.at(j)), lit);
+            parts << nodePixmap(n, abs(delim.at(j)), lit);
             ++j;
         }
     }
@@ -636,9 +670,32 @@ void reloadMonoColors()
     invalidate();
 }
 
-QPixmap pictureOf(const QString &path, const QColor &lit)
+QColor cssColor(const QString &css)
 {
-    return path.isEmpty() ? QPixmap() : litPixmap(abs(path), lit);
+    if (css.isEmpty()) {
+        return QColor();                 // 空 = 透明/不填，两种屏一致
+    }
+    /* 工程里是 #AARRGGBB。QColor 认 #AARRGGBB，但 8 位十六进制它按
+     * #RRGGBBAA 解 —— 手动拆一下免得颜色错位（和 colorOf 同一套）。 */
+    if (css.size() == 9 && css.startsWith(QLatin1Char('#'))) {
+        bool ok = false;
+        const uint v = css.mid(1).toUInt(&ok, 16);
+        if (ok) {
+            return QColor(int((v >> 16) & 0xFF), int((v >> 8) & 0xFF),
+                          int(v & 0xFF), int((v >> 24) & 0xFF));
+        }
+    }
+    const QColor c(css);
+    return c.isValid() ? c : QColor();
+}
+
+QPixmap pictureOf(const QString &path, const QColor &lit, bool mono)
+{
+    if (path.isEmpty()) {
+        return QPixmap();
+    }
+    /* 彩屏图层画原图原色；点阵屏走"非透明色键即点亮"那套。 */
+    return mono ? litPixmap(abs(path), lit) : rawPixmap(abs(path));
 }
 
 QPixmap contentOf(UiNode *n, const QColor &lit)
@@ -659,7 +716,15 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
      *
      * 现在一律用调用方给的 lit —— 正常是[全局设置]里的点亮色，反显时调用方
      * 传的是熄灭色。 */
-    const QColor use = lit;
+    /* 【彩屏例外】上面那段说的是点阵屏。OSD16 图层上"文字颜色"是**真颜色**
+     * （设备端画的是 16bpp），照它画才对；那三个魔数只在 MONO 下有意义。 */
+    QColor use = lit;
+    if (!isMonoLayer(n)) {
+        const QColor c = colorOf(n, QStringLiteral("文字颜色"));
+        if (c.isValid() && c.alpha() > 0) {
+            use = c;
+        }
+    }
     const QString type = n->type;
 
     if (type == QLatin1String("ImageList")) {
@@ -682,7 +747,7 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
                 }
             }
         }
-        return litPixmap(abs(pics.value(qBound(0, idx, pics.size() - 1))), use);
+        return nodePixmap(n, abs(pics.value(qBound(0, idx, pics.size() - 1))), use);
     }
 
     if (type == QLatin1String("Battery")) {
@@ -696,7 +761,7 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
          * list 里），所以只能按列表顺序取第 1 条 —— 这样面板上那个条目
          * 下拉框停在第 1 条，和画布上看到的就是同一张。
          * 以前这里取 pics[size/2]，属性面板上找不到任何依据说明为什么是那张。 */
-        return litPixmap(abs(pics.first()), use);
+        return nodePixmap(n, abs(pics.first()), use);
     }
 
     if (type == QLatin1String("Text")) {

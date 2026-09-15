@@ -352,6 +352,16 @@ void CanvasItem::paintEvent(QPaintEvent *)
     }
     const Preview::MonoText tm = Preview::textModeOf(txtCss);
 
+    /* 【彩屏图层：背景色就是背景色】上面那套三态是 MONO 专用的。
+     * OSD16 下设备端 fill_rect 填的是真颜色（16bpp），照 css 里的值画即可。
+     * 空串仍然是"不填"（css 里 0xFFFFFF 是透明哨兵，两种屏一致）。 */
+    const bool monoLayer = m_node ? Preview::isMonoLayer(m_node) : true;
+    if (!monoLayer) {
+        const QColor c = Preview::cssColor(bgCss);
+        if (c.isValid() && c.alpha() > 0) {
+            p.fillRect(rect(), c);
+        }
+    } else
     /* 底：填充 = 点亮成白；反显文字也要先把整块点亮（固件就是先 fill 再挖字） */
     if (fill || tm == Preview::MonoText::Invert) {
         p.fillRect(rect(), Preview::monoLit());
@@ -396,7 +406,7 @@ void CanvasItem::paintEvent(QPaintEvent *)
     if (m_node) {
         const QString bgi = m_node->cssField(0, QStringLiteral("background_image"),
                                              QStringLiteral("background-image")).toString();
-        const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit());
+        const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit(), monoLayer);
         if (!bg.isNull()) {
             const int z = qMax(1, m_zoom);
             p.drawPixmap(0, 0, bg.width() * z / 100, bg.height() * z / 100, bg);

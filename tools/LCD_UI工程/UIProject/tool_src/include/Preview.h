@@ -67,7 +67,11 @@ QString stringOf(const QString &resId, int langIndex = 0);
  * 取它的单色位图。给 css 的"背景图片"用 —— 那也是屏上真会画出来的东西。
  * 路径为空、文件不在都返回空 QPixmap。
  */
-QPixmap pictureOf(const QString &path, const QColor &lit);
+QPixmap pictureOf(const QString &path, const QColor &lit, bool mono = true);
+
+/** css 里的 `#AARRGGBB` -> QColor；空串/解析不了返回无效色（= 透明、不填）。
+ *  彩屏（OSD16）图层画背景色要用真颜色，这里统一解析，别各处再抄一遍。 */
+QColor cssColor(const QString &css);
 
 /**
  * 把一个节点的"内容"画成位图，画布按控件矩形贴上去。

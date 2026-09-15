@@ -393,8 +393,16 @@ private:
 
         /* 底：魔数 0x555AAA 填成亮，别的颜色是"擦暗"（会盖住底下的背景图），
          * 空串才是透明。三种都要画对，见 Preview.h 的 MonoFill。 */
+        const bool monoLayer = Preview::isMonoLayer(n);
         const Preview::MonoFill bgFill = Preview::fillOf(bgCss);
-        if (bgFill == Preview::MonoFill::Set || tm == Preview::MonoText::Invert) {
+        if (!monoLayer) {
+            /* 彩屏图层：背景色就是真颜色（见 Forms.cpp 同一处说明） */
+            const QColor c = Preview::cssColor(bgCss);
+            if (c.isValid() && c.alpha() > 0) {
+                p.fillRect(box, c);
+            }
+        } else if (bgFill == Preview::MonoFill::Set
+                   || tm == Preview::MonoText::Invert) {
             p.fillRect(box, Preview::monoLit());
         } else if (bgFill == Preview::MonoFill::Clear) {
             p.fillRect(box, Preview::monoDark());
@@ -404,7 +412,8 @@ private:
         {
             const QString bgi = n->cssField(0, QStringLiteral("background_image"),
                                             QStringLiteral("background-image")).toString();
-            const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit());
+            const QPixmap bg = Preview::pictureOf(bgi, Preview::monoLit(),
+                                                  Preview::isMonoLayer(n));
             if (!bg.isNull()) {
                 p.drawPixmap(box.topLeft(), bg);
             }
