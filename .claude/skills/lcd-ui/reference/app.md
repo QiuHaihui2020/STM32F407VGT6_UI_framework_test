@@ -166,16 +166,36 @@ ui_pic_show_image_by_id()
 **只剩第一个和最后一个控件画出来**，布局和背景全没了 —— 查了很久资源，
 `.sty` 的 ctrl_num / 子指针 / invisible / 几何逐字段核过全是对的，问题根本不在资源。
 
-**怎么写才对：**
+**怎么写才对：框架自带 `ui_set_call()`**
+
+```c
+int refresh_cb(int param) { ...在这里随便调 ui_xxx_*... return 0; }
+
+case ON_CHANGE_FIRST_SHOW:
+    ui_set_call(refresh_cb, 0);    /* 推迟到本轮事件分发结束再执行 */
+    break;
+```
+
+`ui_set_call(func, param)`（`ui/ui.h`）把调用排进队列，等本轮分发结束
+（`handl.count` 归 0）由 `__do_wait_call()` 统一执行 —— 那时绘制已经走完，
+再改界面就安全了。
+
+⚠ 它开头是 `if (!handl.count) return 0;` —— **在事件回调之外调它会静默什么都不做**，
+既不排队也不报错。所以它只能从回调里用。
 
 | 想做的事 | 放哪 |
 |---|---|
-| 首次显示时把数据刷上去 | **推迟到绘制之外**：起个短定时器 / 发个 app 消息，等 `ui_show_main()` 走完再刷 |
+| 首次显示时把数据刷上去 | `ON_CHANGE_FIRST_SHOW` 里 **`ui_set_call(cb, 0)`** |
 | 让第一次绘制就显示对的帧 | 控件自己的 `ON_CHANGE_INIT` 里用 `ui_pic_set_image_index()`（它**不**触发重绘） |
 | 给当前隐藏的那几屏补数据 | 在**那一屏被显示时**刷，不要在别的屏的回调里替它刷 |
 
 `ON_CHANGE_INIT` / `ON_CHANGE_RELEASE` 不在绘制期，调 API 是安全的
 （但 INIT 仍在创建遍历中，只设值、别触发重绘）。
+
+> **⚠ 照抄 `ui_action/` 的范式时注意**：那三个参考文件里，只有布局那两处
+> `ON_CHANGE_FIRST_SHOW` 带了「要改界面用 `ui_set_call()` 推迟」的 `@note`，
+> 窗口和弹层那几处是**光秃秃的 `TODO: 刷xxx到界面上`**。照着那种 TODO 直接写
+> `ui_xxx_set()` 就会踩上面这个坑 —— 已经踩过一次，整页只剩两个控件。
 
 ### ⚠ 另外四个容易踩的点
 

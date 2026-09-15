@@ -101,9 +101,17 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
 症状极具误导性：一整页只剩一两个控件，看着完全像资源坏了。
 （真实案例查了很久 `.sty`，逐字段全是对的。）
 
-首次刷数据要**推迟到绘制之外**（短定时器 / app 消息），
-或在控件自己的 `ON_CHANGE_INIT` 里用不触发重绘的 `ui_pic_set_image_index()`。
-详见 `reference/app.md`。
+**正解是框架自带的 `ui_set_call(cb, 0)`** —— 把刷界面推迟到本轮事件分发结束：
+
+```c
+case ON_CHANGE_FIRST_SHOW:
+    ui_set_call(refresh_cb, 0);    /* 不要在这里直接调 ui_xxx_set/show */
+    break;
+```
+
+⚠ 照抄 `ui_action/` 的范式时注意：那几个参考文件里只有两处 `FIRST_SHOW`
+带了这个 `@note`，其余是光秃秃的 `TODO: 刷xxx到界面上` —— 照着那种 TODO
+直接写就会踩坑。详见 `reference/app.md`。
 
 ### 5. 应用层不要用 `REGISTER_UI_EVENT_HANDLER`
 
