@@ -179,7 +179,14 @@ void ResizeFrame::setSelected(bool on)
     m_selected = on;
     if (on) {
         createHandles();
-        raise();
+        /* 【这里不能 raise()】以前选中就把控件顶到最上层。手柄不需要这个
+         * —— 它们是画布的子控件、和本控件平级，而且每个手柄在
+         * ResizeHandle 里自己 raise()，本来就压在所有内容之上。
+         *
+         * 但控件一旦被顶上去，画布的层次就和屏上不一样了：两个重叠的控件
+         * 都设「擦除」时，本该后画的那个赢，选中前一个之后却反过来是它盖住
+         * 后一个 —— 点一下选中，画面就变了，而屏上根本不会变。
+         * 预览要照实反映绘制顺序（json 里同级数组的先后），选中不该改层次。 */
     }
     layoutHandles();
     update();
