@@ -180,8 +180,58 @@ case ON_CHANGE_FIRST_SHOW:
 （`handl.count` 归 0）由 `__do_wait_call()` 统一执行 —— 那时绘制已经走完，
 再改界面就安全了。
 
-⚠ 它开头是 `if (!handl.count) return 0;` —— **在事件回调之外调它会静默什么都不做**，
-既不排队也不报错。所以它只能从回调里用。
+### `ui_set_call()` 和直接调，是**两个方向都会错**的选择题
+
+`ui_set_call()` 开头是 `if (!handl.count) return 0;` —— 它依赖一个只在
+**控件 onchange 回调期间**才有效的上下文。用错地方两边都是**静默失效**：
+
+| 你在哪 | 怎么刷界面 | 用错了会怎样 |
+|---|---|---|
+| 控件的 `onchange` 里（尤其绘制期那 5 个事件） | **`ui_set_call(cb, 0)`** | 直接调 → 重入绘制递归 + 冲掉 static 缓冲 → **整棵子树画不出来** |
+| app 消息回调 / 定时器回调 / 按键处理 | **直接调 `ui_xxx_*`** | 用 `ui_set_call` → 句柄是空的，**调用被静默丢弃**，界面不刷新 |
+
+两条都不报错，都是"代码看着对、就是没反应"。
+
+杰理原生 SDK 的 `STYLE_02` 里两种写法都有，而且把理由都注释出来了：
+
+```c
+/* bt_action.c —— 在 onchange 里：推迟 */
+case ON_CHANGE_FIRST_SHOW:
+    ui_set_call(vol_init, 0);
+    break;
+
+/* bt_action.c —— 在消息回调里：必须直接调 */
+static int music_vol_handler(const char *type, u32 arg)
+{
+    /* 这里必须直接调用，不能用 ui_set_call()：ui_set_call() 内部依赖一个
+     * 上下文句柄，只在控件的 onchange 回调里有效；在本消息回调里那个句柄
+     * 是空的，调用会被静默丢弃，表现为长按音量键时数字不刷新。 */
+    vol_init(0);
+```
+
+本框架的签名是 `int ui_set_call(int (*func)(int), int param)` —— 回调返回 `int`。
+
+### 弹层/子屏反复显示：用 `SHOW_POST`，不是 `FIRST_SHOW`
+
+`FIRST_SHOW` **一辈子只发一次**（靠 `elm->state != 2` 判断）。弹层被收起后再弹出、
+翻页切回某一屏，都不会再发 —— 数据会停在上次的值上。
+
+`STYLE_02` 的原话（`bt_action.c:542`）：
+
+```c
+case ON_CHANGE_SHOW_POST:
+    /* 每次显示都重新读一次当前音量：ON_CHANGE_FIRST_SHOW 只在控件第一次
+     * 显示时触发，音量界面被 3 秒超时收起后再次弹出不会再走那里，
+     * 数字会停在上一次的值上，看起来就像"音量变了但数字不动"。 */
+    ui_set_call(vol_init, 0);
+    break;
+```
+
+所以：**一次性的初始化放 `FIRST_SHOW`，每次显示都要刷的放 `SHOW_POST`**，
+两者都用 `ui_set_call()` 推迟。
+
+⚠ 不要为了解决"隐藏的屏不会重发 FIRST_SHOW"，就在**某一屏的回调里替所有屏**
+刷数据 —— 那等于在一次绘制里触发十几次重入。每屏管自己的 `SHOW_POST`。
 
 | 想做的事 | 放哪 |
 |---|---|
