@@ -69,7 +69,7 @@ def make(kind, ename, rect, frames, note):   # ename 漏了就报错，不会静
 1. `robocopy tool\template <目标> /E` 拉骨架（或手工照上面的结构建）
 2. 表驱动脚本从控件库造节点，拼出工程
 3. **用工具规范化 json**（见下，这一步不能省）
-4. `python .claude/skills/lcd-ui/tools/check_project.py <工程>` 体检
+4. `python .claude/skills/jl-dot-ui/tools/check_project.py <工程>` 体检
 5. 填 `config\ini\project.ini` 的 `projectfilename=<工程名>.uiproj`
 6. 图片放 `config\pic_lcd\`，多国语言表放工程目录
 7. 改 `copy_file.bat` 里的两个路径，指向你的固件树

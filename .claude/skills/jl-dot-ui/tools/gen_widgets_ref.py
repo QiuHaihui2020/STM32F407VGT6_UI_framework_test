@@ -28,7 +28,7 @@ DEFAULT_TOOL_SRC = os.path.join(
 
 
 def repo_root():
-    """本文件在 <root>/.claude/skills/lcd-ui/tools/ 下，往上四层。"""
+    """本文件在 <root>/.claude/skills/jl-dot-ui/tools/ 下，往上四层。"""
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
 
@@ -148,7 +148,7 @@ def main():
 
     comps, codes = load_assets(tool_src)
 
-    print("<!-- 本文件由 .claude/skills/lcd-ui/tools/gen_widgets_ref.py 生成，勿手改 -->")
+    print("<!-- 本文件由 .claude/skills/jl-dot-ui/tools/gen_widgets_ref.py 生成，勿手改 -->")
     print("<!-- 控件库一变就重跑：python gen_widgets_ref.py > ../reference/widgets_props.md -->")
     print()
     print("# 控件属性表（自动导出）")

@@ -1,9 +1,13 @@
 ---
-name: lcd-ui
-description: 点阵屏 UI 框架的界面开发。做界面布局（直接编辑 .uiproj 工程脚本）、给控件写应用层回调、生成并导出资源时用。涉及 UITools 工具链、ui_framework 设备端控件、ename.h 绑定、--gen/--pack 导出链。
+name: jl-dot-ui
+description: 杰理(JL)单色点阵屏 UI 框架的界面开发，128x64、只走 OSD1/MONO。做界面布局（直接编辑 .uiproj 工程脚本）、给控件写应用层回调、生成并导出资源时用。涉及 UITools 工具链、设备端 ui_framework、ename.h 绑定、--gen/--pack 导出链、JL.sty/JL.res/JL.str 产物。不适用于彩屏（OSD16）。
 ---
 
-# 点阵屏 UI 开发
+# 杰理单色点阵屏 UI 开发
+
+适用范围：**杰理(JL)的点阵屏 UI 框架**，屏 128×64、单色，图层只能是 `OSD1`。
+资源产物叫 `JL.sty` / `JL.res` / `JL.str`，ID 头是 `style_jl02.h`。
+彩屏（`OSD16`）走的是另一条完全不同的绘制路径，这套不适用。
 
 这套东西分三层，做界面时三层都会碰到：
 
@@ -219,5 +223,5 @@ ename 空/重复/非法字符、`property` 里缺 id 项、rect 尺寸为 0、
 控件库变了就重跑：
 
 ```
-python .claude/skills/lcd-ui/tools/gen_widgets_ref.py > .claude/skills/lcd-ui/reference/widgets_props.md
+python .claude/skills/jl-dot-ui/tools/gen_widgets_ref.py > .claude/skills/jl-dot-ui/reference/widgets_props.md
 ```
