@@ -218,6 +218,9 @@ public:
     CanvasPage *currentScreen() const;
     int           currentPage() const { return m_current; }
     void          setCurrentPage(int i);
+    /** 选中当前页的第一个图层。打开工程、切页之后都调一次 ——
+     *  否则属性面板和对象树是空的，还得再点一下才能干活。 */
+    void          selectFirstLayerOfCurrentPage();
 
     /** 有未保存改动就问一次。true = 可以继续。 */
     bool confirmDiscardChanges();
@@ -241,6 +244,9 @@ public:
      * （见 CanvasPage::buildRecursive 里的换算）。 */
     int  zoom() const { return m_zoom; }
     void setZoom(int percent);
+    /** 预览倍率在工具配置里的键（按工程文件名分开）。倍率是"看"的参数，
+     *  不进工程文件 —— 打开工程时按上次的倍率恢复。 */
+    static QString zoomSettingsKey(const QString &projectPath);
     /** 让当前页正好铺满可视区，返回算出来的倍率。 */
     int  zoomToFit(const QSize &viewport);
 

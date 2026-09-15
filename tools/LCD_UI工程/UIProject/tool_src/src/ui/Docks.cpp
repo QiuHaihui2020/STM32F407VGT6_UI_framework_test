@@ -109,10 +109,18 @@ void ObjectTreeDock::addNode(UiNode *n, QTreeWidgetItem *parentItem)
     it->setText(1, n->cls);
     it->setText(2, enameOf(n));
     it->setData(0, Qt::UserRole, packNode(n));
-    /* 只有容器（有子节点的）才有那只眼睛 */
-    if (!n->children.isEmpty()) {
-        it->setIcon(0, AppIcon::get(QStringLiteral("eye.png")));
+    /* 【每个节点都有那只眼睛，不只容器】排版时经常要临时把某个控件藏掉，
+     * 看它底下压着什么。以前只有容器给图标，叶子控件想藏只能整组藏。
+     * 这个隐藏是**纯编辑器行为**（CanvasPage::m_userHidden，按节点指针记账），
+     * 不写工程、不进资源 —— 和 css 里那个 invisible 是两回事。 */
+    bool hiddenNow = false;
+    if (m_mgr) {
+        if (CanvasPage *s = m_mgr->currentScreen()) {
+            hiddenNow = s->isUserHidden(n);
+        }
     }
+    it->setIcon(0, AppIcon::get(hiddenNow ? QStringLiteral("eye-off.png")
+                                          : QStringLiteral("eye.png")));
     it->setExpanded(true);
     for (const auto &c : n->children) {
         addNode(c.second, it);
@@ -180,8 +188,8 @@ void ObjectTreeDock::onItemPressed(QTreeWidgetItem *item, int col)
     if (!n) {
         return;
     }
-    /* 点第 0 列的眼睛图标 = 显示/隐藏 */
-    if (col == 0 && !n->children.isEmpty()) {
+    /* 点第 0 列的眼睛图标 = 显示/隐藏。每个节点都认，不限容器 */
+    if (col == 0) {
         const QRect r = m_tree->visualItemRect(item);
         const int iconLeft = r.left() + 2;
         if (m_tree->mapFromGlobal(QCursor::pos()).x() <= iconLeft + 18) {

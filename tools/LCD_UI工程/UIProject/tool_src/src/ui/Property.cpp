@@ -1697,6 +1697,13 @@ int BasicPropertyPane::previewIndexOf(const UiProperty &p) const
     if (lst.isEmpty()) {
         return -1;
     }
+    /* 用户在下拉框里挑过的，优先。那只存工具配置，不写工程（见 Preview.h）。 */
+    if (m_node) {
+        const int pick = Preview::previewEntry(m_node, p.name);
+        if (pick >= 0 && pick < lst.size()) {
+            return pick;
+        }
+    }
     if (p.name == QLatin1String("str")) {
         const QString def = p.raw.value(QStringLiteral("default")).toString();
         for (int i = 0; i < lst.size(); ++i) {
@@ -1749,6 +1756,20 @@ QComboBox *BasicPropertyPane::makeEntryCombo(const UiProperty &p, bool isText)
     if (pi >= 0 && pi < cb->count()) {
         cb->setCurrentIndex(pi);
     }
+
+    /* 【挑哪条，画布就画哪条】这一栏以前是只读的，理由是"写 default 会改
+     * 工程和产物"。那个顾虑对，但结论错了一半：选择可以**不写工程**。
+     * 现在存进工具配置（Preview::setPreviewEntry），工程文件一个字节不动，
+     * 只发 previewOnlyChanged 让画布重画 —— 不会把工程标脏。 */
+    const QString propName = p.name;
+    connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this, propName](int i) {
+                if (!m_node) {
+                    return;
+                }
+                Preview::setPreviewEntry(m_node, propName, i);
+                emit previewOnlyChanged();
+            });
     return cb;
 }
 
@@ -1765,17 +1786,15 @@ QWidget *BasicPropertyPane::makeListButton(const UiProperty &p, const QString &c
     btn->setText(tr("%1 项…").arg(lst.size()));
     lay->addWidget(btn);
 
-    /* 条目下拉框：**只用来看**，不写任何字段。
-     * 【为什么不能让它改预览】piclist 的 default 几乎都不在 list 里（模板
-     * 残留），拿它当"当前条目"存下去等于凭空改工程文件，产物也跟着变
-     * 了。要换预览的那一条，改"默认高亮"（ImageList 有这个参数）。 */
+    /* 条目下拉框：挑哪条画布就画哪条，**只影响预览**。
+     * 选择存在工具配置里（Preview::setPreviewEntry），不写 default、
+     * 不改工程文件、不进资源 —— 屏上到底显示哪条是运行时业务代码决定的。 */
     auto *cb = makeEntryCombo(p, false);
-    if (p.name == QLatin1String("normal_image")) {
-        cb->setToolTip(QStringLiteral("画布上画的是「默认高亮」指定的这一条；"
-                                      "改「默认高亮」就能换"));
-    } else {
-        cb->setToolTip(QStringLiteral("列表内容（只读）。画布上画的是第 1 条"));
-    }
+    cb->setToolTip(QStringLiteral(
+        "挑一条看看画布上长什么样。\n"
+        "**只影响预览**，不写进工程文件、不进资源。\n"
+        "屏上显示哪一条由运行时代码决定（ui_pic_show_image_by_id）。\n"
+        "没挑过时按「默认高亮」画。"));
     lay->addWidget(cb);
 
     const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
@@ -1822,23 +1841,18 @@ QWidget *BasicPropertyPane::makeTextListButton(const UiProperty &p, const QStrin
                                : QStringLiteral("%1 …").arg(jsonToStringList(lst).join(QLatin1Char(','))));
     lay->addWidget(btn);
 
-    /* 文字列表的条目下拉框**可以改**：str 的 default 一定在 list 里
-     * （实测 209/209），它就是"当前显示的那一条"，改它是正当编辑，
-     * 画布也跟着换。 */
+    /* 【和图片列表一样，挑条目只影响预览】以前这里会把选中项写回 str 的
+     * default —— 那是正当编辑没错，但它**会改产物**：default 进 .sty，
+     * 等于"看一眼别的文案"就把资源改了。
+     * 现在统一成：挑哪条画布就画哪条，选择存工具配置（makeEntryCombo 里接的
+     * previewEntry），工程文件不动。真要改初始显示的那条，改列表本身。 */
     auto *cb = makeEntryCombo(p, true);
-    cb->setToolTip(QStringLiteral("当前显示的那一条（画布画的就是它）"));
+    cb->setToolTip(QStringLiteral(
+        "挑一条看看画布上长什么样。\n"
+        "**只影响预览**，不写进工程文件、不进资源。\n"
+        "屏上显示哪一条由运行时代码决定（ui_text_show_index_by_id）。\n"
+        "没挑过时按 default 画。"));
     lay->addWidget(cb);
-    const QStringList ids = jsonToStringList(lst);
-    connect(cb, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this, commit, ids](int i) {
-                if (i < 0 || i >= ids.size()) {
-                    return;
-                }
-                const QString id = ids.at(i);
-                commit([&id](QJsonObject &o) {
-                    o.insert(QStringLiteral("default"), id);
-                });
-            });
 
     const int maxLen = p.raw.value(QStringLiteral("maxlength")).toInt(0);
     const QJsonArray init = lst;

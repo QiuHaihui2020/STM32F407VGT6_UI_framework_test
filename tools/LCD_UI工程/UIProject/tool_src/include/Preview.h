@@ -155,6 +155,20 @@ void setPresetText(const UiNode *n, const QString &text);
 /** 这个控件该不该给"预览文字"这一栏：只有 text / ascii 需要。 */
 bool needsPresetText(const UiNode *n);
 
+/* ---- 预览看列表里的第几条 --------------------------------------------
+ * 图片列表 / 文字列表可以有好几条，屏上显示哪一条是**运行时**由业务代码决定的
+ * （ui_pic_show_image_by_id / ui_text_show_index_by_id）。工具只能挑一条画。
+ *
+ * 默认按工程字段推（ImageList 看「默认高亮」、Text 看 str 的 default），
+ * 但排版时经常想临时看看别的那条长什么样。直接改那两个字段等于**改工程、
+ * 改产物**，所以这里单独存一份"只给预览看"的选择，和 presetText 一样落在
+ * 工具配置里（previewEntry/<工程>/<控件>/<属性>），工程文件一个字节都不动。 */
+
+/** 预览该画列表里的第几条；返回 <0 表示没指定，按工程字段推。 */
+int  previewEntry(const UiNode *n, const QString &prop);
+/** 设定预览看第几条；传负数 = 取消，回到跟随工程字段。 */
+void setPreviewEntry(const UiNode *n, const QString &prop, int index);
+
 /** 供自测用：当前缓存里有多少张图。 */
 int cacheCount();
 

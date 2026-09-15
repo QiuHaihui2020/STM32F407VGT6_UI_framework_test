@@ -554,6 +554,42 @@ void setPresetText(const UiNode *n, const QString &text)
     g_cache.clear();          // 文字变了，画好的那张要作废
 }
 
+/** 「预览显示第几条」的配置键。和 previewText 一样按 工程+控件+属性 分开存。 */
+static QString entrySettingsKey(const UiNode *n, const QString &prop)
+{
+    const QString k = previewKey(n);
+    if (k.isEmpty() || prop.isEmpty()) {
+        return QString();
+    }
+    const QString proj = g_projectDir.isEmpty()
+                         ? QStringLiteral("_")
+                         : QFileInfo(g_projectDir).fileName();
+    return QStringLiteral("previewEntry/%1/%2/%3").arg(proj, k, prop);
+}
+
+int previewEntry(const UiNode *n, const QString &prop)
+{
+    const QString key = entrySettingsKey(n, prop);
+    if (key.isEmpty()) {
+        return -1;
+    }
+    bool ok = false;
+    const int v = GlobalSettings::value(key, -1).toInt(&ok);
+    return ok ? v : -1;                   // 负数 = 没设，跟随工程字段
+}
+
+void setPreviewEntry(const UiNode *n, const QString &prop, int index)
+{
+    const QString key = entrySettingsKey(n, prop);
+    if (key.isEmpty()) {
+        return;
+    }
+    /* 存 -1 表示"取消覆盖、跟随工程字段"。GlobalSettings 没有删除接口，
+     * 用哨兵值比为它加一个 remove() 更省事，语义也一样。 */
+    GlobalSettings::setValue(key, index < 0 ? -1 : index);
+    g_cache.clear();                      // 换了条目，画好的那张要作废
+}
+
 /* ---- 点阵屏预览配色 ----------------------------------------------------
  * 缓存起来：paintEvent 调得很频，每次去翻一遍 QSettings 太亏。
  * 默认值就是改这个功能之前写死在代码里的那两个颜色，所以不配也不会变样。 */
@@ -635,11 +671,15 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
         if (pics.isEmpty()) {
             return QPixmap();
         }
-        int idx = 0;
-        for (const UiProperty &p : n->props) {
-            if (p.name == QLatin1String("highlight")) {
-                idx = p.raw.value(QStringLiteral("default")).toInt();
-                break;
+        /* 面板上的条目下拉框可以指定"预览看第几张"。那只存在工具配置里
+         * （previewEntry/…），不写工程、不进资源；没指定才退回"默认高亮"。 */
+        int idx = previewEntry(n, QStringLiteral("normal_image"));
+        if (idx < 0) {
+            for (const UiProperty &p : n->props) {
+                if (p.name == QLatin1String("highlight")) {
+                    idx = p.raw.value(QStringLiteral("default")).toInt();
+                    break;
+                }
             }
         }
         return litPixmap(abs(pics.value(qBound(0, idx, pics.size() - 1))), use);
@@ -695,11 +735,18 @@ QPixmap contentOf(UiNode *n, const QColor &lit)
              * （实测 209/209），它就是"当前显示的那一条" —— 面板上的条目下拉框
              * 也停在它上面。列表有多条时（本工程有 3 个控件是 2~4 条），
              * 取第一条就会和面板显示的对不上。 */
+            /* 面板上的条目下拉框可以指定"预览看第几条"，只存工具配置里
+             * （previewEntry/…），不写工程、不进资源。没指定才按 default 取。 */
             QString id;
-            for (const UiProperty &p : n->props) {
-                if (p.name == QLatin1String("str")) {
-                    id = p.raw.value(QStringLiteral("default")).toString();
-                    break;
+            const int pick = previewEntry(n, QStringLiteral("str"));
+            if (pick >= 0 && pick < ids.size()) {
+                id = ids.at(pick);
+            } else {
+                for (const UiProperty &p : n->props) {
+                    if (p.name == QLatin1String("str")) {
+                        id = p.raw.value(QStringLiteral("default")).toString();
+                        break;
+                    }
                 }
             }
             if (id.isEmpty() || !ids.contains(id)) {

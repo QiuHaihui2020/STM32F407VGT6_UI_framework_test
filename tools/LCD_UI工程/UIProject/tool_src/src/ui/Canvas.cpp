@@ -898,6 +898,16 @@ void EditorSession::rebuildScreens()
     emit pagesChanged();
 }
 
+/** 预览倍率的配置键。按工程文件名分开 —— 两个工程各记各的。 */
+QString EditorSession::zoomSettingsKey(const QString &projectPath)
+{
+    const QString name = projectPath.isEmpty()
+                         ? QString()
+                         : QFileInfo(projectPath).fileName();
+    return name.isEmpty() ? QString()
+                          : QStringLiteral("previewZoom/%1").arg(name);
+}
+
 void EditorSession::setZoom(int percent)
 {
     const int z = qBound(25, percent, 800);
@@ -907,6 +917,11 @@ void EditorSession::setZoom(int percent)
     m_zoom = z;
     for (CanvasPage *s : m_screens) {
         s->setZoom(z);
+    }
+    /* 记住倍率，下次打开这个工程还按它看。只落工具配置，不动工程文件。 */
+    const QString key = zoomSettingsKey(m_model.filePath());
+    if (!key.isEmpty()) {
+        GlobalSettings::setValue(key, m_zoom);
     }
     emit zoomChanged(m_zoom);
     emit statusMessage(tr("缩放 %1%").arg(m_zoom));
@@ -997,6 +1012,17 @@ CanvasPage *EditorSession::currentScreen() const
     return screen(m_current);
 }
 
+void EditorSession::selectFirstLayerOfCurrentPage()
+{
+    CanvasPage *s = currentScreen();
+    if (!s || !s->page() || s->page()->children.isEmpty()) {
+        return;
+    }
+    /* 页下面第一个就是图层（layer[] 的第 0 项）。切完页什么都没选中的话，
+     * 属性面板和对象树都是空的，还得再点一下才能干活。 */
+    s->selectNode(s->page()->children.first().second);
+}
+
 void EditorSession::setCurrentPage(int i)
 {
     if (i < 0 || i >= m_screens.size() || i == m_current) {
@@ -1008,6 +1034,7 @@ void EditorSession::setCurrentPage(int i)
     }
     m_model.setActivePage(i);
     emit currentPageChanged(i);
+    selectFirstLayerOfCurrentPage();
 }
 
 void EditorSession::newProjectForTest(const QString &name, const QSize &pageSize)
@@ -1156,7 +1183,20 @@ bool EditorSession::openProject(const QString &path, QString *err)
     const int healed = healBrokenNodes();
     m_current = m_model.activePage();
     rebuildScreens();
+    /* 【恢复上次的预览倍率】倍率是"看"的参数，不是工程内容，所以存在工具
+     * 配置里、按工程分开（previewZoom/<工程文件名>），工程文件一个字节不动。
+     * 放在 rebuildScreens() 之后：setZoom 会让每一页重新布局。 */
+    {
+        bool ok = false;
+        const int z = GlobalSettings::value(zoomSettingsKey(path), 0).toInt(&ok);
+        if (ok && z > 0 && z != m_zoom) {
+            setZoom(z);
+        }
+    }
     emit projectChanged();
+    /* 打开就选中当前页的第一个图层 —— 否则面板和对象树都是空的。
+     * 放在 projectChanged 之后：树是那条信号里重建的，先选会被 clear 掉。 */
+    selectFirstLayerOfCurrentPage();
     if (healed > 0) {
         setDirty(true);
         emit statusMessage(tr("已打开 %1（%2 页）；修复了 %3 个缺样式/缺ID号的控件，"
