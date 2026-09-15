@@ -23,7 +23,7 @@ description: 点阵屏 UI 框架的界面开发。做界面布局（直接编辑
 ```
 改 .uiproj
    ↓
---json-roundtrip --out x   规范化（见铁律 5），再验就该 rc=0
+--json-roundtrip --out x   规范化（见铁律 7），再验就该 rc=0
    ↓
 tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
    ↓                       组合控件被改名、背景色盖图
@@ -33,7 +33,7 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
    ↓ 对了
 --gen                看有没有「认不出控件类型」的警告
    ↓
---gen --run-resbuilder   出资源（要更新固件时才跑，见铁律 5）
+--gen --run-resbuilder   出资源（要更新固件时才跑，见铁律 6）
 ```
 
 **每一步都有退出码或图可判，不要凭想象说"应该没问题"。**
@@ -44,7 +44,7 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
 
 ---
 
-## 七条铁律
+## 八条铁律
 
 ### 1. `caption` 决定控件类型，不是 `-type`
 
@@ -90,7 +90,22 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
 详见 `reference/layout.md` 第 7 节，那里有对比图和固件代码。
 `tools/check_project.py` 会数出带控件库默认色的控件当提示。
 
-### 4. 应用层不要用 `REGISTER_UI_EVENT_HANDLER`
+### 4. 绘制期回调里不能调 UI 更新 API
+
+`ON_CHANGE_SHOW_PROBE / SHOW / SHOW_POST / FIRST_SHOW / SHOW_COMPLETED`
+都是**在绘制过程中**发的。在里面调 `ui_pic_show_image_by_id()` /
+`ui_text_set_*` / `ui_number_update_by_id()` 会**重入整套绘制递归**，
+还会覆盖资源管理器里那份唯一的 `static union ui_control_info` ——
+外层遍历读到垃圾，**整棵子树画不出来**。
+
+症状极具误导性：一整页只剩一两个控件，看着完全像资源坏了。
+（真实案例查了很久 `.sty`，逐字段全是对的。）
+
+首次刷数据要**推迟到绘制之外**（短定时器 / app 消息），
+或在控件自己的 `ON_CHANGE_INIT` 里用不触发重绘的 `ui_pic_set_image_index()`。
+详见 `reference/app.md`。
+
+### 5. 应用层不要用 `REGISTER_UI_EVENT_HANDLER`
 
 杰理原生 SDK（`apps/soundbox/ui/lcd/STYLE_02` 那套）用链接段收集注册事件，
 **本框架不支持** —— `sec()` 是空宏，照抄会编译过、链接过、就是不响应。
@@ -100,7 +115,7 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
 
 > STYLE_02 仍是很好的**业务逻辑和控件 API 用法**参考，只是注册骨架不能照抄。
 
-### 5. `--gen --run-resbuilder` 会直接改固件树
+### 6. `--gen --run-resbuilder` 会直接改固件树
 
 默认会跑收尾脚本，覆盖 `JL.sty` / `JL.res` / `JL.str` 和 ID 头。
 **试排版时加 `--no-script`**。真要更新固件时再去掉，跑完看 git diff。
@@ -112,7 +127,7 @@ tools/check_project.py     语义体检：ename 重复/非法、零尺寸、
 另外：编辑器保存工程会把文件名写回 `config/ini/project.ini`，
 生成前先确认 `projectfilename` 是你要的那个界面。
 
-### 6. 脚本生成的 json 必须先让工具规范化
+### 7. 脚本生成的 json 必须先让工具规范化
 
 工具的 json 格式和 `json.dump()` 不一样（空数组它写 `[\n    ]`）。
 自己生成的 json 内容全对也过不了 `--json-roundtrip` —— 别去查那个"bug"。
@@ -125,7 +140,7 @@ UITools.exe --json-roundtrip mine.uiproj --out mine_norm.uiproj
 这一步会报不一致（正常），拿 `mine_norm.uiproj` 替换原文件，
 再跑 `--json-roundtrip` **和 `--json-rebuild`**，两个都 rc=0 才算过关。
 
-### 7. `--json-roundtrip` 只验格式，不验语义
+### 8. `--json-roundtrip` 只验格式，不验语义
 
 caption 改错、ename 重复、rect 超出父节点，它统统照样通过。
 **排版必须出图看，类型必须看 `--gen` 的警告。**

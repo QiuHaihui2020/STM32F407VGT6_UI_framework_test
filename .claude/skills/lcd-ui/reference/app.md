@@ -135,7 +135,49 @@ ON_CHANGE_UPDATE_ITEM      arg 见 ui_grid.c    动态列表刷条目
 ON_CHANGE_ANIMATION_END
 ```
 
-### ⚠ 四个容易踩的点
+### ⚠⚠ 头号大坑：绘制期回调里**不能**调 UI 更新 API
+
+**这条排第一，因为它的症状是整页崩掉，而且看着完全像资源出问题。**
+
+下面这些事件是**在绘制过程中**发出来的（`ui_core_show_rect()` 内部）：
+
+```
+ON_CHANGE_SHOW_PROBE   ON_CHANGE_SHOW   ON_CHANGE_SHOW_POST
+ON_CHANGE_FIRST_SHOW   ON_CHANGE_SHOW_COMPLETED
+```
+
+在这些时机里**不要**调 `ui_pic_show_image_by_id()` / `ui_text_set_*` /
+`ui_number_update_by_id()` 这类会更新控件的 API。它们会两头出事：
+
+```
+ui_pic_show_image_by_id()
+  └ ui_pic_show_image()
+      ├ ui_pic_set_image_index()
+      │    └ platform_api->load_widget_info(...)   ← 覆盖那个唯一的 static 缓冲
+      └ ui_core_redraw() / ui_core_show()
+           └ __ui_core_show()                       ← 重入整套绘制递归
+```
+
+`load_widget_info()` 返回的是资源管理器里**唯一一份** `static union ui_control_info`
+的地址，每次调用整块覆盖（框架在 `layer_init` / `layout_init` 的注释里写了两遍）。
+外层遍历正读着它，被内层冲掉 → 后续记录读成垃圾 → **整棵子树的遍历散架**。
+
+真实案例：某页窗口的 `FIRST_SHOW` 里刷了 10 个图片控件，结果那一页
+**只剩第一个和最后一个控件画出来**，布局和背景全没了 —— 查了很久资源，
+`.sty` 的 ctrl_num / 子指针 / invisible / 几何逐字段核过全是对的，问题根本不在资源。
+
+**怎么写才对：**
+
+| 想做的事 | 放哪 |
+|---|---|
+| 首次显示时把数据刷上去 | **推迟到绘制之外**：起个短定时器 / 发个 app 消息，等 `ui_show_main()` 走完再刷 |
+| 让第一次绘制就显示对的帧 | 控件自己的 `ON_CHANGE_INIT` 里用 `ui_pic_set_image_index()`（它**不**触发重绘） |
+| 给当前隐藏的那几屏补数据 | 在**那一屏被显示时**刷，不要在别的屏的回调里替它刷 |
+
+`ON_CHANGE_INIT` / `ON_CHANGE_RELEASE` 不在绘制期，调 API 是安全的
+（但 INIT 仍在创建遍历中，只设值、别触发重绘）。
+
+### ⚠ 另外四个容易踩的点
 
 **一、`ON_CHANGE_SHOW` 返回 0 会跳过后面全部。** 包括背景、边框、
 `SHOW_POST` 和 `FIRST_SHOW`。自绘控件（grid/text）就是靠返回 0 接管绘制的 ——
