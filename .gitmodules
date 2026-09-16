@@ -1,0 +1,3 @@
+[submodule "tools/LCD_UI工程/UIProject/tool_src"]
+	path = tools/LCD_UI工程/UIProject/tool_src
+	url = https://github.com/QiuHaihui2020/ui_edit_tool.git
