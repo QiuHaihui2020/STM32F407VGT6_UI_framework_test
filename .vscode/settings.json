@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "freertosconfig.h": "c",
+        "key_driver.h": "c",
+        "ff_gen_drv.h": "c",
+        "typedef.h": "c",
+        "log_debug.h": "c",
+        "stm32f4xx_hal.h": "c",
+        "usbd_msc.h": "c",
+        "usbd_ioreq.h": "c",
+        "usbd_def.h": "c",
+        "usbd_cdc.h": "c",
+        "stm32f4xx.h": "c"
+    },
+    "cmake.sourceDirectory": "D:/MyFile/zh-jieli/sdk_demo/JIELI_STM32_UI/STM32F407VGT6_Template/Drivers/CMSIS/NN"
+}
